@@ -1,0 +1,29 @@
+[project]
+name = "highliner"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+    "numpy",
+    "scipy",
+    "rasterio",
+    "pyproj",
+    "shapely",
+    "geopandas",
+    "pyarrow",
+    "requests",
+    "fastapi",
+    "uvicorn[standard]",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "httpx"]
+
+[project.scripts]
+highliner = "highliner.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["highliner*"]

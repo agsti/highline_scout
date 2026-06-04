@@ -9,7 +9,9 @@ height — the geometry of a highline.
 
 ## How it works
 
-1. **Ingest** — download ICGC bare-earth DTM tiles (2 m, EPSG:25831) for a region.
+1. **Ingest** — download ICGC bare-earth DTM (5 m, EPSG:25831) for a region.
+   ICGC's WCS caps each request at ~140 KB, so the bbox is fetched as small
+   tiles and merged into a single `mosaic.tif` automatically.
 2. **Analyze** (offline) — compute slope, find cliff-rim **anchor points**, and
    record, per anchor, the **directional sectors** where the ground drops away.
    Stored sparsely as GeoParquet.
@@ -30,12 +32,9 @@ This project uses [`uv`](https://docs.astral.sh/uv/). The geospatial stack
 
 ## Use
 
-    # 1. fetch terrain for a bbox (EPSG:25831 meters)
+    # 1. fetch terrain for a bbox (EPSG:25831 meters) -> builds mosaic.tif
     .venv/bin/highliner ingest --region montserrat \
         --bbox 402000,4606000,406000,4610000
-    #    if the fetch returns multiple tiles, build the mosaic:
-    #    gdalbuildvrt data/montserrat/mosaic.tif data/montserrat/dtm_*.tif
-    #    (single-tile fetches: rename/symlink the tile to mosaic.tif)
     # 2. extract anchors
     .venv/bin/highliner analyze --region montserrat
     # 3. serve the map

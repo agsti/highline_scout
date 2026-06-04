@@ -111,3 +111,13 @@ def test_analyze_rejects_too_large(tmp_path):
 def test_jobs_unknown_id_404(tmp_path):
     client = TestClient(api.create_app(data_dir=tmp_path))
     assert client.get("/jobs/nope").status_code == 404
+
+
+def test_consumer_starts_when_not_immediate(tmp_path):
+    from highliner import tasks
+    assert tasks.huey.immediate is False  # default
+    app = api.create_app(data_dir=tmp_path)
+    with TestClient(app):  # triggers startup
+        assert getattr(app.state, "huey_consumer", None) is not None
+    # after context exit (shutdown) the consumer is stopped
+    assert app.state.huey_consumer_stopped is True

@@ -10,7 +10,8 @@ from highliner.anchors import load_anchors
 from highliner.raster import Raster
 from highliner.pairing import find_candidates
 from highliner.jobstore import JobStore
-from highliner.tasks import analyze_task
+from highliner.tasks import analyze_task, huey
+from huey.consumer import Consumer
 
 
 def _slugify(text: str) -> str:
@@ -122,6 +123,26 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
         if j is None:
             raise HTTPException(404, "job not found")
         return j
+
+    @app.on_event("startup")
+    def _start_consumer():
+        app.state.huey_consumer = None
+        app.state.huey_consumer_stopped = False
+        if not huey.immediate:
+            consumer = Consumer(huey, workers=1, worker_type="thread")
+            # Embedded consumer: the app process owns signal handling, and
+            # startup may run off the main thread (e.g. TestClient), where
+            # signal.signal() raises. Skip huey's own handler registration.
+            consumer._set_signal_handlers = lambda: None
+            consumer.start()  # spawns worker + scheduler threads only
+            app.state.huey_consumer = consumer
+
+    @app.on_event("shutdown")
+    def _stop_consumer():
+        consumer = getattr(app.state, "huey_consumer", None)
+        if consumer is not None:
+            consumer.stop()
+        app.state.huey_consumer_stopped = True
 
     web_dir = Path(__file__).resolve().parent.parent / "web"
     if web_dir.exists():

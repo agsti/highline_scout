@@ -47,6 +47,25 @@ function wedge(lat, lon, start, end) {
 }
 
 const $ = (id) => document.getElementById(id);
+
+// Fetch a GeoJSON FeatureCollection, writing user-facing status to `statusEl`.
+// Returns the parsed FeatureCollection, or null when the request hit the
+// viewport cap (413) or otherwise errored — so callers must skip rendering on
+// null instead of assuming a `.features` array.
+async function fetchFC(url, statusEl, noun) {
+  const res = await fetch(url);
+  if (res.status === 413) {
+    statusEl.textContent = `zoom in to see ${noun}`;
+    return null;
+  }
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    statusEl.textContent = `error: ${body.detail || res.status}`;
+    return null;
+  }
+  return res.json();
+}
+
 const ctrls = ["maxLen", "minExp", "maxDh"];
 ctrls.forEach((id) => $(id).addEventListener("input", () => {
   $(id + "V").textContent = $(id).value;
@@ -80,8 +99,9 @@ async function refresh() {
   });
   $("status").textContent = "searching…";
   try {
-    const fc = await fetch("/candidates?" + params).then((x) => x.json());
+    const fc = await fetchFC("/candidates?" + params, $("status"), "candidates");
     layer.clearLayers();
+    if (!fc) return;
     layer.addData(fc);
     $("status").textContent = `${fc.features.length} candidates`;
   } catch (e) {
@@ -131,18 +151,16 @@ async function refreshAnchors() {
   const b = map.getBounds();
   const bbox = [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()].join(",");
   try {
-    const res = await fetch("/anchors?" + new URLSearchParams({
-      region, bbox_lonlat: bbox,
-    }));
-    if (res.status === 413) {
+    const url = "/anchors?" + new URLSearchParams({ region, bbox_lonlat: bbox });
+    const fc = await fetchFC(url, $("anchorStatus"), "anchors");
+    if (!fc) {
       anchorLayer.clearLayers();
-      $("anchorStatus").textContent = "zoom in to see anchors";
       return;
     }
-    const fc = await res.json();
     renderAnchors(fc);
     $("anchorStatus").textContent = `${fc.features.length} anchors`;
   } catch (e) {
+    anchorLayer.clearLayers();
     $("anchorStatus").textContent = "anchor error: " + e;
   }
 }

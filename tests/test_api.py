@@ -68,3 +68,46 @@ def test_candidates_bbox_lonlat(tmp_path):
     })
     assert r.status_code == 200
     assert len(r.json()["features"]) == 1
+
+
+def test_analyze_enqueues_and_completes(tmp_path, monkeypatch):
+    from highliner import tasks, pipeline
+    tasks.huey.immediate = True
+    try:
+        def fake_analyze(bbox, region, data_dir, report=None):
+            from pathlib import Path
+            d = Path(data_dir) / region
+            d.mkdir(parents=True, exist_ok=True)
+            save_anchors([], d / "anchors.parquet")
+            with rasterio.open(d / "mosaic.tif", "w", driver="GTiff", height=4,
+                               width=4, count=1, dtype="float32",
+                               crs="EPSG:25831",
+                               transform=from_origin(0, 8, 2.0, 2.0)) as ds:
+                ds.write(np.zeros((4, 4), "float32"), 1)
+            return 0
+        monkeypatch.setattr(pipeline, "analyze_area", fake_analyze)
+
+        client = TestClient(api.create_app(data_dir=tmp_path))
+        r = client.post("/analyze", json={
+            "name": "Test Area", "bbox_lonlat": "2.80,41.96,2.81,41.97"})
+        assert r.status_code == 200
+        job_id = r.json()["job_id"]
+
+        job = client.get(f"/jobs/{job_id}").json()
+        assert job["status"] == "done"
+        assert client.get("/jobs").json()["jobs"]  # non-empty list
+    finally:
+        tasks.huey.immediate = False
+
+
+def test_analyze_rejects_too_large(tmp_path):
+    client = TestClient(api.create_app(data_dir=tmp_path))
+    # ~0.5 x 0.5 degree -> tens of thousands of tiles, over the cap
+    r = client.post("/analyze", json={
+        "name": "Huge", "bbox_lonlat": "2.0,41.5,2.5,42.0"})
+    assert r.status_code == 400
+
+
+def test_jobs_unknown_id_404(tmp_path):
+    client = TestClient(api.create_app(data_dir=tmp_path))
+    assert client.get("/jobs/nope").status_code == 404

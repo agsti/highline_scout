@@ -44,8 +44,22 @@ def _download_tile(bbox, width: int, height: int, dest: Path) -> Path:
     return dest
 
 
+def estimate_tiles(bbox, res: float = NATIVE_RES,
+                   tile_px: int = MAX_TILE_PX) -> int:
+    minx, miny, maxx, maxy = (float(v) for v in bbox)
+    minx = math.floor(minx / res) * res
+    miny = math.floor(miny / res) * res
+    maxx = math.ceil(maxx / res) * res
+    maxy = math.ceil(maxy / res) * res
+    step = tile_px * res
+    nx = math.ceil((maxx - minx) / step)
+    ny = math.ceil((maxy - miny) / step)
+    return int(nx * ny)
+
+
 def fetch_dtm(bbox, region: str, data_dir: Path | None = None,
-              res: float = NATIVE_RES, tile_px: int = MAX_TILE_PX) -> Path:
+              res: float = NATIVE_RES, tile_px: int = MAX_TILE_PX,
+              progress=None) -> Path:
     """Download the DTM for ``bbox`` (EPSG:25831 meters) and build mosaic.tif.
 
     Tiles and the mosaic are cached: if mosaic.tif already exists it is returned
@@ -66,6 +80,7 @@ def fetch_dtm(bbox, region: str, data_dir: Path | None = None,
     maxy = math.ceil(maxy / res) * res
 
     step = tile_px * res
+    total = estimate_tiles((minx, miny, maxx, maxy), res=res, tile_px=tile_px)
     tiles_dir = region_dir / "tiles"
     tiles_dir.mkdir(exist_ok=True)
 
@@ -83,6 +98,8 @@ def fetch_dtm(bbox, region: str, data_dir: Path | None = None,
                 if not asc.exists():
                     _download_tile((x, y, tx2, ty2), w, h, asc)
                 tile_paths.append(asc)
+                if progress is not None:
+                    progress(len(tile_paths), total)
             x = tx2
         y = ty2
 

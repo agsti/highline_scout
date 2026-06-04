@@ -7,8 +7,7 @@ def _cmd_ingest(args):
     from highliner.ingest import fetch_dtm
     bbox = tuple(float(v) for v in args.bbox.split(","))
     path = fetch_dtm(bbox, region=args.region, data_dir=Path(args.data_dir))
-    print(f"fetched DTM -> {path}")
-    print("note: if multiple tiles, build data/<region>/mosaic.tif via gdalbuildvrt")
+    print(f"fetched DTM mosaic -> {path}")
 
 
 def _cmd_analyze(args):

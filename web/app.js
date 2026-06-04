@@ -54,3 +54,56 @@ async function refresh() {
 }
 
 loadRegions();
+
+function addRegionOption(name) {
+  if ([...$("region").options].some((o) => o.value === name)) return;
+  const o = document.createElement("option");
+  o.value = o.textContent = name;
+  $("region").appendChild(o);
+}
+
+async function pollJob(jobId) {
+  const job = await fetch("/jobs/" + jobId).then((x) => x.json());
+  if (job.status === "queued") {
+    $("jobStatus").textContent = "queued…";
+  } else if (job.status === "running") {
+    $("jobStatus").textContent = job.phase === "downloading"
+      ? `downloading ${job.done}/${job.total} tiles…`
+      : "extracting anchors…";
+  } else if (job.status === "done") {
+    $("jobStatus").textContent = job.message || "done";
+    addRegionOption(job.region);
+    $("region").value = job.region;
+    $("analyzeBtn").disabled = false;
+    refresh();
+    return;
+  } else if (job.status === "error") {
+    $("jobStatus").textContent = "error: " + job.error;
+    $("analyzeBtn").disabled = false;
+    return;
+  }
+  setTimeout(() => pollJob(jobId), 1000);
+}
+
+$("analyzeBtn").addEventListener("click", async () => {
+  const b = map.getBounds();
+  const bbox = [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()].join(",");
+  $("analyzeBtn").disabled = true;
+  $("jobStatus").textContent = "submitting…";
+  try {
+    const res = await fetch("/analyze", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: $("regionName").value, bbox_lonlat: bbox }),
+    });
+    if (!res.ok) {
+      $("jobStatus").textContent = "error: " + (await res.text());
+      $("analyzeBtn").disabled = false;
+      return;
+    }
+    pollJob((await res.json()).job_id);
+  } catch (e) {
+    $("jobStatus").textContent = "error: " + e;
+    $("analyzeBtn").disabled = false;
+  }
+});

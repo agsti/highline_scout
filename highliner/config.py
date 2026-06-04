@@ -21,3 +21,7 @@ MAX_CANDIDATES = 500        # cap returned per viewport
 
 # Paths
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
+
+# Web-triggered analysis jobs
+MAX_ANALYZE_TILES = 200     # reject POST /analyze whose bbox needs more tiles
+HUEY_DB = DATA_DIR / "huey.db"

@@ -86,7 +86,7 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
         minx, miny, maxx, maxy = _bbox_utm(bbox, bbox_lonlat)
         in_view = [a for a in anchors
                    if minx <= a.x <= maxx and miny <= a.y <= maxy]
-        if len(in_view) > 20000:
+        if len(in_view) > config.MAX_ANCHORS_IN_VIEW:
             raise HTTPException(413, "too many anchors in view; zoom in")
         cands = find_candidates(in_view, raster, max_len, min_len,
                                 min_exposure, max_dh)

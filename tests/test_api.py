@@ -40,3 +40,31 @@ def test_candidates_endpoint(tmp_path):
     fc = r.json()
     assert fc["type"] == "FeatureCollection"
     assert len(fc["features"]) == 1
+
+
+def test_candidates_bbox_lonlat(tmp_path):
+    # Place the region's anchors at real Catalan UTM coords and query with a
+    # lon/lat bbox that covers them, exercising the WGS84 -> UTM conversion.
+    from highliner import geo
+    region = tmp_path / "geo"
+    region.mkdir(parents=True)
+    cx, cy = geo.to_utm(1.83, 41.59)  # near Montserrat
+    data = np.full((101, 101), 100.0, dtype="float32")
+    data[:, 31:70] = 20.0
+    transform = from_origin(cx - 100, cy + 102, 2.0, 2.0)
+    with rasterio.open(region / "mosaic.tif", "w", driver="GTiff",
+                       height=101, width=101, count=1, dtype="float32",
+                       crs="EPSG:25831", transform=transform) as ds:
+        ds.write(data, 1)
+    a = Anchor(x=cx - 40, y=cy, elev=100.0, sectors=((80, 100, 60),))
+    b = Anchor(x=cx + 40, y=cy, elev=100.0, sectors=((260, 280, 60),))
+    save_anchors([a, b], region / "anchors.parquet")
+
+    client = TestClient(api.create_app(data_dir=tmp_path))
+    r = client.get("/candidates", params={
+        "region": "geo",
+        "bbox_lonlat": "1.82,41.58,1.84,41.60",
+        "max_len": 120, "min_exposure": 50, "max_dh": 5,
+    })
+    assert r.status_code == 200
+    assert len(r.json()["features"]) == 1

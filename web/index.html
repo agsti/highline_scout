@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Highliner Finder</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="panel">
+    <h1>Highliner Finder</h1>
+    <label>Region <select id="region"></select></label>
+    <label>Max length <span id="maxLenV">150</span> m
+      <input type="range" id="maxLen" min="20" max="500" value="150" /></label>
+    <label>Min exposure <span id="minExpV">30</span> m
+      <input type="range" id="minExp" min="0" max="300" value="30" /></label>
+    <label>Max height diff <span id="maxDhV">10</span> m
+      <input type="range" id="maxDh" min="0" max="50" value="10" /></label>
+    <p class="caveat">Candidates to scout — not confirmed-riggable. No bolts,
+      trees, loose rock, access or permissions are verified.</p>
+    <p id="status"></p>
+  </div>
+  <div id="map"></div>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from highliner import config, scoring, ingest
-from highliner.anchors import load_anchors
+from highliner.anchors import load_anchors, to_geojson as anchors_to_geojson
 from highliner.raster import Raster
 from highliner.pairing import find_candidates
 from highliner.jobstore import JobStore
@@ -26,6 +26,20 @@ def _unique_region(data_dir, slug: str) -> str:
         region = f"{slug}-{i}"
         i += 1
     return region
+
+
+def _bbox_utm(bbox, bbox_lonlat):
+    """Return (minx, miny, maxx, maxy) in UTM from either a UTM bbox string
+    or a lon/lat bbox string. Raises HTTPException(400) if neither given."""
+    from highliner import geo
+    if bbox_lonlat:
+        w, s, e, n = (float(v) for v in bbox_lonlat.split(","))
+        minx, miny = geo.to_utm(w, s)
+        maxx, maxy = geo.to_utm(e, n)
+        return minx, miny, maxx, maxy
+    if bbox:
+        return tuple(float(v) for v in bbox.split(","))
+    raise HTTPException(400, "provide bbox or bbox_lonlat")
 
 
 class AnalyzeRequest(BaseModel):
@@ -68,19 +82,11 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
         min_exposure: float = config.DEFAULT_MIN_EXPOSURE_M,
         max_dh: float = config.DEFAULT_MAX_DH_M,
     ):
-        from highliner import geo
         anchors, raster = _region(region)
-        if bbox_lonlat:
-            w, s, e, n = (float(v) for v in bbox_lonlat.split(","))
-            minx, miny = geo.to_utm(w, s)
-            maxx, maxy = geo.to_utm(e, n)
-        elif bbox:
-            minx, miny, maxx, maxy = (float(v) for v in bbox.split(","))
-        else:
-            raise HTTPException(400, "provide bbox or bbox_lonlat")
+        minx, miny, maxx, maxy = _bbox_utm(bbox, bbox_lonlat)
         in_view = [a for a in anchors
                    if minx <= a.x <= maxx and miny <= a.y <= maxy]
-        if len(in_view) > 20000:
+        if len(in_view) > config.MAX_ANCHORS_IN_VIEW:
             raise HTTPException(413, "too many anchors in view; zoom in")
         cands = find_candidates(in_view, raster, max_len, min_len,
                                 min_exposure, max_dh)
@@ -88,18 +94,23 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
                        reverse=True)[:config.MAX_CANDIDATES]
         return scoring.to_geojson(cands)
 
+    @app.get("/anchors")
+    def anchors(
+        region: str,
+        bbox: str | None = None,
+        bbox_lonlat: str | None = None,
+    ):
+        anchor_list, _raster = _region(region)
+        minx, miny, maxx, maxy = _bbox_utm(bbox, bbox_lonlat)
+        in_view = [a for a in anchor_list
+                   if minx <= a.x <= maxx and miny <= a.y <= maxy]
+        if len(in_view) > config.MAX_ANCHORS_IN_VIEW:
+            raise HTTPException(413, "too many anchors in view; zoom in")
+        return anchors_to_geojson(in_view)
+
     @app.post("/analyze")
     def analyze(req: AnalyzeRequest):
-        from highliner import geo
-        if req.bbox_lonlat:
-            w, s, e, n = (float(v) for v in req.bbox_lonlat.split(","))
-            minx, miny = geo.to_utm(w, s)
-            maxx, maxy = geo.to_utm(e, n)
-        elif req.bbox:
-            minx, miny, maxx, maxy = (float(v) for v in req.bbox.split(","))
-        else:
-            raise HTTPException(400, "provide bbox or bbox_lonlat")
-        bbox = (minx, miny, maxx, maxy)
+        bbox = _bbox_utm(req.bbox, req.bbox_lonlat)
 
         tiles = ingest.estimate_tiles(bbox)
         if tiles > config.MAX_ANALYZE_TILES:

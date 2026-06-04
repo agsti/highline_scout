@@ -11,6 +11,41 @@ const layer = L.geoJSON(null, {
   },
 }).addTo(map);
 
+const ANCHOR_COLOR = "#1f9e8f";
+const ANCHOR_DETAIL_LIMIT = 400; // above this, draw dots instead of wedges
+const ANCHOR_WEDGE_RADIUS_M = 30;
+const anchorCanvas = L.canvas({ padding: 0.5 });
+const anchorLayer = L.layerGroup().addTo(map);
+
+// Destination point given start lat/lon, bearing (deg clockwise from north),
+// and distance in meters. Matches highliner.geo.bearing's convention.
+function destPoint(lat, lon, bearingDeg, distM) {
+  const R = 6371000;
+  const d = distM / R;
+  const brng = (bearingDeg * Math.PI) / 180;
+  const lat1 = (lat * Math.PI) / 180;
+  const lon1 = (lon * Math.PI) / 180;
+  const lat2 = Math.asin(
+    Math.sin(lat1) * Math.cos(d) + Math.cos(lat1) * Math.sin(d) * Math.cos(brng));
+  const lon2 = lon1 + Math.atan2(
+    Math.sin(brng) * Math.sin(d) * Math.cos(lat1),
+    Math.cos(d) - Math.sin(lat1) * Math.sin(lat2));
+  return [(lat2 * 180) / Math.PI, (lon2 * 180) / Math.PI];
+}
+
+// Polygon ring for a sector wedge: apex at center, arc swept clockwise
+// from `start` to `end` bearing at a fixed radius.
+function wedge(lat, lon, start, end) {
+  let span = (end - start) % 360;
+  if (span <= 0) span += 360;
+  const steps = Math.max(2, Math.ceil(span / 10));
+  const pts = [[lat, lon]];
+  for (let i = 0; i <= steps; i++) {
+    pts.push(destPoint(lat, lon, start + (span * i) / steps, ANCHOR_WEDGE_RADIUS_M));
+  }
+  return pts;
+}
+
 const $ = (id) => document.getElementById(id);
 const ctrls = ["maxLen", "minExp", "maxDh"];
 ctrls.forEach((id) => $(id).addEventListener("input", () => {
@@ -26,8 +61,9 @@ async function loadRegions() {
     o.value = o.textContent = name;
     $("region").appendChild(o);
   });
-  $("region").addEventListener("change", refresh);
+  $("region").addEventListener("change", () => { refresh(); refreshAnchors(); });
   refresh();
+  refreshAnchors();
 }
 
 async function refresh() {
@@ -53,6 +89,67 @@ async function refresh() {
   }
 }
 
+function anchorPopup(p) {
+  const secs = p.sectors
+    .map((s) => `drop ${Math.round(s[0])}–${Math.round(s[1])}° (${Math.round(s[2])} m)`)
+    .join("<br>");
+  return `anchor • elev ${Math.round(p.elev)} m<br>${secs}`;
+}
+
+function renderAnchors(fc) {
+  anchorLayer.clearLayers();
+  const detailed = fc.features.length <= ANCHOR_DETAIL_LIMIT;
+  fc.features.forEach((f) => {
+    const [lon, lat] = f.geometry.coordinates;
+    const p = f.properties;
+    if (detailed) {
+      p.sectors.forEach((s) => {
+        L.polygon(wedge(lat, lon, s[0], s[1]), {
+          color: ANCHOR_COLOR, weight: 1, fillOpacity: 0.25,
+        }).addTo(anchorLayer);
+      });
+      L.circleMarker([lat, lon], {
+        radius: 4, color: ANCHOR_COLOR, weight: 1, fillOpacity: 1,
+      }).bindPopup(anchorPopup(p)).addTo(anchorLayer);
+    } else {
+      L.circleMarker([lat, lon], {
+        renderer: anchorCanvas, radius: 2, color: ANCHOR_COLOR,
+        weight: 1, fillOpacity: 0.8,
+      }).bindPopup(anchorPopup(p)).addTo(anchorLayer);
+    }
+  });
+}
+
+async function refreshAnchors() {
+  if (!$("showAnchors").checked) {
+    anchorLayer.clearLayers();
+    $("anchorStatus").textContent = "";
+    return;
+  }
+  const region = $("region").value;
+  if (!region) return;
+  const b = map.getBounds();
+  const bbox = [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()].join(",");
+  try {
+    const res = await fetch("/anchors?" + new URLSearchParams({
+      region, bbox_lonlat: bbox,
+    }));
+    if (res.status === 413) {
+      anchorLayer.clearLayers();
+      $("anchorStatus").textContent = "zoom in to see anchors";
+      return;
+    }
+    const fc = await res.json();
+    renderAnchors(fc);
+    $("anchorStatus").textContent = `${fc.features.length} anchors`;
+  } catch (e) {
+    $("anchorStatus").textContent = "anchor error: " + e;
+  }
+}
+
+map.on("moveend", refreshAnchors);
+$("showAnchors").addEventListener("change", refreshAnchors);
+
 loadRegions();
 
 function addRegionOption(name) {
@@ -76,6 +173,7 @@ async function pollJob(jobId) {
     $("region").value = job.region;
     $("analyzeBtn").disabled = false;
     refresh();
+    refreshAnchors();
     return;
   } else if (job.status === "error") {
     $("jobStatus").textContent = "error: " + job.error;

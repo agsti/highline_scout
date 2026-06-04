@@ -4,7 +4,7 @@ from rasterio.transform import from_origin
 from fastapi.testclient import TestClient
 
 from highliner.anchors import Anchor, save_anchors
-from highliner import api
+from highliner import api, config
 
 
 def _setup_region(data_dir):
@@ -121,3 +121,32 @@ def test_consumer_starts_when_not_immediate(tmp_path):
         assert getattr(app.state, "huey_consumer", None) is not None
     # after context exit (shutdown) the consumer is stopped
     assert app.state.huey_consumer_stopped is True
+
+
+def test_anchors_endpoint(tmp_path):
+    _setup_region(tmp_path)
+    client = TestClient(api.create_app(data_dir=tmp_path))
+    r = client.get("/anchors", params={"region": "test", "bbox": "0,0,300,300"})
+    assert r.status_code == 200
+    fc = r.json()
+    assert fc["type"] == "FeatureCollection"
+    assert len(fc["features"]) == 2
+    assert fc["features"][0]["geometry"]["type"] == "Point"
+    assert fc["features"][0]["properties"]["sectors"]
+
+
+def test_anchors_filters_out_of_view(tmp_path):
+    _setup_region(tmp_path)
+    client = TestClient(api.create_app(data_dir=tmp_path))
+    # bbox covers anchor a (x=60) but not b (x=140)
+    r = client.get("/anchors", params={"region": "test", "bbox": "0,0,100,300"})
+    assert r.status_code == 200
+    assert len(r.json()["features"]) == 1
+
+
+def test_anchors_cap_413(tmp_path, monkeypatch):
+    _setup_region(tmp_path)
+    monkeypatch.setattr(config, "MAX_ANCHORS_IN_VIEW", 1)
+    client = TestClient(api.create_app(data_dir=tmp_path))
+    r = client.get("/anchors", params={"region": "test", "bbox": "0,0,300,300"})
+    assert r.status_code == 413

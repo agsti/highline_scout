@@ -31,3 +31,19 @@ def load_anchors(path) -> list[Anchor]:
         secs = tuple(tuple(s) for s in json.loads(sectors))
         out.append(Anchor(x=geom.x, y=geom.y, elev=float(elev), sectors=secs))
     return out
+
+
+def to_geojson(anchors) -> dict:
+    from highliner import geo
+    features = []
+    for a in anchors:
+        lon, lat = geo.to_lonlat(a.x, a.y)
+        features.append({
+            "type": "Feature",
+            "geometry": {"type": "Point", "coordinates": [lon, lat]},
+            "properties": {
+                "elev": a.elev,
+                "sectors": [list(s) for s in a.sectors],
+            },
+        })
+    return {"type": "FeatureCollection", "features": features}

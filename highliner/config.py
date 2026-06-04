@@ -18,6 +18,7 @@ DEFAULT_MIN_EXPOSURE_M = 30.0
 DEFAULT_MAX_DH_M = 10.0
 SECTOR_TOL_DEG = 10.0       # angular tolerance when testing bearing-in-sector
 MAX_CANDIDATES = 500        # cap returned per viewport
+MAX_ANCHORS_IN_VIEW = 20000  # cap for GET /anchors; past this, client should zoom in
 
 # Paths
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"

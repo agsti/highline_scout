@@ -1,11 +1,13 @@
 # Highliner Finder
 
-Find candidate highline spots in Catalonia from ICGC LIDAR terrain.
+Find potential highline zones in Catalonia from ICGC LIDAR terrain.
 
 A highline is a slackline rigged between two cliff anchors and suspended in the
-air across a gap. This tool scans terrain elevation data for pairs of steep
-points that face each other across a deep gap, at a riggable distance and similar
-height — the geometry of a highline.
+air across a gap. This tool scans terrain elevation data for **zones** —
+clusters of nearby cliff-rim points where at least two anchors face each other
+across a deep gap at a riggable distance. Each zone reports its highline
+height range: per pair, the lower anchor's elevation minus the lowest terrain
+point between the anchors.
 
 ## How it works
 
@@ -15,9 +17,10 @@ height — the geometry of a highline.
 2. **Analyze** (offline) — compute slope, find cliff-rim **anchor points**, and
    record, per anchor, the **directional sectors** where the ground drops away.
    Stored sparsely as GeoParquet.
-3. **Serve** — a FastAPI + Leaflet map pairs anchors live in the current viewport
-   (directional gate + exposure check) with adjustable sliders, drawing candidate
-   lines.
+3. **Serve** — a FastAPI + Leaflet map pairs anchors live in the current
+   viewport (directional gate + exposure check) with adjustable sliders,
+   clusters the paired anchors, and draws potential **zones** colored by
+   highline height.
 
 ## Setup
 
@@ -61,5 +64,5 @@ allowed. Always confirm access and permissions on the ground.
 
 ## Caveat
 
-Results are **candidates to scout**, not confirmed-riggable lines. Terrain data
+Results are **zones to scout**, not confirmed-riggable lines. Terrain data
 cannot reveal bolts, trees, loose rock, access, or permissions. Scout responsibly.

@@ -197,7 +197,7 @@ map.on("moveend", refreshAnchors);
 $("showAnchors").addEventListener("change", refreshAnchors);
 
 // --- protected-area (restriction) overlays ---------------------------------
-// Drawn in a dedicated pane below the candidate lines and anchor markers so the
+// Drawn in a dedicated pane below the zone polygons and anchor markers so the
 // markers stay clickable on top. Layers are independent of the selected region.
 map.createPane("restrictions");
 map.getPane("restrictions").style.zIndex = 350;

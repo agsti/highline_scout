@@ -24,14 +24,14 @@ def _setup_region(data_dir):
     save_anchors([a, b], region / "anchors.parquet")
 
 
-def test_candidates_endpoint(tmp_path):
+def test_zones_endpoint(tmp_path):
     _setup_region(tmp_path)
     app = api.create_app(data_dir=tmp_path)
     client = TestClient(app)
 
     assert "test" in [r["name"] for r in client.get("/regions").json()["regions"]]
 
-    r = client.get("/candidates", params={
+    r = client.get("/zones", params={
         "region": "test",
         "bbox": "0,0,300,300",
         "max_len": 120, "min_exposure": 50, "max_dh": 5,
@@ -40,9 +40,21 @@ def test_candidates_endpoint(tmp_path):
     fc = r.json()
     assert fc["type"] == "FeatureCollection"
     assert len(fc["features"]) == 1
+    f = fc["features"][0]
+    assert f["geometry"]["type"] == "Polygon"
+    p = f["properties"]
+    assert p["n_anchors"] == 2 and p["n_pairs"] == 1
+    assert p["height_min"] == p["height_max"] == 80.0  # plateau 100, gap 20
 
 
-def test_candidates_bbox_lonlat(tmp_path):
+def test_candidates_route_removed(tmp_path):
+    _setup_region(tmp_path)
+    client = TestClient(api.create_app(data_dir=tmp_path))
+    r = client.get("/candidates", params={"region": "test", "bbox": "0,0,300,300"})
+    assert r.status_code == 404
+
+
+def test_zones_bbox_lonlat(tmp_path):
     # Place the region's anchors at real Catalan UTM coords and query with a
     # lon/lat bbox that covers them, exercising the WGS84 -> UTM conversion.
     from highliner import geo
@@ -61,7 +73,7 @@ def test_candidates_bbox_lonlat(tmp_path):
     save_anchors([a, b], region / "anchors.parquet")
 
     client = TestClient(api.create_app(data_dir=tmp_path))
-    r = client.get("/candidates", params={
+    r = client.get("/zones", params={
         "region": "geo",
         "bbox_lonlat": "1.82,41.58,1.84,41.60",
         "max_len": 120, "min_exposure": 50, "max_dh": 5,

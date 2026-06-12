@@ -5,7 +5,7 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from highliner import config, scoring, ingest, restrictions
+from highliner import config, ingest, restrictions, zones as zones_mod
 from highliner.anchors import load_anchors, to_geojson as anchors_to_geojson
 from highliner.raster import Raster
 from highliner.pairing import find_candidates
@@ -107,8 +107,8 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
                         "bounds_lonlat": _mosaic_bounds_lonlat(p / "mosaic.tif")})
         return {"regions": out}
 
-    @app.get("/candidates")
-    def candidates(
+    @app.get("/zones")
+    def zones(
         region: str,
         bbox: str | None = None,
         bbox_lonlat: str | None = None,
@@ -116,6 +116,7 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
         min_len: float = config.DEFAULT_MIN_LEN_M,
         min_exposure: float = config.DEFAULT_MIN_EXPOSURE_M,
         max_dh: float = config.DEFAULT_MAX_DH_M,
+        cluster_dist: float = config.CLUSTER_DIST_M,
     ):
         anchors, raster = _region(region)
         minx, miny, maxx, maxy = _bbox_utm(bbox, bbox_lonlat)
@@ -125,9 +126,7 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
             raise HTTPException(413, "too many anchors in view; zoom in")
         cands = find_candidates(in_view, raster, max_len, min_len,
                                 min_exposure, max_dh)
-        cands = sorted(cands, key=scoring.score,
-                       reverse=True)[:config.MAX_CANDIDATES]
-        return scoring.to_geojson(cands)
+        return zones_mod.to_geojson(zones_mod.build_zones(cands, cluster_dist))
 
     @app.get("/anchors")
     def anchors(

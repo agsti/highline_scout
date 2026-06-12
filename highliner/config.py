@@ -17,8 +17,7 @@ DEFAULT_MIN_LEN_M = 20.0
 DEFAULT_MIN_EXPOSURE_M = 30.0
 DEFAULT_MAX_DH_M = 10.0
 SECTOR_TOL_DEG = 10.0       # angular tolerance when testing bearing-in-sector
-MAX_CANDIDATES = 500        # cap returned per viewport
-MAX_ANCHORS_IN_VIEW = 20000  # cap on anchors in a viewport (GET /anchors and /candidates)
+MAX_ANCHORS_IN_VIEW = 20000  # cap on anchors in a viewport (GET /anchors and /zones)
 MAX_RESTRICTION_FEATURES = 4000  # cap protected-area polygons returned per viewport
 
 # Zone clustering

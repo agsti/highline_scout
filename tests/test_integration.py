@@ -20,10 +20,10 @@ def test_full_pipeline(tmp_path):
     cli.main(["analyze", "--region", "demo", "--data-dir", str(tmp_path)])
 
     client = TestClient(api.create_app(data_dir=tmp_path))
-    fc = client.get("/candidates", params={
+    fc = client.get("/zones", params={
         "region": "demo", "bbox": "420000,4600000,420302,4600302",
         "max_len": 120, "min_exposure": 50, "max_dh": 5,
     }).json()
-    assert fc["features"], "expected at least one candidate across the gap"
+    assert fc["features"], "expected a zone across the gap"
     best = fc["features"][0]["properties"]
-    assert best["exposure"] >= 50
+    assert best["height_max"] >= 50

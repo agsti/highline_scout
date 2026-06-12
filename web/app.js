@@ -73,16 +73,33 @@ ctrls.forEach((id) => $(id).addEventListener("input", () => {
 }));
 map.on("moveend", refresh);
 
-async function loadRegions() {
+const regionBounds = {}; // region name -> [w, s, e, n] in lon/lat
+
+// Fly the map to a region's extent. fitBounds fires `moveend`, which already
+// triggers refresh()/refreshAnchors(); fall back to an in-place refresh only
+// when the region has no known bounds.
+function flyToRegion(name) {
+  const b = regionBounds[name];
+  if (!b) { refresh(); refreshAnchors(); return; }
+  map.fitBounds([[b[1], b[0]], [b[3], b[2]]]);
+}
+
+async function fetchRegions() {
   const r = await fetch("/regions").then((x) => x.json());
-  r.regions.forEach((name) => {
+  r.regions.forEach((reg) => { regionBounds[reg.name] = reg.bounds_lonlat; });
+  return r.regions;
+}
+
+async function loadRegions() {
+  const regions = await fetchRegions();
+  regions.forEach((reg) => {
     const o = document.createElement("option");
-    o.value = o.textContent = name;
+    o.value = o.textContent = reg.name;
     $("region").appendChild(o);
   });
-  $("region").addEventListener("change", () => { refresh(); refreshAnchors(); });
-  refresh();
-  refreshAnchors();
+  $("region").addEventListener("change", () => flyToRegion($("region").value));
+  if ($("region").value) flyToRegion($("region").value);
+  else { refresh(); refreshAnchors(); }
 }
 
 async function refresh() {
@@ -190,8 +207,8 @@ async function pollJob(jobId) {
     addRegionOption(job.region);
     $("region").value = job.region;
     $("analyzeBtn").disabled = false;
-    refresh();
-    refreshAnchors();
+    await fetchRegions();      // pick up the new region's bounds
+    flyToRegion(job.region);   // fitBounds -> moveend -> refresh
     return;
   } else if (job.status === "error") {
     $("jobStatus").textContent = "error: " + job.error;

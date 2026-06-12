@@ -29,7 +29,7 @@ def test_candidates_endpoint(tmp_path):
     app = api.create_app(data_dir=tmp_path)
     client = TestClient(app)
 
-    assert "test" in client.get("/regions").json()["regions"]
+    assert "test" in [r["name"] for r in client.get("/regions").json()["regions"]]
 
     r = client.get("/candidates", params={
         "region": "test",
@@ -68,6 +68,13 @@ def test_candidates_bbox_lonlat(tmp_path):
     })
     assert r.status_code == 200
     assert len(r.json()["features"]) == 1
+
+    # /regions reports each region's lon/lat extent so the UI can fly to it.
+    entry = next(e for e in client.get("/regions").json()["regions"]
+                 if e["name"] == "geo")
+    w, s, e_, n = entry["bounds_lonlat"]
+    assert w < e_ and s < n
+    assert w <= 1.83 <= e_ and s <= 41.59 <= n  # the mosaic's own extent
 
 
 def test_analyze_enqueues_and_completes(tmp_path, monkeypatch):

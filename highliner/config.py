@@ -24,5 +24,5 @@ MAX_ANCHORS_IN_VIEW = 20000  # cap on anchors in a viewport (GET /anchors and /c
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 
 # Web-triggered analysis jobs
-MAX_ANALYZE_TILES = 200     # reject POST /analyze whose bbox needs more tiles
+MAX_ANALYZE_TILES = 300     # reject POST /analyze whose bbox needs more tiles
 HUEY_DB = DATA_DIR / "huey.db"

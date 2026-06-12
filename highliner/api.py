@@ -5,7 +5,7 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from highliner import config, scoring, ingest
+from highliner import config, scoring, ingest, restrictions
 from highliner.anchors import load_anchors, to_geojson as anchors_to_geojson
 from highliner.raster import Raster
 from highliner.pairing import find_candidates
@@ -39,6 +39,20 @@ def _bbox_utm(bbox, bbox_lonlat):
         return minx, miny, maxx, maxy
     if bbox:
         return tuple(float(v) for v in bbox.split(","))
+    raise HTTPException(400, "provide bbox or bbox_lonlat")
+
+
+def _bbox_lonlat(bbox, bbox_lonlat):
+    """Return (w, s, e, n) in lon/lat from a lon/lat bbox string, or by
+    converting a UTM bbox string's corners. Raises 400 if neither given."""
+    if bbox_lonlat:
+        return tuple(float(v) for v in bbox_lonlat.split(","))
+    if bbox:
+        from highliner import geo
+        minx, miny, maxx, maxy = (float(v) for v in bbox.split(","))
+        w, s = geo.to_lonlat(minx, miny)
+        e, n = geo.to_lonlat(maxx, maxy)
+        return w, s, e, n
     raise HTTPException(400, "provide bbox or bbox_lonlat")
 
 
@@ -128,6 +142,31 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
         if len(in_view) > config.MAX_ANCHORS_IN_VIEW:
             raise HTTPException(413, "too many anchors in view; zoom in")
         return anchors_to_geojson(in_view)
+
+    @app.get("/restrictions/layers")
+    def restriction_layers():
+        return {"layers": restrictions.layer_meta()}
+
+    @app.get("/restrictions")
+    def restrictions_in_view(
+        bbox: str | None = None,
+        bbox_lonlat: str | None = None,
+        layers: str | None = None,
+    ):
+        box = _bbox_lonlat(bbox, bbox_lonlat)
+        ids = ([x for x in layers.split(",") if x in restrictions.LAYERS]
+               if layers else list(restrictions.LAYERS))
+        rdir = data_dir / "restrictions"
+        feats: list[dict] = []
+        for layer_id in ids:
+            path = rdir / f"{layer_id}.parquet"
+            if not path.exists():
+                continue
+            gdf = restrictions.load_layer(str(path))
+            feats.extend(restrictions.clip_to_features(layer_id, gdf, box))
+            if len(feats) > config.MAX_RESTRICTION_FEATURES:
+                raise HTTPException(413, "too many areas in view; zoom in")
+        return {"type": "FeatureCollection", "features": feats}
 
     @app.post("/analyze")
     def analyze(req: AnalyzeRequest):

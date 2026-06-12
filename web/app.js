@@ -185,6 +185,99 @@ async function refreshAnchors() {
 map.on("moveend", refreshAnchors);
 $("showAnchors").addEventListener("change", refreshAnchors);
 
+// --- protected-area (restriction) overlays ---------------------------------
+// Drawn in a dedicated pane below the candidate lines and anchor markers so the
+// markers stay clickable on top. Layers are independent of the selected region.
+map.createPane("restrictions");
+map.getPane("restrictions").style.zIndex = 350;
+const restrictionColor = {}; // layer id -> hex color
+const restrictionLabel = {}; // layer id -> display label
+
+const restrictionLayer = L.geoJSON(null, {
+  pane: "restrictions",
+  style: (f) => ({
+    color: restrictionColor[f.properties.layer] || "#888",
+    weight: 1, fillOpacity: 0.15,
+  }),
+  onEachFeature: (f, l) => {
+    const p = f.properties;
+    l.bindPopup(`<b>${restrictionLabel[p.layer] || p.layer}</b>`
+      + (p.name ? `<br>${p.name}` : ""));
+  },
+}).addTo(map);
+
+function enabledRestrictions() {
+  return [...document.querySelectorAll("#restrictionLayers input:checked")]
+    .map((c) => c.dataset.layer);
+}
+
+async function refreshRestrictions() {
+  const ids = enabledRestrictions();
+  if (!ids.length) {
+    restrictionLayer.clearLayers();
+    $("restrictionStatus").textContent = "";
+    return;
+  }
+  const b = map.getBounds();
+  const bbox = [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()].join(",");
+  const url = "/restrictions?" + new URLSearchParams(
+    { bbox_lonlat: bbox, layers: ids.join(",") });
+  try {
+    const fc = await fetchFC(url, $("restrictionStatus"), "protected areas");
+    restrictionLayer.clearLayers();
+    if (!fc) return;
+    restrictionLayer.addData(fc);
+    $("restrictionStatus").textContent = `${fc.features.length} protected areas`;
+  } catch (e) {
+    restrictionLayer.clearLayers();
+    $("restrictionStatus").textContent = "error: " + e;
+  }
+}
+
+// Append `text` to `desc`, wrapping `highlight` (a verbatim substring) in a
+// <mark> so the highliner-relevant part stands out. Uses text nodes, so the
+// description is never interpreted as HTML.
+function appendDescText(desc, text, highlight) {
+  const i = highlight ? text.indexOf(highlight) : -1;
+  if (i < 0) { desc.append(text); return; }
+  if (i > 0) desc.append(text.slice(0, i));
+  const mark = document.createElement("mark");
+  mark.textContent = highlight;
+  desc.append(mark);
+  desc.append(text.slice(i + highlight.length));
+}
+
+async function loadRestrictionLayers() {
+  const r = await fetch("/restrictions/layers").then((x) => x.json());
+  const box = $("restrictionLayers");
+  r.layers.forEach((rl) => {
+    restrictionColor[rl.id] = rl.color;
+    restrictionLabel[rl.id] = rl.label;
+    const row = document.createElement("div");
+    row.className = "restriction-row";
+    const label = document.createElement("label");
+    label.className = "restriction";
+    label.innerHTML = `<input type="checkbox" data-layer="${rl.id}" /> `
+      + `<span class="swatch" style="background:${rl.color}"></span> ${rl.label}`;
+    // The description sits inline under the toggle, shown only while the layer
+    // is enabled, with the highliner-relevant clause highlighted.
+    const desc = document.createElement("p");
+    desc.className = "restriction-desc";
+    appendDescText(desc, rl.tooltip || "", rl.highlight);
+    desc.hidden = true;
+    const cb = label.querySelector("input");
+    cb.addEventListener("change", () => {
+      desc.hidden = !cb.checked;
+      refreshRestrictions();
+    });
+    row.append(label, desc);
+    box.appendChild(row);
+  });
+}
+
+map.on("moveend", refreshRestrictions);
+loadRestrictionLayers();
+
 loadRegions();
 
 function addRegionOption(name) {

@@ -157,3 +157,65 @@ def test_anchors_cap_413(tmp_path, monkeypatch):
     client = TestClient(api.create_app(data_dir=tmp_path))
     r = client.get("/anchors", params={"region": "test", "bbox": "0,0,300,300"})
     assert r.status_code == 413
+
+
+def _write_restriction_layer(data_dir, layer_id, name, lonlat_box):
+    """Write a one-polygon restriction layer (lon/lat) to data_dir."""
+    import geopandas as gpd
+    from shapely.geometry import box
+    rdir = data_dir / "restrictions"
+    rdir.mkdir(parents=True, exist_ok=True)
+    w, s, e, n = lonlat_box
+    gdf = gpd.GeoDataFrame({"name": [name]}, geometry=[box(w, s, e, n)],
+                           crs="EPSG:4326")
+    gdf.to_parquet(rdir / f"{layer_id}.parquet")
+
+
+def test_restriction_layers_registry(tmp_path):
+    client = TestClient(api.create_app(data_dir=tmp_path))
+    r = client.get("/restrictions/layers")
+    assert r.status_code == 200
+    layers = r.json()["layers"]
+    ids = {row["id"] for row in layers}
+    assert {"pein", "parcs", "fauna"} <= ids
+    assert "zec" not in ids and "zepa" not in ids  # dropped: overlap PEIN
+    pein = next(row for row in layers if row["id"] == "pein")
+    assert pein["label"] and pein["color"].startswith("#")
+    assert all(row["tooltip"].strip() for row in layers)
+    # every layer emphasizes its highliner-relevant clause; the highlight must
+    # be a verbatim substring of the tooltip so the frontend can locate it.
+    for row in layers:
+        assert row["highlight"] and row["highlight"] in row["tooltip"]
+
+
+def test_restrictions_in_view(tmp_path):
+    _write_restriction_layer(tmp_path, "pein", "Montserrat",
+                             (1.80, 41.55, 1.85, 41.62))
+    client = TestClient(api.create_app(data_dir=tmp_path))
+    r = client.get("/restrictions", params={
+        "bbox_lonlat": "1.78,41.54,1.90,41.66", "layers": "pein"})
+    assert r.status_code == 200
+    fc = r.json()
+    assert fc["type"] == "FeatureCollection"
+    assert len(fc["features"]) == 1
+    props = fc["features"][0]["properties"]
+    assert props["layer"] == "pein"
+    assert props["name"] == "Montserrat"
+
+
+def test_restrictions_filters_out_of_view(tmp_path):
+    _write_restriction_layer(tmp_path, "pein", "Montserrat",
+                             (1.80, 41.55, 1.85, 41.62))
+    client = TestClient(api.create_app(data_dir=tmp_path))
+    r = client.get("/restrictions", params={
+        "bbox_lonlat": "2.50,42.00,2.60,42.10", "layers": "pein"})
+    assert r.status_code == 200
+    assert r.json()["features"] == []
+
+
+def test_restrictions_missing_data_is_empty(tmp_path):
+    # No restrictions downloaded yet -> endpoint still works, returns nothing.
+    client = TestClient(api.create_app(data_dir=tmp_path))
+    r = client.get("/restrictions", params={"bbox_lonlat": "1.0,41.0,2.0,42.0"})
+    assert r.status_code == 200
+    assert r.json()["features"] == []

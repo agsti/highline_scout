@@ -43,6 +43,18 @@ This project uses [`uv`](https://docs.astral.sh/uv/). The geospatial stack
 
 Tune extraction/pairing defaults in `highliner/config.py`.
 
+## Protected-area overlays
+
+The map can overlay Catalan protected-area boundaries (Natura 2000 ZEC/ZEPA,
+PEIN, Parcs Naturals, Reserves de Fauna) so you can see whether a candidate
+falls in a restricted zone. Download them once from the Generalitat WFS:
+
+    just fetch-restrictions   # -> data/restrictions/<layer>.parquet
+
+Then toggle the layers from the **Restrictions** panel on the map. They are
+informational only — being outside a drawn area does not imply rigging is
+allowed. Always confirm access and permissions on the ground.
+
 ## Tests
 
     .venv/bin/python -m pytest

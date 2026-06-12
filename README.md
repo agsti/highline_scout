@@ -49,8 +49,8 @@ Tune extraction/pairing defaults in `highliner/config.py`.
 ## Protected-area overlays
 
 The map can overlay Catalan protected-area boundaries (Natura 2000 ZEC/ZEPA,
-PEIN, Parcs Naturals, Reserves de Fauna) so you can see whether a candidate
-falls in a restricted zone. Download them once from the Generalitat WFS:
+PEIN, Parcs Naturals, Reserves de Fauna) so you can see whether a potential
+zone falls in a restricted area. Download them once from the Generalitat WFS:
 
     just fetch-restrictions   # -> data/restrictions/<layer>.parquet
 

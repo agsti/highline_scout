@@ -3,7 +3,7 @@ from collections import defaultdict
 import numpy as np
 from scipy.spatial import cKDTree
 from shapely.geometry import MultiPoint, Polygon
-from highliner import config
+from highliner import config, geo
 
 
 @dataclass(frozen=True)
@@ -75,3 +75,21 @@ def build_zones(candidates, cluster_dist=config.CLUSTER_DIST_M) -> list[Zone]:
             n_pairs=len(pairs),
         ))
     return sorted(zones, key=lambda z: z.height_max, reverse=True)
+
+
+def to_geojson(zones) -> dict:
+    features = []
+    for z in zones:
+        ring = [list(geo.to_lonlat(x, y))
+                for x, y in z.polygon.exterior.coords]
+        features.append({
+            "type": "Feature",
+            "geometry": {"type": "Polygon", "coordinates": [ring]},
+            "properties": {
+                "height_min": z.height_min,
+                "height_max": z.height_max,
+                "n_anchors": z.n_anchors,
+                "n_pairs": z.n_pairs,
+            },
+        })
+    return {"type": "FeatureCollection", "features": features}

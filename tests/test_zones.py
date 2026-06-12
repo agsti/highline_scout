@@ -62,3 +62,20 @@ def test_shared_anchor_merges_pairs():
     assert z.n_anchors == 3
     assert z.n_pairs == 2
     assert (z.height_min, z.height_max) == (40.0, 70.0)
+
+
+def test_to_geojson_polygons_with_properties():
+    zs = zones.build_zones([make_pair(420000, 420080, 4600000, exposure=60.0)])
+    fc = zones.to_geojson(zs)
+    assert fc["type"] == "FeatureCollection"
+    [f] = fc["features"]
+    assert f["geometry"]["type"] == "Polygon"
+    ring = f["geometry"]["coordinates"][0]
+    assert len(ring) >= 4 and ring[0] == ring[-1]   # closed ring
+    # UTM 420000,4600000 is ~lon 2.0, lat 41.5 in Catalonia
+    lon, lat = ring[0]
+    assert 1.5 < lon < 2.5 and 41.0 < lat < 42.0
+    assert f["properties"] == {
+        "height_min": 60.0, "height_max": 60.0,
+        "n_anchors": 2, "n_pairs": 1,
+    }

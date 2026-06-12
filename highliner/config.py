@@ -21,6 +21,10 @@ MAX_CANDIDATES = 500        # cap returned per viewport
 MAX_ANCHORS_IN_VIEW = 20000  # cap on anchors in a viewport (GET /anchors and /candidates)
 MAX_RESTRICTION_FEATURES = 4000  # cap protected-area polygons returned per viewport
 
+# Zone clustering
+CLUSTER_DIST_M = 50.0       # paired anchors closer than this share a zone
+ZONE_BUFFER_M = 15.0        # hull buffer so 2-anchor zones render as polygons
+
 # Paths
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 

@@ -2,12 +2,23 @@ const map = L.map("map").setView([41.6, 1.83], 13); // Montserrat area
 L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",
   { maxZoom: 19, attribution: "© OpenStreetMap" }).addTo(map);
 
+// Zone fill color scaled by the zone's max highline height:
+// 0 m -> yellow, 100 m and above -> deep red.
+function zoneColor(heightMax) {
+  const t = Math.min(heightMax / 100, 1);
+  return `hsl(${50 - 50 * t}, 90%, 45%)`;
+}
+
 const layer = L.geoJSON(null, {
-  style: { color: "#e6005c", weight: 3 },
+  style: (f) => ({
+    color: zoneColor(f.properties.height_max),
+    weight: 2,
+    fillOpacity: 0.35,
+  }),
   onEachFeature: (f, l) => {
     const p = f.properties;
-    l.bindPopup(`length ${p.length} m<br>exposure ${p.exposure} m<br>`
-      + `Δh ${p.height_diff} m<br>score ${p.score}`);
+    l.bindPopup(`height ${p.height_min}–${p.height_max} m<br>`
+      + `${p.n_anchors} anchors · ${p.n_pairs} lines`);
   },
 }).addTo(map);
 
@@ -116,11 +127,11 @@ async function refresh() {
   });
   $("status").textContent = "searching…";
   try {
-    const fc = await fetchFC("/candidates?" + params, $("status"), "candidates");
+    const fc = await fetchFC("/zones?" + params, $("status"), "zones");
     layer.clearLayers();
     if (!fc) return;
     layer.addData(fc);
-    $("status").textContent = `${fc.features.length} candidates`;
+    $("status").textContent = `${fc.features.length} zones`;
   } catch (e) {
     $("status").textContent = "error: " + e;
   }

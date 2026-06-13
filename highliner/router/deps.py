@@ -9,7 +9,7 @@ from pathlib import Path
 
 from fastapi import HTTPException, Request
 
-from highliner.core import geo
+from highliner.core import config, geo
 from highliner.repositories.anchors import load_anchors
 from highliner.models.raster import Raster
 
@@ -27,6 +27,17 @@ def _load_region(data_dir_str: str, region: str):
 def load_region(request: Request, region: str):
     """Load (anchors, raster) for a region, cached per data_dir + region."""
     return _load_region(str(request.app.state.data_dir), region)
+
+
+def anchors_in_view(anchors, bbox):
+    """Filter anchors to a UTM ``(minx, miny, maxx, maxy)`` bbox. Raises
+    HTTPException(413) if more than ``MAX_ANCHORS_IN_VIEW`` remain."""
+    minx, miny, maxx, maxy = bbox
+    in_view = [a for a in anchors
+               if minx <= a.x <= maxx and miny <= a.y <= maxy]
+    if len(in_view) > config.MAX_ANCHORS_IN_VIEW:
+        raise HTTPException(413, "too many anchors in view; zoom in")
+    return in_view
 
 
 def get_data_dir(request: Request) -> Path:

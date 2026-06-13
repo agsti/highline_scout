@@ -13,7 +13,7 @@ import math
 import requests
 import rasterio
 from rasterio.merge import merge
-from highliner.core import config
+from highliner.core import config, geo
 
 ICGC_WCS = "https://geoserveis.icgc.cat/icc_mdt/wcs/service"
 COVERAGE_ID = "icc:met"
@@ -42,6 +42,21 @@ def _download_tile(bbox, width: int, height: int, dest: Path) -> Path:
             f"ICGC WCS did not return ArcGrid data: {r.content[:200]!r}")
     dest.write_bytes(r.content)
     return dest
+
+
+def mosaic_bounds_lonlat(mosaic_path):
+    """Lon/lat extent ``[w, s, e, n]`` of a region's mosaic, or ``None`` if
+    missing. Reads only raster metadata (no pixel data) and converts the four
+    UTM corners, taking min/max so the box stays axis-aligned in lon/lat."""
+    if not mosaic_path.exists():
+        return None
+    with rasterio.open(mosaic_path) as ds:
+        b = ds.bounds
+    corners = [geo.to_lonlat(x, y)
+               for x in (b.left, b.right) for y in (b.bottom, b.top)]
+    lons = [c[0] for c in corners]
+    lats = [c[1] for c in corners]
+    return [min(lons), min(lats), max(lons), max(lats)]
 
 
 def estimate_tiles(bbox, res: float = NATIVE_RES,

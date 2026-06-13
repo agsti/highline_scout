@@ -1,3 +1,5 @@
+from typing import Any
+
 from fastapi import APIRouter, HTTPException, Request
 
 from highliner.core import config
@@ -8,7 +10,7 @@ router = APIRouter()
 
 
 @router.get("/restrictions/layers")
-def restriction_layers():
+def restriction_layers() -> dict[str, Any]:
     return {"layers": restrictions_service.layer_meta()}
 
 
@@ -18,7 +20,7 @@ def restrictions_in_view(
     bbox: str | None = None,
     bbox_lonlat: str | None = None,
     layers: str | None = None,
-):
+) -> dict[str, Any]:
     box = parse_bbox_lonlat(bbox, bbox_lonlat)
     ids = layers.split(",") if layers else None
     feats = restrictions_service.features_in_view(

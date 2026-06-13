@@ -9,11 +9,14 @@ Each GetCoverage response is capped at ~140 KB (~35,800 pixels), so a region is
 fetched as a grid of small tiles and merged into a single ``mosaic.tif``.
 """
 from pathlib import Path
+from typing import Callable
 import math
 import requests
 import rasterio
 from rasterio.merge import merge
 from highliner.core import config, geo
+
+Bbox = tuple[float, float, float, float]
 
 ICGC_WCS = "https://geoserveis.icgc.cat/icc_mdt/wcs/service"
 COVERAGE_ID = "icc:met"
@@ -22,7 +25,7 @@ MAX_TILE_PX = 175      # per side; 175*175 < 35,800 px request cap
 NODATA = -9999.0
 
 
-def _download_tile(bbox, width: int, height: int, dest: Path) -> Path:
+def _download_tile(bbox: Bbox, width: int, height: int, dest: Path) -> Path:
     minx, miny, maxx, maxy = bbox
     params = {
         "SERVICE": "WCS",
@@ -44,7 +47,7 @@ def _download_tile(bbox, width: int, height: int, dest: Path) -> Path:
     return dest
 
 
-def mosaic_bounds_lonlat(mosaic_path):
+def mosaic_bounds_lonlat(mosaic_path: Path) -> list[float] | None:
     """Lon/lat extent ``[w, s, e, n]`` of a region's mosaic, or ``None`` if
     missing. Reads only raster metadata (no pixel data) and converts the four
     UTM corners, taking min/max so the box stays axis-aligned in lon/lat."""
@@ -59,7 +62,7 @@ def mosaic_bounds_lonlat(mosaic_path):
     return [min(lons), min(lats), max(lons), max(lats)]
 
 
-def estimate_tiles(bbox, res: float = NATIVE_RES,
+def estimate_tiles(bbox: Bbox, res: float = NATIVE_RES,
                    tile_px: int = MAX_TILE_PX) -> int:
     minx, miny, maxx, maxy = (float(v) for v in bbox)
     minx = math.floor(minx / res) * res
@@ -72,9 +75,9 @@ def estimate_tiles(bbox, res: float = NATIVE_RES,
     return int(nx * ny)
 
 
-def fetch_dtm(bbox, region: str, data_dir: Path | None = None,
+def fetch_dtm(bbox: Bbox, region: str, data_dir: Path | None = None,
               res: float = NATIVE_RES, tile_px: int = MAX_TILE_PX,
-              progress=None) -> Path:
+              progress: Callable[[int, int], None] | None = None) -> Path:
     """Download the DTM for ``bbox`` (EPSG:25831 meters) and build mosaic.tif.
 
     Tiles and the mosaic are cached: if mosaic.tif already exists it is returned

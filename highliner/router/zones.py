@@ -1,3 +1,5 @@
+from typing import Any
+
 from fastapi import APIRouter, Request
 
 from highliner.core import config
@@ -20,7 +22,7 @@ def zones(
     min_exposure: float = config.DEFAULT_MIN_EXPOSURE_M,
     max_dh: float = config.DEFAULT_MAX_DH_M,
     cluster_dist: float = config.CLUSTER_DIST_M,
-):
+) -> dict[str, Any]:
     anchors, raster = load_region(request, region)
     in_view = anchors_in_view(anchors, parse_bbox_utm(bbox, bbox_lonlat))
     cands = find_candidates(in_view, raster, max_len, min_len,

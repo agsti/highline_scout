@@ -1,3 +1,4 @@
+from pathlib import Path
 import numpy as np
 import rasterio
 from rasterio.transform import from_origin
@@ -5,7 +6,7 @@ from highliner import cli
 from highliner.repositories.anchors import load_anchors
 
 
-def test_analyze_writes_anchors(tmp_path):
+def test_analyze_writes_anchors(tmp_path: Path) -> None:
     region = tmp_path / "demo"
     region.mkdir()
     # two-sided cliff so anchors exist

@@ -3,14 +3,15 @@ from pathlib import Path
 from highliner.core import config
 
 
-def _cmd_ingest(args):
+def _cmd_ingest(args: argparse.Namespace) -> None:
     from highliner.repositories.dtm import fetch_dtm
-    bbox = tuple(float(v) for v in args.bbox.split(","))
-    path = fetch_dtm(bbox, region=args.region, data_dir=Path(args.data_dir))
+    minx, miny, maxx, maxy = (float(v) for v in args.bbox.split(","))
+    path = fetch_dtm((minx, miny, maxx, maxy), region=args.region,
+                     data_dir=Path(args.data_dir))
     print(f"fetched DTM mosaic -> {path}")
 
 
-def _cmd_analyze(args):
+def _cmd_analyze(args: argparse.Namespace) -> None:
     from highliner.models.raster import Raster
     from highliner.services.terrain import extract_anchors
     from highliner.repositories.anchors import save_anchors
@@ -25,20 +26,20 @@ def _cmd_analyze(args):
     print(f"extracted {len(anchors)} anchors -> {out}")
 
 
-def _cmd_serve(args):
+def _cmd_serve(args: argparse.Namespace) -> None:
     import uvicorn
     from highliner.app import create_app
     app = create_app(data_dir=Path(args.data_dir))
     uvicorn.run(app, host=args.host, port=args.port)
 
 
-def _cmd_fetch_restrictions(args):
+def _cmd_fetch_restrictions(args: argparse.Namespace) -> None:
     from highliner.repositories.restrictions import fetch_all
     print("Downloading protected-area layers from the Generalitat WFS...")
     fetch_all()
 
 
-def main(argv=None):
+def main(argv: list[str] | None = None) -> None:
     # Shared options available on every subcommand (e.g. after the verb).
     common = argparse.ArgumentParser(add_help=False)
     common.add_argument("--data-dir", default=str(config.DATA_DIR))

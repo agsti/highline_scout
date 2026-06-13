@@ -17,7 +17,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest", "httpx"]
+dev = ["pytest", "httpx", "mypy", "types-requests"]
 
 [project.scripts]
 highliner = "highliner.cli:main"
@@ -28,3 +28,22 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 include = ["highliner*"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+files = ["highliner", "tests"]
+
+# Dependencies that ship no type information. Keep this list to the libraries
+# mypy actually reports as missing stubs.
+[[tool.mypy.overrides]]
+module = [
+    "rasterio.*",
+    "geopandas.*",
+    "huey.*",
+    "scipy.*",
+    "pyarrow.*",
+    "shapely.*",
+    "affine.*",
+]
+ignore_missing_imports = true

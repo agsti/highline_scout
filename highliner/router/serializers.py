@@ -4,10 +4,14 @@ Conversion from internal UTM (EPSG:25831) to WGS84 lon/lat happens here, the
 only place anchors and zones are turned into the FeatureCollections the
 frontend consumes.
 """
+from typing import Any
+
 from highliner.core import geo
+from highliner.models.anchor import Anchor
+from highliner.models.zone import Zone
 
 
-def anchors_to_geojson(anchors) -> dict:
+def anchors_to_geojson(anchors: list[Anchor]) -> dict[str, Any]:
     features = []
     for a in anchors:
         lon, lat = geo.to_lonlat(a.x, a.y)
@@ -22,7 +26,7 @@ def anchors_to_geojson(anchors) -> dict:
     return {"type": "FeatureCollection", "features": features}
 
 
-def zones_to_geojson(zones) -> dict:
+def zones_to_geojson(zones: list[Zone]) -> dict[str, Any]:
     features = []
     for z in zones:
         ring = [list(geo.to_lonlat(x, y))

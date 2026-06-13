@@ -18,6 +18,10 @@ serve host="127.0.0.1" port="8000":
 test *args:
     uv run pytest {{args}}
 
+# Static type checking (strict mypy) across the codebase.
+typecheck:
+    uv run mypy
+
 # Re-resolve every dependency to its latest allowed version and sync.
 update:
     uv lock --upgrade

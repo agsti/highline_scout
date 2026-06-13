@@ -21,11 +21,22 @@ helpers that consume it (``layer_meta``, ``clip_to_features``) live in
 """
 from pathlib import Path
 from functools import lru_cache
+from typing import Any, Callable, TypedDict
 import geopandas as gpd
 import requests
 from shapely.geometry import shape
 
 from highliner.core import config
+
+
+class LayerSpec(TypedDict):
+    label: str
+    color: str
+    source: str
+    name_field: str
+    keep: Callable[[dict[str, Any]], bool]
+    tooltip: str
+    highlight: str
 
 # Douglas-Peucker tolerance in degrees (~11 m). Source geometry is digitized at
 # 1:5,000-1:50,000, far finer than the web map renders; simplifying here cuts
@@ -42,7 +53,7 @@ _HEADERS = {"User-Agent": "highliner-finder/0.1 (+https://github.com)"}
 # filters by a predicate on properties, and renames one field to `name`.
 # Note: PEIN legally incorporates all Xarxa Natura 2000 (ZEC/ZEPA) spaces, so
 # those layers would just overlap PEIN on the map and are intentionally omitted.
-LAYERS = {
+LAYERS: dict[str, LayerSpec] = {
     "pein": {
         "label": "PEIN",
         "color": "#ff7f00",
@@ -94,12 +105,12 @@ LAYERS = {
 }
 
 
-def _fetch_source(feature_type: str) -> list[dict]:
+def _fetch_source(feature_type: str) -> list[dict[str, Any]]:
     """Download all features of one WFS feature type as GeoJSON (EPSG:4326)."""
-    features: list[dict] = []
+    features: list[dict[str, Any]] = []
     start = 0
     while True:
-        params = {
+        params: dict[str, str | int] = {
             "service": "WFS",
             "version": "2.0.0",
             "request": "GetFeature",
@@ -119,7 +130,7 @@ def _fetch_source(feature_type: str) -> list[dict]:
 
 
 def build_layer(layer_id: str,
-                source_cache: dict[str, list[dict]]) -> gpd.GeoDataFrame:
+                source_cache: dict[str, list[dict[str, Any]]]) -> gpd.GeoDataFrame:
     """Filter/normalize/simplify a source feature type into a derived layer."""
     spec = LAYERS[layer_id]
     src = source_cache.get(spec["source"])
@@ -142,7 +153,7 @@ def fetch_all(dest_dir: Path | None = None) -> dict[str, Path]:
     """Download every layer and write data/restrictions/<id>.parquet."""
     dest_dir = Path(dest_dir or (config.DATA_DIR / "restrictions"))
     dest_dir.mkdir(parents=True, exist_ok=True)
-    source_cache: dict[str, list[dict]] = {}
+    source_cache: dict[str, list[dict[str, Any]]] = {}
     written: dict[str, Path] = {}
     for layer_id in LAYERS:
         gdf = build_layer(layer_id, source_cache)

@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Any
 
 from fastapi import APIRouter, Depends
 
@@ -9,7 +10,7 @@ router = APIRouter()
 
 
 @router.get("/regions")
-def regions(data_dir: Path = Depends(get_data_dir)):
+def regions(data_dir: Path = Depends(get_data_dir)) -> dict[str, Any]:
     if not data_dir.exists():
         return {"regions": []}
     out = []

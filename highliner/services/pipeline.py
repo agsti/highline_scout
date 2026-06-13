@@ -1,12 +1,15 @@
 from pathlib import Path
+from typing import Callable
 from highliner.core import config
 from highliner.repositories import dtm
+from highliner.repositories.dtm import Bbox
 from highliner.models.raster import Raster
 from highliner.services.terrain import extract_anchors
 from highliner.repositories.anchors import save_anchors
 
 
-def analyze_area(bbox, region: str, data_dir, report=None) -> int:
+def analyze_area(bbox: Bbox, region: str, data_dir: str | Path,
+                 report: Callable[[str, int, int], None] | None = None) -> int:
     """Fetch DTM for bbox, extract anchors, save them. Returns anchor count.
 
     report(phase, done, total) is called for progress; phase is
@@ -14,7 +17,7 @@ def analyze_area(bbox, region: str, data_dir, report=None) -> int:
     """
     data_dir = Path(data_dir)
 
-    def _noop(phase, done, total):
+    def _noop(phase: str, done: int, total: int) -> None:
         pass
     report = report or _noop
 

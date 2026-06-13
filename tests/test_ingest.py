@@ -1,8 +1,10 @@
+from pathlib import Path
+import pytest
 import rasterio
 from highliner.repositories import dtm as ingest
 
 
-def _fake_asc(bbox, width, height, dest):
+def _fake_asc(bbox: tuple[float, float, float, float], width: int, height: int, dest: Path) -> Path:
     """Write a minimal valid ESRI ArcGrid tile of constant elevation 100."""
     minx, miny, maxx, maxy = bbox
     cell = (maxx - minx) / width
@@ -20,10 +22,10 @@ def _fake_asc(bbox, width, height, dest):
     return dest
 
 
-def test_fetch_tiles_builds_mosaic_and_caches(tmp_path, monkeypatch):
+def test_fetch_tiles_builds_mosaic_and_caches(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     calls = []
 
-    def fake_download(bbox, width, height, dest):
+    def fake_download(bbox: tuple[float, float, float, float], width: int, height: int, dest: Path) -> Path:
         calls.append(bbox)
         return _fake_asc(bbox, width, height, dest)
     monkeypatch.setattr(ingest, "_download_tile", fake_download)
@@ -45,15 +47,15 @@ def test_fetch_tiles_builds_mosaic_and_caches(tmp_path, monkeypatch):
     assert len(calls) == 6
 
 
-def test_estimate_tiles_matches_grid():
+def test_estimate_tiles_matches_grid() -> None:
     # 2000 x 1500 m at 5 m, 175 px tiles (875 m) -> 3 x 2 = 6
     n = ingest.estimate_tiles((484000, 4646000, 486000, 4647500),
                               res=5.0, tile_px=175)
     assert n == 6
 
 
-def test_progress_called_per_tile(tmp_path, monkeypatch):
-    def fake_download(bbox, width, height, dest):
+def test_progress_called_per_tile(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def fake_download(bbox: tuple[float, float, float, float], width: int, height: int, dest: Path) -> Path:
         return _fake_asc(bbox, width, height, dest)
     monkeypatch.setattr(ingest, "_download_tile", fake_download)
 

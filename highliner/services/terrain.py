@@ -8,11 +8,13 @@ def compute_slope(dtm: np.ndarray, res: float) -> np.ndarray:
     """Slope in degrees from an elevation grid (np.gradient based)."""
     dy, dx = np.gradient(dtm, res)
     rise = np.hypot(dx, dy)
-    return np.degrees(np.arctan(rise))
+    slope: np.ndarray = np.degrees(np.arctan(rise))
+    return slope
 
 
 def drop_sectors(raster: Raster, x: float, y: float, radius: float,
-                 n_azimuths: int, min_drop: float):
+                 n_azimuths: int, min_drop: float
+                 ) -> tuple[tuple[float, float, float], ...]:
     """Sweep azimuths around (x, y); group consecutive dropping directions
     into sectors. Returns tuple of (start_deg, end_deg, max_drop)."""
     base = raster.value_at(x, y)
@@ -61,14 +63,15 @@ def drop_sectors(raster: Raster, x: float, y: float, radius: float,
     return tuple(sectors)
 
 
-def _thin(points, thin_dist):
+def _thin(points: list[tuple[float, float, float, tuple[tuple[float, float, float], ...], float]],
+          thin_dist: float) -> list[Anchor]:
     """Greedy non-max suppression by descending drop; keep points >= thin_dist apart."""
     from scipy.spatial import cKDTree
     if not points:
         return []
     pts = sorted(points, key=lambda p: -p[4])  # p = (x, y, elev, sectors, score)
     kept = []
-    kept_xy = []
+    kept_xy: list[list[float]] = []
     for x, y, elev, sectors, _score in pts:
         if kept_xy:
             tree = cKDTree(kept_xy)

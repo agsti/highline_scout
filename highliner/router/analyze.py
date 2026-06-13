@@ -1,4 +1,6 @@
 import re
+from pathlib import Path
+from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
@@ -22,7 +24,7 @@ def _slugify(text: str) -> str:
     return slug or "region"
 
 
-def _unique_region(data_dir, slug: str) -> str:
+def _unique_region(data_dir: Path, slug: str) -> str:
     region = slug
     i = 2
     while (data_dir / region).exists():
@@ -32,7 +34,7 @@ def _unique_region(data_dir, slug: str) -> str:
 
 
 @router.post("/analyze")
-def analyze(req: AnalyzeRequest, request: Request):
+def analyze(req: AnalyzeRequest, request: Request) -> dict[str, Any]:
     data_dir = request.app.state.data_dir
     store = request.app.state.jobstore
     bbox = parse_bbox_utm(req.bbox, req.bbox_lonlat)

@@ -33,7 +33,9 @@ def _angular_contains(start: float, end: float, angle: float) -> bool:
     return angle >= start or angle <= end
 
 
-def bearing_in_sectors(angle: float, sectors, tol: float = 0.0) -> bool:
+def bearing_in_sectors(angle: float,
+                       sectors: tuple[tuple[float, float, float], ...],
+                       tol: float = 0.0) -> bool:
     for start, end, _drop in sectors:
         if _angular_contains(start - tol, end + tol, angle):
             return True

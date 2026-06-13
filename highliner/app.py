@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from huey.consumer import Consumer
 
 from highliner.core import config
+from highliner.repositories.db import get_database
 from highliner.repositories.jobs import JobStore
 from highliner.tasks.analyze import huey
 from highliner.router import (analyze, anchors, jobs, regions, restrictions,
@@ -17,9 +18,11 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
     app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"],
                        allow_headers=["*"])
 
-    # App-wide state the routers read via highliner.router.deps.
+    # App-wide state the routers read via highliner.router.deps. The Database
+    # owns the connection details and is shared by the repositories that use it.
     app.state.data_dir = data_dir
-    app.state.jobstore = JobStore(data_dir / "jobs.db")
+    app.state.db = get_database(data_dir)
+    app.state.jobstore = JobStore(app.state.db)
 
     for module in (regions, zones, anchors, restrictions, jobs, analyze):
         app.include_router(module.router)

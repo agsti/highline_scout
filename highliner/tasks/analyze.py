@@ -1,7 +1,7 @@
-from pathlib import Path
 from huey import SqliteHuey
 from highliner.core import config
 from highliner.services import pipeline
+from highliner.repositories.db import get_database
 from highliner.repositories.jobs import JobStore
 
 config.HUEY_DB.parent.mkdir(parents=True, exist_ok=True)
@@ -10,7 +10,7 @@ huey = SqliteHuey("highliner", filename=str(config.HUEY_DB))
 
 @huey.task(context=True)
 def analyze_task(bbox, region, data_dir, job_id, task=None):
-    store = JobStore(Path(data_dir) / "jobs.db")
+    store = JobStore(get_database(data_dir))
     store.update(job_id, status="running")
 
     def report(phase, done, total):

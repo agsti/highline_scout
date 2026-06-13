@@ -3,7 +3,6 @@ import rasterio
 from rasterio.transform import from_origin
 from highliner.tasks import analyze as tasks
 from highliner.services import pipeline
-from highliner.repositories.jobs import JobStore
 
 
 def _write_mosaic(path):
@@ -15,7 +14,7 @@ def _write_mosaic(path):
         ds.write(data, 1)
 
 
-def test_analyze_task_updates_jobstore(tmp_path, monkeypatch):
+def test_analyze_task_updates_jobstore(tmp_path, jobstore, monkeypatch):
     tasks.huey.immediate = True  # run inline, in-memory
     try:
         (tmp_path / "demo").mkdir()
@@ -29,32 +28,30 @@ def test_analyze_task_updates_jobstore(tmp_path, monkeypatch):
             return p
         monkeypatch.setattr(pipeline.dtm, "fetch_dtm", fake_fetch)
 
-        store = JobStore(tmp_path / "jobs.db")
-        jid = store.create("Demo", "demo")
+        jid = jobstore.create("Demo", "demo")
         tasks.analyze_task((0, 0, 122, 122), "demo", str(tmp_path), jid)
 
-        job = store.get(jid)
+        job = jobstore.get(jid)
         assert job["status"] == "done"
         assert "anchors" in job["message"]
     finally:
         tasks.huey.immediate = False
 
 
-def test_analyze_task_records_error(tmp_path, monkeypatch):
+def test_analyze_task_records_error(tmp_path, jobstore, monkeypatch):
     tasks.huey.immediate = True
     try:
         def boom(bbox, region, data_dir, report=None):
             raise RuntimeError("icgc down")
         monkeypatch.setattr(tasks.pipeline, "analyze_area", boom)
 
-        store = JobStore(tmp_path / "jobs.db")
-        jid = store.create("Demo", "demo")
+        jid = jobstore.create("Demo", "demo")
         try:
             tasks.analyze_task((0, 0, 1, 1), "demo", str(tmp_path), jid)
         except RuntimeError:
             pass  # task re-raises after recording; immediate mode surfaces it
 
-        job = store.get(jid)
+        job = jobstore.get(jid)
         assert job["status"] == "error"
         assert "icgc down" in job["error"]
     finally:

@@ -1,6 +1,6 @@
 import numpy as np
 from affine import Affine
-from highliner.raster import Raster
+from highliner.models.raster import Raster
 
 
 def make_raster():

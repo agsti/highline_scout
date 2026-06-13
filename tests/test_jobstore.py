@@ -1,4 +1,4 @@
-from highliner.jobstore import JobStore
+from highliner.repositories.jobs import JobStore
 
 
 def test_create_get_update(tmp_path):

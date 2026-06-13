@@ -1,5 +1,5 @@
 import rasterio
-from highliner import ingest
+from highliner.repositories import dtm as ingest
 
 
 def _fake_asc(bbox, width, height, dest):

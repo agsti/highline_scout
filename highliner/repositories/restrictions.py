@@ -2,27 +2,30 @@
 
 Source: the Generalitat's unified "Espais Naturals" WFS, which carries every
 protected-area figure as a separate feature type (or as attribute flags within
-one). We derive five overlay layers relevant to highline access:
+one). We derive overlay layers relevant to highline access:
 
-    zec    Natura 2000 - ZEC   (XARNAT_2000 where LIC_ZEC = 'Si')
-    zepa   Natura 2000 - ZEPA  (XARNAT_2000 where ZEPA = 'Si')
     pein   PEIN                (ESPAISNATURALS_PEIN)
     parcs  Parcs Naturals      (ESPAISNATURALS_PARCSNATURALS)
-    fauna  Reserves de Fauna   (ENPE where NOM_RNFS is set)
+    fauna  Reserves de Fauna   (ESPAISNATURALS_ENPE where NOM_RNFS is set)
 
 The WFS serves GeoJSON in EPSG:4326 (lon/lat), which is exactly what the web
 map consumes, so no reprojection is needed. Each derived layer is simplified
 (geometry detail is far finer than map scale needs) and written to
 ``data/restrictions/<id>.parquet`` with only a normalized ``name`` property.
+
+This module owns persistence: the WFS download/transform (``fetch_all``) and
+reading stored layers (``load_layer``). The ``LAYERS`` registry of overlay
+specifications lives here too, since the download is driven by it; the serving
+helpers that consume it (``layer_meta``, ``clip_to_features``) live in
+``highliner.services.restrictions``.
 """
 from pathlib import Path
 from functools import lru_cache
-import json
 import geopandas as gpd
 import requests
 from shapely.geometry import shape
 
-from highliner import config
+from highliner.core import config
 
 # Douglas-Peucker tolerance in degrees (~11 m). Source geometry is digitized at
 # 1:5,000-1:50,000, far finer than the web map renders; simplifying here cuts
@@ -151,32 +154,7 @@ def fetch_all(dest_dir: Path | None = None) -> dict[str, Path]:
     return written
 
 
-# --- serving -------------------------------------------------------------
-
-def layer_meta() -> list[dict]:
-    """Registry of overlay layers (id/label/color/tooltip) for the frontend."""
-    return [{"id": lid, "label": s["label"], "color": s["color"],
-             "tooltip": s["tooltip"], "highlight": s.get("highlight")}
-            for lid, s in LAYERS.items()]
-
-
 @lru_cache(maxsize=32)
 def load_layer(path_str: str) -> gpd.GeoDataFrame:
     """Read a stored layer (cached for the process); layers are small."""
     return gpd.read_parquet(path_str)
-
-
-def clip_to_features(layer_id: str, gdf: gpd.GeoDataFrame, bbox) -> list[dict]:
-    """Clip a layer to a lon/lat bbox, returning GeoJSON features tagged with
-    their layer id."""
-    minx, miny, maxx, maxy = bbox
-    sub = gdf.cx[minx:maxx, miny:maxy]
-    feats = json.loads(sub[["name", "geometry"]].to_json())["features"]
-    for f in feats:
-        f["properties"]["layer"] = layer_id
-    return feats
-
-
-if __name__ == "__main__":
-    print("Downloading protected-area layers from the Generalitat WFS...")
-    fetch_all()

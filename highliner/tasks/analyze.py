@@ -1,7 +1,8 @@
 from pathlib import Path
 from huey import SqliteHuey
-from highliner import config, pipeline
-from highliner.jobstore import JobStore
+from highliner.core import config
+from highliner.services import pipeline
+from highliner.repositories.jobs import JobStore
 
 config.HUEY_DB.parent.mkdir(parents=True, exist_ok=True)
 huey = SqliteHuey("highliner", filename=str(config.HUEY_DB))

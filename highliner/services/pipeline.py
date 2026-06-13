@@ -1,8 +1,9 @@
 from pathlib import Path
-from highliner import config, ingest
-from highliner.raster import Raster
-from highliner.terrain import extract_anchors
-from highliner.anchors import save_anchors
+from highliner.core import config
+from highliner.repositories import dtm
+from highliner.models.raster import Raster
+from highliner.services.terrain import extract_anchors
+from highliner.repositories.anchors import save_anchors
 
 
 def analyze_area(bbox, region: str, data_dir, report=None) -> int:
@@ -17,9 +18,9 @@ def analyze_area(bbox, region: str, data_dir, report=None) -> int:
         pass
     report = report or _noop
 
-    total = ingest.estimate_tiles(bbox)
+    total = dtm.estimate_tiles(bbox)
     report("downloading", 0, total)
-    mosaic = ingest.fetch_dtm(
+    mosaic = dtm.fetch_dtm(
         bbox, region, data_dir,
         progress=lambda d, t: report("downloading", d, t))
 

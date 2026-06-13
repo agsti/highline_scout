@@ -3,8 +3,10 @@ import rasterio
 from rasterio.transform import from_origin
 from fastapi.testclient import TestClient
 
-from highliner.anchors import Anchor, save_anchors
-from highliner import api, config
+from highliner.models.anchor import Anchor
+from highliner.repositories.anchors import save_anchors
+from highliner.app import create_app
+from highliner.core import config
 
 
 def _setup_region(data_dir):
@@ -26,7 +28,7 @@ def _setup_region(data_dir):
 
 def test_zones_endpoint(tmp_path):
     _setup_region(tmp_path)
-    app = api.create_app(data_dir=tmp_path)
+    app = create_app(data_dir=tmp_path)
     client = TestClient(app)
 
     assert "test" in [r["name"] for r in client.get("/regions").json()["regions"]]
@@ -49,7 +51,7 @@ def test_zones_endpoint(tmp_path):
 
 def test_candidates_route_removed(tmp_path):
     _setup_region(tmp_path)
-    client = TestClient(api.create_app(data_dir=tmp_path))
+    client = TestClient(create_app(data_dir=tmp_path))
     r = client.get("/candidates", params={"region": "test", "bbox": "0,0,300,300"})
     assert r.status_code == 404
 
@@ -57,7 +59,7 @@ def test_candidates_route_removed(tmp_path):
 def test_zones_bbox_lonlat(tmp_path):
     # Place the region's anchors at real Catalan UTM coords and query with a
     # lon/lat bbox that covers them, exercising the WGS84 -> UTM conversion.
-    from highliner import geo
+    from highliner.core import geo
     region = tmp_path / "geo"
     region.mkdir(parents=True)
     cx, cy = geo.to_utm(1.83, 41.59)  # near Montserrat
@@ -72,7 +74,7 @@ def test_zones_bbox_lonlat(tmp_path):
     b = Anchor(x=cx + 40, y=cy, elev=100.0, sectors=((260, 280, 60),))
     save_anchors([a, b], region / "anchors.parquet")
 
-    client = TestClient(api.create_app(data_dir=tmp_path))
+    client = TestClient(create_app(data_dir=tmp_path))
     r = client.get("/zones", params={
         "region": "geo",
         "bbox_lonlat": "1.82,41.58,1.84,41.60",
@@ -90,7 +92,8 @@ def test_zones_bbox_lonlat(tmp_path):
 
 
 def test_analyze_enqueues_and_completes(tmp_path, monkeypatch):
-    from highliner import tasks, pipeline
+    from highliner.tasks import analyze as tasks
+    from highliner.services import pipeline
     tasks.huey.immediate = True
     try:
         def fake_analyze(bbox, region, data_dir, report=None):
@@ -106,7 +109,7 @@ def test_analyze_enqueues_and_completes(tmp_path, monkeypatch):
             return 0
         monkeypatch.setattr(pipeline, "analyze_area", fake_analyze)
 
-        client = TestClient(api.create_app(data_dir=tmp_path))
+        client = TestClient(create_app(data_dir=tmp_path))
         r = client.post("/analyze", json={
             "name": "Test Area", "bbox_lonlat": "2.80,41.96,2.81,41.97"})
         assert r.status_code == 200
@@ -120,7 +123,7 @@ def test_analyze_enqueues_and_completes(tmp_path, monkeypatch):
 
 
 def test_analyze_rejects_too_large(tmp_path):
-    client = TestClient(api.create_app(data_dir=tmp_path))
+    client = TestClient(create_app(data_dir=tmp_path))
     # ~0.5 x 0.5 degree -> tens of thousands of tiles, over the cap
     r = client.post("/analyze", json={
         "name": "Huge", "bbox_lonlat": "2.0,41.5,2.5,42.0"})
@@ -128,14 +131,14 @@ def test_analyze_rejects_too_large(tmp_path):
 
 
 def test_jobs_unknown_id_404(tmp_path):
-    client = TestClient(api.create_app(data_dir=tmp_path))
+    client = TestClient(create_app(data_dir=tmp_path))
     assert client.get("/jobs/nope").status_code == 404
 
 
 def test_consumer_starts_when_not_immediate(tmp_path):
-    from highliner import tasks
+    from highliner.tasks import analyze as tasks
     assert tasks.huey.immediate is False  # default
-    app = api.create_app(data_dir=tmp_path)
+    app = create_app(data_dir=tmp_path)
     with TestClient(app):  # triggers startup
         assert getattr(app.state, "huey_consumer", None) is not None
     # after context exit (shutdown) the consumer is stopped
@@ -144,7 +147,7 @@ def test_consumer_starts_when_not_immediate(tmp_path):
 
 def test_anchors_endpoint(tmp_path):
     _setup_region(tmp_path)
-    client = TestClient(api.create_app(data_dir=tmp_path))
+    client = TestClient(create_app(data_dir=tmp_path))
     r = client.get("/anchors", params={"region": "test", "bbox": "0,0,300,300"})
     assert r.status_code == 200
     fc = r.json()
@@ -156,7 +159,7 @@ def test_anchors_endpoint(tmp_path):
 
 def test_anchors_filters_out_of_view(tmp_path):
     _setup_region(tmp_path)
-    client = TestClient(api.create_app(data_dir=tmp_path))
+    client = TestClient(create_app(data_dir=tmp_path))
     # bbox covers anchor a (x=60) but not b (x=140)
     r = client.get("/anchors", params={"region": "test", "bbox": "0,0,100,300"})
     assert r.status_code == 200
@@ -166,7 +169,7 @@ def test_anchors_filters_out_of_view(tmp_path):
 def test_anchors_cap_413(tmp_path, monkeypatch):
     _setup_region(tmp_path)
     monkeypatch.setattr(config, "MAX_ANCHORS_IN_VIEW", 1)
-    client = TestClient(api.create_app(data_dir=tmp_path))
+    client = TestClient(create_app(data_dir=tmp_path))
     r = client.get("/anchors", params={"region": "test", "bbox": "0,0,300,300"})
     assert r.status_code == 413
 
@@ -184,7 +187,7 @@ def _write_restriction_layer(data_dir, layer_id, name, lonlat_box):
 
 
 def test_restriction_layers_registry(tmp_path):
-    client = TestClient(api.create_app(data_dir=tmp_path))
+    client = TestClient(create_app(data_dir=tmp_path))
     r = client.get("/restrictions/layers")
     assert r.status_code == 200
     layers = r.json()["layers"]
@@ -203,7 +206,7 @@ def test_restriction_layers_registry(tmp_path):
 def test_restrictions_in_view(tmp_path):
     _write_restriction_layer(tmp_path, "pein", "Montserrat",
                              (1.80, 41.55, 1.85, 41.62))
-    client = TestClient(api.create_app(data_dir=tmp_path))
+    client = TestClient(create_app(data_dir=tmp_path))
     r = client.get("/restrictions", params={
         "bbox_lonlat": "1.78,41.54,1.90,41.66", "layers": "pein"})
     assert r.status_code == 200
@@ -218,7 +221,7 @@ def test_restrictions_in_view(tmp_path):
 def test_restrictions_filters_out_of_view(tmp_path):
     _write_restriction_layer(tmp_path, "pein", "Montserrat",
                              (1.80, 41.55, 1.85, 41.62))
-    client = TestClient(api.create_app(data_dir=tmp_path))
+    client = TestClient(create_app(data_dir=tmp_path))
     r = client.get("/restrictions", params={
         "bbox_lonlat": "2.50,42.00,2.60,42.10", "layers": "pein"})
     assert r.status_code == 200
@@ -227,7 +230,7 @@ def test_restrictions_filters_out_of_view(tmp_path):
 
 def test_restrictions_missing_data_is_empty(tmp_path):
     # No restrictions downloaded yet -> endpoint still works, returns nothing.
-    client = TestClient(api.create_app(data_dir=tmp_path))
+    client = TestClient(create_app(data_dir=tmp_path))
     r = client.get("/restrictions", params={"bbox_lonlat": "1.0,41.0,2.0,42.0"})
     assert r.status_code == 200
     assert r.json()["features"] == []

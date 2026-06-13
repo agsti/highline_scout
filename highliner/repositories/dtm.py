@@ -13,7 +13,7 @@ import math
 import requests
 import rasterio
 from rasterio.merge import merge
-from highliner import config
+from highliner.core import config
 
 ICGC_WCS = "https://geoserveis.icgc.cat/icc_mdt/wcs/service"
 COVERAGE_ID = "icc:met"

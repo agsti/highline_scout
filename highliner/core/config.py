@@ -24,8 +24,9 @@ MAX_RESTRICTION_FEATURES = 4000  # cap protected-area polygons returned per view
 CLUSTER_DIST_M = 50.0       # paired anchors closer than this share a zone
 ZONE_BUFFER_M = 15.0        # hull buffer so 2-anchor zones render as polygons
 
-# Paths
-DATA_DIR = Path(__file__).resolve().parent.parent / "data"
+# Paths — this module lives at highliner/core/config.py, so the repo root
+# (which holds data/ and web/) is three parents up.
+DATA_DIR = Path(__file__).resolve().parent.parent.parent / "data"
 
 # Web-triggered analysis jobs
 MAX_ANALYZE_TILES = 300     # reject POST /analyze whose bbox needs more tiles

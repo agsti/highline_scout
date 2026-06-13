@@ -44,7 +44,7 @@ This project uses [`uv`](https://docs.astral.sh/uv/). The geospatial stack
     .venv/bin/highliner serve
     # open http://127.0.0.1:8000/
 
-Tune extraction/pairing defaults in `highliner/config.py`.
+Tune extraction/pairing defaults in `highliner/core/config.py`.
 
 ## Protected-area overlays
 

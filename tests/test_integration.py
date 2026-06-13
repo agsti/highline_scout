@@ -3,7 +3,8 @@ import rasterio
 from rasterio.transform import from_origin
 from fastapi.testclient import TestClient
 
-from highliner import cli, api
+from highliner import cli
+from highliner.app import create_app
 
 
 def test_full_pipeline(tmp_path):
@@ -19,7 +20,7 @@ def test_full_pipeline(tmp_path):
 
     cli.main(["analyze", "--region", "demo", "--data-dir", str(tmp_path)])
 
-    client = TestClient(api.create_app(data_dir=tmp_path))
+    client = TestClient(create_app(data_dir=tmp_path))
     fc = client.get("/zones", params={
         "region": "demo", "bbox": "420000,4600000,420302,4600302",
         "max_len": 120, "min_exposure": 50, "max_dh": 5,

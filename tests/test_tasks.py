@@ -1,8 +1,9 @@
 import numpy as np
 import rasterio
 from rasterio.transform import from_origin
-from highliner import tasks, pipeline
-from highliner.jobstore import JobStore
+from highliner.tasks import analyze as tasks
+from highliner.services import pipeline
+from highliner.repositories.jobs import JobStore
 
 
 def _write_mosaic(path):
@@ -26,7 +27,7 @@ def test_analyze_task_updates_jobstore(tmp_path, monkeypatch):
             if progress:
                 progress(1, 1)
             return p
-        monkeypatch.setattr(pipeline.ingest, "fetch_dtm", fake_fetch)
+        monkeypatch.setattr(pipeline.dtm, "fetch_dtm", fake_fetch)
 
         store = JobStore(tmp_path / "jobs.db")
         jid = store.create("Demo", "demo")

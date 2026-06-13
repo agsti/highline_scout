@@ -1,5 +1,5 @@
 import numpy as np
-from highliner import terrain
+from highliner.services import terrain
 
 
 def test_flat_is_zero_slope():

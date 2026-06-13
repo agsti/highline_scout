@@ -2,7 +2,7 @@ import numpy as np
 import rasterio
 from rasterio.transform import from_origin
 from highliner import cli
-from highliner.anchors import load_anchors
+from highliner.repositories.anchors import load_anchors
 
 
 def test_analyze_writes_anchors(tmp_path):

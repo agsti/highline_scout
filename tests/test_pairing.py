@@ -1,8 +1,8 @@
 import numpy as np
 from affine import Affine
-from highliner.raster import Raster
-from highliner.anchors import Anchor
-from highliner import pairing
+from highliner.models.raster import Raster
+from highliner.models.anchor import Anchor
+from highliner.services import pairing
 
 
 def gap_raster():

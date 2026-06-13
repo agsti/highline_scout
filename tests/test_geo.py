@@ -1,5 +1,5 @@
 import math
-from highliner import geo
+from highliner.core import geo
 
 
 def test_bearing_cardinals():

@@ -1,4 +1,4 @@
-from highliner import config
+from highliner.core import config
 
 
 def test_crs_constants():

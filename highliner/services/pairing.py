@@ -1,18 +1,8 @@
-from dataclasses import dataclass
 import numpy as np
 from scipy.spatial import cKDTree
-from highliner import config, geo
-from highliner.raster import Raster
-from highliner.anchors import Anchor
-
-
-@dataclass(frozen=True)
-class Candidate:
-    a: Anchor
-    b: Anchor
-    length: float
-    exposure: float
-    height_diff: float
+from highliner.core import config, geo
+from highliner.models.raster import Raster
+from highliner.models.candidate import Candidate
 
 
 def _interior_min(profile: np.ndarray) -> float:

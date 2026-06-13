@@ -1,7 +1,7 @@
 import math
 from functools import lru_cache
 from pyproj import Transformer
-from highliner import config
+from highliner.core import config
 
 
 @lru_cache(maxsize=2)

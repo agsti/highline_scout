@@ -1,7 +1,7 @@
 import math
 import numpy as np
-from highliner.raster import Raster
-from highliner.anchors import Anchor
+from highliner.models.raster import Raster
+from highliner.models.anchor import Anchor
 
 
 def compute_slope(dtm: np.ndarray, res: float) -> np.ndarray:

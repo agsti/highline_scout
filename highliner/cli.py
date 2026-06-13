@@ -1,19 +1,19 @@
 import argparse
 from pathlib import Path
-from highliner import config
+from highliner.core import config
 
 
 def _cmd_ingest(args):
-    from highliner.ingest import fetch_dtm
+    from highliner.repositories.dtm import fetch_dtm
     bbox = tuple(float(v) for v in args.bbox.split(","))
     path = fetch_dtm(bbox, region=args.region, data_dir=Path(args.data_dir))
     print(f"fetched DTM mosaic -> {path}")
 
 
 def _cmd_analyze(args):
-    from highliner.raster import Raster
-    from highliner.terrain import extract_anchors
-    from highliner.anchors import save_anchors
+    from highliner.models.raster import Raster
+    from highliner.services.terrain import extract_anchors
+    from highliner.repositories.anchors import save_anchors
     rdir = Path(args.data_dir) / args.region
     raster = Raster.open(rdir / "mosaic.tif")
     anchors = extract_anchors(
@@ -27,9 +27,15 @@ def _cmd_analyze(args):
 
 def _cmd_serve(args):
     import uvicorn
-    from highliner.api import create_app
+    from highliner.app import create_app
     app = create_app(data_dir=Path(args.data_dir))
     uvicorn.run(app, host=args.host, port=args.port)
+
+
+def _cmd_fetch_restrictions(args):
+    from highliner.repositories.restrictions import fetch_all
+    print("Downloading protected-area layers from the Generalitat WFS...")
+    fetch_all()
 
 
 def main(argv=None):
@@ -53,6 +59,9 @@ def main(argv=None):
     ps.add_argument("--host", default="127.0.0.1")
     ps.add_argument("--port", type=int, default=8000)
     ps.set_defaults(func=_cmd_serve)
+
+    pr = sub.add_parser("fetch-restrictions", parents=[common])
+    pr.set_defaults(func=_cmd_fetch_restrictions)
 
     args = p.parse_args(argv)
     args.func(args)

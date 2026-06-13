@@ -1,7 +1,7 @@
 import numpy as np
 from affine import Affine
-from highliner.raster import Raster
-from highliner import terrain
+from highliner.models.raster import Raster
+from highliner.services import terrain
 
 
 def cliff_raster():
@@ -21,7 +21,7 @@ def test_sectors_face_the_drop():
                                    min_drop=15.0)
     assert sectors, "expected at least one dropping sector"
     # at least one sector must contain due-east (90 deg)
-    from highliner.geo import bearing_in_sectors
+    from highliner.core.geo import bearing_in_sectors
     assert bearing_in_sectors(90, sectors, tol=0)
     # and none should contain due-west (270): plateau is flat that way
     assert not bearing_in_sectors(270, sectors, tol=0)

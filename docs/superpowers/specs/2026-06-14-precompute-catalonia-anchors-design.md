@@ -72,9 +72,12 @@ this is what bounds both RAM and disk:
 A chunk with no valid tiles or no anchors still writes an (empty) partition file
 (and skips the GeoTIFF) so re-runs treat it as done.
 
-After all chunks complete, build `data/catalonia/catalonia.vrt` over
-`data/catalonia/dtm/*.tif` (`gdalbuildvrt`, or `rasterio`'s VRT API) for
-serve-time windowed reads. The VRT build is cheap and re-runnable.
+At the very start the command writes `data/catalonia/grid.json`
+(`{minx, miny, maxx, maxy, chunk_m}`) describing the chunk grid. The serve layer
+uses it to map a viewport bbox to the overlapping chunk files. **No VRT is
+built** — at serve time the few chunk GeoTIFFs overlapping the viewport are
+merged in memory on demand (a viewport spans only a handful of 5 km chunks).
+This avoids depending on `gdalbuildvrt` / `osgeo` bindings.
 
 ### RAM and disk are both bounded
 
@@ -103,9 +106,9 @@ negligible against 5 km chunks.
 ## Storage layout
 
     data/catalonia/
+      grid.json                    {minx, miny, maxx, maxy, chunk_m}
       dtm/c_{cx}_{cy}.tif          compact LZW DTM per chunk (core extent)
       anchors/p_{cx}_{cy}.parquet  anchors partitioned by chunk
-      catalonia.vrt                VRT over dtm/*.tif → windowed DTM reads
       tiles/                       transient raw .asc, deleted as chunks finish
 
 Each partition parquet uses the same schema as today's `anchors.parquet`
@@ -113,34 +116,32 @@ Each partition parquet uses the same schema as today's `anchors.parquet`
 
 ## Serve-side changes (windowed, low blast radius)
 
-The catalonia dataset is read viewport-windowed. New/changed pieces:
+The catalonia dataset is read viewport-windowed by a new repository module
+`repositories/catalonia_store.py`, which uses `grid.json` to map a bbox to chunk
+indices:
 
-- **`models/raster.Raster.open_window(path, bbox, margin=0)`** — opens a raster
-  (the `.vrt` here) and reads only the window covering `bbox` expanded by
-  `margin`, via `ds.window(...)` / `ds.read(1, window=...)` and
-  `ds.window_transform(...)`. Returns a normal `Raster`. The existing
-  `Raster.open` is untouched.
+- **`catalonia_store.load_dtm_window(region_dir, bbox)`** — finds the
+  `dtm/c_{cx}_{cy}.tif` files overlapping `bbox` (filename/grid math; missing
+  ones skipped) and merges them in memory into a `Raster`. Raises
+  `HTTPException(413)` if more than `MAX_VIEW_CHUNKS` overlap (zoom in).
 
-- **`repositories/anchors.load_anchors_in_bbox(anchors_dir, bbox)`** — loads
-  only the partition files whose chunk extent overlaps `bbox`, concatenating
-  their anchors. Partition filenames encode chunk origin, so overlap is a
-  filename-math check; non-overlapping files are never opened.
+- **`catalonia_store.load_anchors_in_bbox(region_dir, bbox)`** — loads only the
+  `anchors/p_{cx}_{cy}.parquet` files overlapping `bbox` and concatenates their
+  anchors; non-overlapping files are never opened.
 
 - **`router/deps.load_view(request, region, bbox)`** — returns
   `(anchors_near_bbox, windowed_raster)`. Branches on layout:
-  - if `data/<region>/catalonia.vrt` and `anchors/` exist → windowed path:
-    `load_anchors_in_bbox` + `Raster.open_window(vrt, bbox, margin)`.
+  - if `data/<region>/grid.json` exists → windowed path via `catalonia_store`
+    (`bbox` expanded by a `DEFAULT_MAX_LEN_M` margin so the windowed raster
+    covers any `sample_line` between in-view anchors).
   - else → today's behavior: cached full `load_region`.
-
-  `margin` ≥ `DEFAULT_MAX_LEN_M` so the windowed raster covers any `sample_line`
-  between in-view anchors.
 
 - **`router/zones.py` and `router/anchors.py`** — parse the bbox first, then
   call `load_view(request, region, bbox)`, then filter (`anchors_in_view`),
   pair, and build as before. `find_candidates` is unchanged.
 
-- **`router/regions.py`** — detect the VRT layout (presence of `catalonia.vrt` +
-  `anchors/`) and derive `bounds_lonlat` from the VRT instead of `mosaic.tif`.
+- **`router/regions.py`** — detect the chunked layout (presence of `grid.json`)
+  and derive `bounds_lonlat` from `grid.json`'s bbox instead of `mosaic.tif`.
   Classic regions keep using `mosaic.tif`.
 
 `POST /analyze` and the Huey pipeline are left in place for existing on-demand
@@ -152,14 +153,14 @@ regions.
   chunk core edge: the anchor is found (halo gives correct sectors) and not
   duplicated across adjacent chunks (core-only keep).
 - **Compact GeoTIFF crop** — the per-chunk GeoTIFF covers exactly the core
-  extent (so a VRT over two adjacent chunks is seamless and non-overlapping).
+  extent (so adjacent chunks tile seamlessly without overlap).
 - **Raw-tile deletion** — after a chunk finishes, its `.asc` tiles are gone and
   the partition + GeoTIFF exist.
-- **`Raster.open_window`** — returns the correct sub-array and transform for a
-  given bbox + margin against a small fixture raster.
+- **`load_dtm_window`** — merges the overlapping chunk GeoTIFFs into a `Raster`
+  whose values match the source over a bbox; 413 when too many chunks overlap.
 - **`load_anchors_in_bbox`** — returns anchors only from overlapping partitions.
-- **`load_view`** — routes the catalonia (VRT) layout to the windowed path and
-  classic layouts to the full-load path.
+- **`load_view`** — routes the chunked (grid.json) layout to the windowed path
+  and classic layouts to the full-load path.
 - **Tolerant download** — a tile whose WCS response is an error / non-ArcGrid is
   skipped without aborting the chunk; an all-empty chunk still records a
   partition so it is not retried.

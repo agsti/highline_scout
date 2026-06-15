@@ -1,36 +1,36 @@
-# Precompute All Catalonia Anchors Implementation Plan
+# Precompute All Catalonia Anchors + Candidate Pairs Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Precompute the anchor dataset for all of Catalonia as a single `catalonia` region, served via viewport-windowed reads, replacing on-demand analysis for the covered area.
+**Goal:** Precompute anchors and candidate pairs for all of Catalonia as a single `catalonia` region, so the web map serves zones everywhere with no DTM read at request time; live sliders become filters over the stored pairs.
 
-**Architecture:** A new chunk-by-chunk batch command tiles Catalonia into 5 km squares; each chunk downloads its DTM tiles (+50 m halo), extracts anchors, writes a compact per-chunk GeoTIFF and an anchor parquet partition, then deletes the raw downloads — bounding both RAM and disk. The serve layer detects the chunked layout via `grid.json` and answers each viewport by merging only the overlapping chunk GeoTIFFs and loading only the overlapping anchor partitions.
+**Architecture:** A chunk-by-chunk batch command tiles Catalonia into 10 km squares; each chunk downloads its DTM tiles (+~1 km halo), extracts anchors, runs `find_candidates` at a loose envelope (max_len 1000 m), keeps core anchors and canonically-owned pairs, writes anchor + pair parquet partitions, then deletes the raw tiles (no DTM persists). The serve layer detects the chunked layout via `grid.json`, loads only the overlapping pair/anchor partitions, filters pairs by the live sliders, and clusters them with the existing `build_zones`.
 
-**Tech Stack:** Python 3.12, rasterio (incl. `rasterio.merge`), numpy, geopandas/shapely, FastAPI, pytest. Package manager `uv`; run tests with `uv run pytest`.
+**Tech Stack:** Python 3.12, rasterio (`rasterio.merge`), numpy, scipy, geopandas/shapely, FastAPI, pytest. Package manager `uv`; tests via `uv run pytest`.
 
 ---
 
 ## File Structure
 
 **New files:**
-- `highliner/services/catalonia.py` — batch pipeline: chunk grid, `process_chunk`, `precompute_catalonia`, compact-GeoTIFF writer.
-- `highliner/repositories/catalonia_store.py` — chunked-layout reads: `grid.json` I/O, `load_dtm_window`, `load_anchors_in_bbox`, bounds.
-- `tests/test_catalonia.py` — batch pipeline tests.
-- `tests/test_catalonia_store.py` — windowed-read tests.
+- `highliner/services/catalonia.py` — batch pipeline: chunk grid, `process_chunk`, `precompute_catalonia`.
+- `highliner/repositories/candidates.py` — save/load `Candidate` pairs as parquet.
+- `highliner/repositories/catalonia_store.py` — chunked reads: `grid.json` I/O, `load_anchors_in_bbox`, `load_pairs_in_bbox`.
+- `tests/test_catalonia.py`, `tests/test_candidates.py`, `tests/test_catalonia_store.py`.
 
 **Modified files:**
 - `highliner/repositories/dtm.py` — add `tile_specs`, `fetch_tiles` (tolerant), `raster_from_tiles`.
-- `highliner/core/config.py` — add `CATALONIA_BBOX`, `CHUNK_M`, `CHUNK_HALO_M`, `MAX_VIEW_CHUNKS`.
+- `highliner/core/config.py` — add `CATALONIA_BBOX`, `CHUNK_M`, `CHUNK_HALO_M`, `MAX_PAIR_LEN`, `MAX_VIEW_CHUNKS`, and precompute-envelope floors.
+- `highliner/services/pairing.py` — add `filter_candidates`.
 - `highliner/cli.py` — add `precompute-catalonia` subcommand.
-- `highliner/router/deps.py` — add `load_view`.
-- `highliner/router/zones.py` — use `load_view` (bbox-first).
-- `highliner/router/anchors.py` — use `load_view` (bbox-first).
+- `highliner/router/deps.py` — add `is_chunked_layout`.
+- `highliner/router/zones.py`, `highliner/router/anchors.py` — branch on layout.
 - `highliner/router/regions.py` — detect chunked layout, bounds from `grid.json`.
-- `tests/test_api.py` — add an end-to-end chunked-region test.
+- `tests/test_pairing.py`, `tests/test_cli.py`, `tests/test_api.py`.
 
 ---
 
-## Task 1: Config constants for the catalonia batch + serve
+## Task 1: Config constants
 
 **Files:**
 - Modify: `highliner/core/config.py`
@@ -46,27 +46,40 @@ def test_catalonia_constants_present() -> None:
     minx, miny, maxx, maxy = config.CATALONIA_BBOX
     assert minx < maxx and miny < maxy
     assert config.CHUNK_M > 0
-    assert config.CHUNK_HALO_M >= config.DROP_RADIUS_M  # halo must exceed drop radius
+    assert config.MAX_PAIR_LEN == 1000.0
+    # halo must cover a full max-length line plus the sector radius
+    assert config.CHUNK_HALO_M >= config.MAX_PAIR_LEN + config.DROP_RADIUS_M
     assert config.MAX_VIEW_CHUNKS > 0
+    # envelope floors are looser than the strict serving defaults
+    assert config.PRECOMPUTE_MIN_EXPOSURE_M <= config.DEFAULT_MIN_EXPOSURE_M
+    assert config.PRECOMPUTE_MAX_DH_M >= config.DEFAULT_MAX_DH_M
+    assert config.PRECOMPUTE_MIN_LEN_M <= config.DEFAULT_MIN_LEN_M
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `uv run pytest tests/test_config.py::test_catalonia_constants_present -v`
-Expected: FAIL with `AttributeError: module 'highliner.core.config' has no attribute 'CATALONIA_BBOX'`
+Expected: FAIL with `AttributeError: ... 'CATALONIA_BBOX'`
 
 - [ ] **Step 3: Add the constants**
 
-In `highliner/core/config.py`, after the `Zone clustering` block (before the `Paths` section), add:
+In `highliner/core/config.py`, after the `Zone clustering` block, add:
 
 ```python
 # Catalonia full-extent precompute
 # UTM EPSG:25831 bounding rectangle over Catalonia (brute-forced; corners over
 # sea/France/Aragon fall outside ICGC coverage and are skipped during download).
 CATALONIA_BBOX = (258000.0, 4485000.0, 530000.0, 4755000.0)
-CHUNK_M = 5000.0            # side of each analysis chunk (meters)
-CHUNK_HALO_M = 50.0         # halo read around a chunk so slope/sectors are correct at the core edge
-MAX_VIEW_CHUNKS = 64        # serve guard: refuse a viewport overlapping more chunk DTMs than this
+CHUNK_M = 10000.0           # side of each analysis chunk (meters)
+MAX_PAIR_LEN = 1000.0       # longest highline searched for / stored
+CHUNK_HALO_M = 1050.0       # halo so 1000 m pairs + sector radius cross the core edge
+MAX_VIEW_CHUNKS = 64        # serve guard: refuse a viewport overlapping more partitions
+
+# Loose envelope the precomputed pairs are generated at; the live sliders only
+# narrow within it (defaults above are stricter and hide some real lines).
+PRECOMPUTE_MIN_LEN_M = 10.0
+PRECOMPUTE_MIN_EXPOSURE_M = 10.0
+PRECOMPUTE_MAX_DH_M = 30.0
 ```
 
 - [ ] **Step 4: Run test to verify it passes**
@@ -85,19 +98,16 @@ git commit -m "feat: add catalonia precompute config constants"
 
 ## Task 2: Tolerant tile download + in-memory tile→Raster helpers
 
-These let a chunk fetch only its own tiles (skipping out-of-coverage failures) and merge them without writing a mosaic.
-
 **Files:**
 - Modify: `highliner/repositories/dtm.py`
 - Test: `tests/test_ingest.py`
 
 - [ ] **Step 1: Write the failing tests**
 
-Add to `tests/test_ingest.py` (reuse the existing `_fake_asc` helper in that file):
+Add to `tests/test_ingest.py` (reuse the existing `_fake_asc` helper):
 
 ```python
 def test_tile_specs_covers_grid() -> None:
-    # 2000 x 1500 m at 5 m, 175 px tiles (875 m) -> 3 x 2 = 6 specs
     specs = list(ingest.tile_specs((484000, 4646000, 486000, 4647500),
                                    res=5.0, tile_px=175))
     assert len(specs) == 6
@@ -107,26 +117,23 @@ def test_tile_specs_covers_grid() -> None:
 
 def test_fetch_tiles_skips_failures(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     def fake_download(bbox, width, height, dest):
-        # fail for tiles whose minx is the western column (simulate out-of-coverage)
-        if int(bbox[0]) == 484000:
+        if int(bbox[0]) == 484000:           # simulate out-of-coverage column
             raise RuntimeError("ICGC WCS did not return ArcGrid data")
         return _fake_asc(bbox, width, height, dest)
     monkeypatch.setattr(ingest, "_download_tile", fake_download)
 
     paths = ingest.fetch_tiles((484000, 4646000, 486000, 4647500),
                                tmp_path / "tiles", res=5.0, tile_px=175)
-    # 6 specs, 2 in the failing western column -> 4 succeed
-    assert len(paths) == 4
+    assert len(paths) == 4                    # 2 of 6 specs failed
     assert all(p.exists() for p in paths)
 
 
 def test_raster_from_tiles_merges(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(ingest, "_download_tile", _fake_asc)  # signature matches
+    monkeypatch.setattr(ingest, "_download_tile", _fake_asc)
     paths = ingest.fetch_tiles((484000, 4646000, 486000, 4647500),
                                tmp_path / "tiles", res=5.0, tile_px=175)
     r = ingest.raster_from_tiles(paths, res=5.0)
-    assert r is not None
-    assert r.res == 5.0
+    assert r is not None and r.res == 5.0
     assert (r.data == 100.0).any()
 
 
@@ -134,16 +141,24 @@ def test_raster_from_tiles_empty_is_none() -> None:
     assert ingest.raster_from_tiles([], res=5.0) is None
 ```
 
-Note: `_fake_asc` already has signature `(bbox, width, height, dest)`, matching `_download_tile`, so it can be used directly as the monkeypatch in `test_raster_from_tiles_merges`.
-
 - [ ] **Step 2: Run tests to verify they fail**
 
 Run: `uv run pytest tests/test_ingest.py -k "tile_specs or fetch_tiles or raster_from_tiles" -v`
-Expected: FAIL with `AttributeError: module 'highliner.repositories.dtm' has no attribute 'tile_specs'`
+Expected: FAIL with `AttributeError: ... 'tile_specs'`
 
 - [ ] **Step 3: Implement the helpers**
 
-In `highliner/repositories/dtm.py`, add `import numpy as np` to the imports at the top (alongside the existing `import rasterio`). Then add these functions (place them after `estimate_tiles`):
+In `highliner/repositories/dtm.py`:
+- Add `import numpy as np` to the top imports.
+- Replace `from typing import Callable` with:
+
+```python
+from typing import Callable, TYPE_CHECKING
+if TYPE_CHECKING:
+    from highliner.models.raster import Raster
+```
+
+- Add after `estimate_tiles`:
 
 ```python
 def _snap(bbox: Bbox, res: float) -> Bbox:
@@ -153,7 +168,7 @@ def _snap(bbox: Bbox, res: float) -> Bbox:
 
 
 def tile_specs(bbox: Bbox, res: float = NATIVE_RES, tile_px: int = MAX_TILE_PX
-               ) -> "list[tuple[Bbox, int, int]]":
+               ) -> list[tuple[Bbox, int, int]]:
     """Tile (bbox, width, height) specs tiling ``bbox`` snapped to the res grid."""
     minx, miny, maxx, maxy = _snap(bbox, res)
     step = tile_px * res
@@ -175,9 +190,9 @@ def tile_specs(bbox: Bbox, res: float = NATIVE_RES, tile_px: int = MAX_TILE_PX
 
 def fetch_tiles(bbox: Bbox, tiles_dir: Path, res: float = NATIVE_RES,
                 tile_px: int = MAX_TILE_PX) -> list[Path]:
-    """Download the tiles covering ``bbox`` into ``tiles_dir``. Cached tiles are
-    reused; tiles whose WCS response errors or is not ArcGrid (out of ICGC
-    coverage) are skipped. Returns the paths that exist on disk."""
+    """Download tiles covering ``bbox`` into ``tiles_dir``; reuse cached tiles;
+    skip tiles whose WCS response errors or is not ArcGrid (out of coverage).
+    Returns the paths that exist on disk."""
     tiles_dir = Path(tiles_dir)
     tiles_dir.mkdir(parents=True, exist_ok=True)
     paths: list[Path] = []
@@ -193,8 +208,7 @@ def fetch_tiles(bbox: Bbox, tiles_dir: Path, res: float = NATIVE_RES,
 
 
 def raster_from_tiles(paths: list[Path], res: float = NATIVE_RES) -> "Raster | None":
-    """Merge tile rasters into a single in-memory ``Raster`` (NaN nodata), or
-    ``None`` if ``paths`` is empty."""
+    """Merge tile rasters into one in-memory ``Raster`` (NaN nodata), or None."""
     from highliner.models.raster import Raster
     if not paths:
         return None
@@ -209,20 +223,10 @@ def raster_from_tiles(paths: list[Path], res: float = NATIVE_RES) -> "Raster | N
     return Raster(data=data, transform=transform, res=res)
 ```
 
-Also add the `Raster` import for the type annotation only at the top under a `TYPE_CHECKING` guard (keeps runtime import inside the function to avoid cycles):
-
-```python
-from typing import Callable, TYPE_CHECKING
-if TYPE_CHECKING:
-    from highliner.models.raster import Raster
-```
-
-(Replace the existing `from typing import Callable` line with the two lines above.)
-
 - [ ] **Step 4: Run tests to verify they pass**
 
 Run: `uv run pytest tests/test_ingest.py -v`
-Expected: PASS (new tests plus the existing mosaic tests still green)
+Expected: PASS (new + existing)
 
 - [ ] **Step 5: Commit**
 
@@ -233,7 +237,111 @@ git commit -m "feat: add tolerant tile fetch and in-memory tile merge to dtm rep
 
 ---
 
-## Task 3: Chunk grid math
+## Task 3: Candidate parquet repository
+
+**Files:**
+- Create: `highliner/repositories/candidates.py`
+- Test: `tests/test_candidates.py`
+
+- [ ] **Step 1: Write the failing test**
+
+Create `tests/test_candidates.py`:
+
+```python
+from pathlib import Path
+from highliner.models.anchor import Anchor
+from highliner.models.candidate import Candidate
+from highliner.repositories.candidates import save_candidates, load_candidates
+
+
+def _cand() -> Candidate:
+    a = Anchor(x=10.0, y=20.0, elev=100.0, sectors=())
+    b = Anchor(x=40.0, y=20.0, elev=98.0, sectors=())
+    return Candidate(a=a, b=b, length=30.0, exposure=55.0, height_diff=2.0)
+
+
+def test_roundtrip(tmp_path: Path) -> None:
+    p = tmp_path / "q.parquet"
+    save_candidates([_cand()], p)
+    got = load_candidates(p)
+    assert len(got) == 1
+    c = got[0]
+    assert (c.a.x, c.a.y, c.a.elev) == (10.0, 20.0, 100.0)
+    assert (c.b.x, c.b.y, c.b.elev) == (40.0, 20.0, 98.0)
+    assert (c.length, c.exposure, c.height_diff) == (30.0, 55.0, 2.0)
+    # endpoints reconstructed without sectors (not needed for zones)
+    assert c.a.sectors == () and c.b.sectors == ()
+
+
+def test_empty_roundtrip(tmp_path: Path) -> None:
+    p = tmp_path / "q.parquet"
+    save_candidates([], p)
+    assert load_candidates(p) == []
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `uv run pytest tests/test_candidates.py -v`
+Expected: FAIL with `ModuleNotFoundError: ... 'candidates'`
+
+- [ ] **Step 3: Implement the repository**
+
+Create `highliner/repositories/candidates.py`:
+
+```python
+"""Persist candidate pairs as parquet partitions.
+
+One row per pair: both endpoints (x, y, elev) plus the precomputed scalars the
+serve-time slider filters need. Anchor sectors are not stored — the directional
+check is baked in at precompute time and `build_zones` does not use sectors.
+"""
+from pathlib import Path
+
+from highliner.models.anchor import Anchor
+from highliner.models.candidate import Candidate
+
+_COLS = ["ax", "ay", "aelev", "bx", "by", "belev",
+         "length", "exposure", "height_diff"]
+
+
+def save_candidates(candidates: list[Candidate], path: str | Path) -> None:
+    import pandas as pd
+    rows = [{
+        "ax": c.a.x, "ay": c.a.y, "aelev": c.a.elev,
+        "bx": c.b.x, "by": c.b.y, "belev": c.b.elev,
+        "length": c.length, "exposure": c.exposure, "height_diff": c.height_diff,
+    } for c in candidates]
+    df = pd.DataFrame(rows, columns=_COLS)
+    df.to_parquet(path)
+
+
+def load_candidates(path: str | Path) -> list[Candidate]:
+    import pandas as pd
+    df = pd.read_parquet(path)
+    out: list[Candidate] = []
+    for r in df.itertuples(index=False):
+        a = Anchor(x=r.ax, y=r.ay, elev=r.aelev, sectors=())
+        b = Anchor(x=r.bx, y=r.by, elev=r.belev, sectors=())
+        out.append(Candidate(a=a, b=b, length=r.length,
+                             exposure=r.exposure, height_diff=r.height_diff))
+    return out
+```
+
+- [ ] **Step 4: Run test to verify it passes**
+
+Run: `uv run pytest tests/test_candidates.py -v`
+Expected: PASS
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add highliner/repositories/candidates.py tests/test_candidates.py
+git commit -m "feat: add candidate parquet repository"
+```
+
+---
+
+## Task 4: Chunk grid math
 
 **Files:**
 - Create: `highliner/services/catalonia.py`
@@ -250,53 +358,46 @@ from highliner.services import catalonia
 
 
 def test_chunk_grid_tiles_bbox() -> None:
-    # 12 km x 8 km area, 5 km chunks -> 3 cols x 2 rows = 6 chunks
-    bbox = (0.0, 0.0, 12000.0, 8000.0)
-    chunks = list(catalonia.chunk_grid(bbox, chunk_m=5000.0))
-    assert len(chunks) == 6
-    # indices are unique
+    bbox = (0.0, 0.0, 25000.0, 15000.0)        # 25 x 15 km, 10 km chunks
+    chunks = list(catalonia.chunk_grid(bbox, chunk_m=10000.0))
+    assert len(chunks) == 3 * 2                 # 3 cols x 2 rows
     assert len({(cx, cy) for cx, cy, _ in chunks}) == 6
-    # cores are clipped to the bbox max edge
     for cx, cy, (x0, y0, x1, y1) in chunks:
-        assert x1 <= 12000.0 and y1 <= 8000.0
+        assert x1 <= 25000.0 and y1 <= 15000.0
         assert x1 > x0 and y1 > y0
-    # the top-right chunk core is the clipped remainder (2 km x 3 km)
     top_right = [c for c in chunks if c[0] == 2 and c[1] == 1][0]
-    _, _, (x0, y0, x1, y1) = top_right
-    assert (x0, y0, x1, y1) == (10000.0, 5000.0, 12000.0, 8000.0)
+    assert top_right[2] == (20000.0, 10000.0, 25000.0, 15000.0)   # clipped remainder
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `uv run pytest tests/test_catalonia.py::test_chunk_grid_tiles_bbox -v`
-Expected: FAIL with `ModuleNotFoundError: No module named 'highliner.services.catalonia'`
+Expected: FAIL with `ModuleNotFoundError: ... 'catalonia'`
 
 - [ ] **Step 3: Create the module with chunk_grid**
 
 Create `highliner/services/catalonia.py`:
 
 ```python
-"""Batch precompute of anchors for all of Catalonia.
+"""Batch precompute of anchors + candidate pairs for all of Catalonia.
 
-Tiles the region into ``chunk_m`` squares and processes each independently:
-download DTM tiles (+halo), extract anchors, write a compact per-chunk GeoTIFF
-and an anchor parquet partition, then delete the raw downloads. RAM is bounded
-to one chunk; disk is bounded because raw tiles never accumulate.
+Tiles the region into ``chunk_m`` squares processed independently: download DTM
+tiles (+halo), extract anchors, find candidate pairs at a loose envelope, keep
+core anchors and canonically-owned pairs, write parquet partitions, then delete
+the raw downloads. RAM is bounded to one chunk; no DTM persists.
 """
 import json
 import math
 from pathlib import Path
 from typing import Callable, Iterator
 
-import numpy as np
-import rasterio
-from affine import Affine
-
 from highliner.core import config
 from highliner.models.anchor import Anchor
-from highliner.models.raster import Raster
+from highliner.models.candidate import Candidate
 from highliner.repositories import dtm
 from highliner.repositories.anchors import save_anchors
+from highliner.repositories.candidates import save_candidates
+from highliner.services.pairing import find_candidates
 from highliner.services.terrain import extract_anchors
 
 Bbox = tuple[float, float, float, float]
@@ -329,91 +430,7 @@ git commit -m "feat: add catalonia chunk grid"
 
 ---
 
-## Task 4: Compact per-chunk GeoTIFF writer
-
-**Files:**
-- Modify: `highliner/services/catalonia.py`
-- Test: `tests/test_catalonia.py`
-
-- [ ] **Step 1: Write the failing test**
-
-Add to `tests/test_catalonia.py`:
-
-```python
-import numpy as np
-import rasterio
-from affine import Affine
-from highliner.models.raster import Raster
-
-
-def _ramp_raster() -> Raster:
-    # 20x20 @ 5 m, origin top-left (0, 100); value = column index (ramps W->E)
-    data = np.tile(np.arange(20, dtype="float32"), (20, 1))
-    return Raster(data=data, transform=Affine(5.0, 0, 0, 0, -5.0, 100.0), res=5.0)
-
-
-def test_write_core_geotiff_crops_to_core(tmp_path: Path) -> None:
-    r = _ramp_raster()
-    # core = inner 50 m square: x 25..75, y 25..75 (cols 5..15, rows 5..15)
-    dest = tmp_path / "c.tif"
-    catalonia._write_core_geotiff(r, (25.0, 25.0, 75.0, 75.0), dest)
-    with rasterio.open(dest) as ds:
-        assert ds.width == 10 and ds.height == 10
-        assert ds.res[0] == 5.0
-        b = ds.bounds
-        assert (b.left, b.bottom, b.right, b.top) == (25.0, 25.0, 75.0, 75.0)
-        # top-left pixel of the crop is column 5 of the ramp -> value 5
-        assert ds.read(1)[0, 0] == 5.0
-```
-
-- [ ] **Step 2: Run test to verify it fails**
-
-Run: `uv run pytest tests/test_catalonia.py::test_write_core_geotiff_crops_to_core -v`
-Expected: FAIL with `AttributeError: module 'highliner.services.catalonia' has no attribute '_write_core_geotiff'`
-
-- [ ] **Step 3: Implement the writer**
-
-Add to `highliner/services/catalonia.py`:
-
-```python
-def _write_core_geotiff(raster: Raster, core_bbox: Bbox, dest: Path) -> None:
-    """Write the part of ``raster`` covering ``core_bbox`` as an LZW float32
-    GeoTIFF, so per-chunk GeoTIFFs tile seamlessly without overlap."""
-    minx, miny, maxx, maxy = core_bbox
-    inv = ~raster.transform
-    c0, r0 = inv * (minx, maxy)   # top-left corner -> (col, row)
-    c1, r1 = inv * (maxx, miny)   # bottom-right corner
-    col0, row0 = int(round(c0)), int(round(r0))
-    col1, row1 = int(round(c1)), int(round(r1))
-    sub = raster.data[row0:row1, col0:col1]
-    if sub.size == 0:
-        return
-    transform = raster.transform * Affine.translation(col0, row0)
-    out = sub.copy()
-    out[np.isnan(out)] = dtm.NODATA
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    with rasterio.open(dest, "w", driver="GTiff", height=sub.shape[0],
-                       width=sub.shape[1], count=1, dtype="float32",
-                       crs=config.UTM_CRS, transform=transform,
-                       nodata=dtm.NODATA, compress="lzw") as ds:
-        ds.write(out.astype("float32"), 1)
-```
-
-- [ ] **Step 4: Run test to verify it passes**
-
-Run: `uv run pytest tests/test_catalonia.py::test_write_core_geotiff_crops_to_core -v`
-Expected: PASS
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add highliner/services/catalonia.py tests/test_catalonia.py
-git commit -m "feat: add per-chunk core geotiff writer"
-```
-
----
-
-## Task 5: process_chunk — download, extract core anchors, write outputs, delete raw tiles
+## Task 5: process_chunk — extract anchors + pairs, store, delete tiles
 
 **Files:**
 - Modify: `highliner/services/catalonia.py`
@@ -421,12 +438,13 @@ git commit -m "feat: add per-chunk core geotiff writer"
 
 - [ ] **Step 1: Write the failing tests**
 
-Add to `tests/test_catalonia.py` (a fake that produces a cliff so anchors are extracted):
+Add to `tests/test_catalonia.py`:
 
 ```python
-def _patch_cliff_download(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Make dtm._download_tile write a tile that is a plateau (100) on the west
-    half and a pit (0) on the east half, so steep cliff cells exist."""
+def _patch_gap_download(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Make dtm._download_tile synthesize terrain: plateau 100 m everywhere
+    except a deep N-S trench (elev 20) 40 m wide near the chunk's west side, so
+    facing anchors exist across the trench (exposure ~80)."""
     from highliner.repositories import dtm as _dtm
 
     def fake(bbox, width, height, dest):
@@ -434,8 +452,11 @@ def _patch_cliff_download(monkeypatch: pytest.MonkeyPatch) -> None:
         cell = (maxx - minx) / width
         rows = []
         for _ in range(height):
-            rows.append(" ".join("100.0" if c < width // 2 else "0.0"
-                                  for c in range(width)))
+            cells = []
+            for c in range(width):
+                x = minx + (c + 0.5) * cell
+                cells.append("20.0" if 485200.0 <= x <= 485240.0 else "100.0")
+            rows.append(" ".join(cells))
         header = [f"NCOLS {width}", f"NROWS {height}",
                   f"XLLCORNER {minx}", f"YLLCORNER {miny}",
                   f"CELLSIZE {cell}", "NODATA_VALUE -9999"]
@@ -444,38 +465,41 @@ def _patch_cliff_download(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(_dtm, "_download_tile", fake)
 
 
-def test_process_chunk_writes_outputs_and_deletes_tiles(
+def test_process_chunk_writes_partitions_and_deletes_tiles(
         tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    _patch_cliff_download(monkeypatch)
+    _patch_gap_download(monkeypatch)
     region_dir = tmp_path / "catalonia"
-    core = (485000.0, 4646000.0, 490000.0, 4651000.0)  # 5 km chunk
+    core = (485000.0, 4646000.0, 495000.0, 4656000.0)   # 10 km chunk
     catalonia.process_chunk(0, 0, core, region_dir)
 
     apath = region_dir / "anchors" / "p_0_0.parquet"
-    tif = region_dir / "dtm" / "c_0_0.tif"
-    assert apath.exists() and tif.exists()
-    # raw tiles were cleaned up
-    assert not list((region_dir / "tiles").glob("*.asc"))
+    qpath = region_dir / "pairs" / "q_0_0.parquet"
+    assert apath.exists() and qpath.exists()
+    assert not list((region_dir / "tiles").glob("*.asc"))     # cleaned up
+    assert not (region_dir / "dtm").exists()                  # no DTM persisted
 
-    from highliner.repositories.anchors import load_anchors
-    anchors = load_anchors(apath)
-    assert len(anchors) > 0
-    # every kept anchor's center is inside the core extent
-    for a in anchors:
-        assert core[0] <= a.x < core[2] and core[1] <= a.y < core[3]
+    from highliner.repositories.candidates import load_candidates
+    cands = load_candidates(qpath)
+    assert len(cands) > 0
+    # all stored pairs respect the envelope and have real exposure
+    for c in cands:
+        assert c.length <= config.MAX_PAIR_LEN
+        assert c.exposure >= config.PRECOMPUTE_MIN_EXPOSURE_M
+        # canonical endpoint (smaller (x, y)) is inside the core
+        cx, cy = min((c.a.x, c.a.y), (c.b.x, c.b.y))
+        assert core[0] <= cx < core[2] and core[1] <= cy < core[3]
 
 
 def test_process_chunk_resumes(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    _patch_cliff_download(monkeypatch)
+    _patch_gap_download(monkeypatch)
     region_dir = tmp_path / "catalonia"
-    core = (485000.0, 4646000.0, 490000.0, 4651000.0)
+    core = (485000.0, 4646000.0, 495000.0, 4656000.0)
     catalonia.process_chunk(0, 0, core, region_dir)
 
-    # second run must not re-download: break _download_tile so any call fails the test
     from highliner.repositories import dtm as _dtm
     monkeypatch.setattr(_dtm, "_download_tile",
                         lambda *a, **k: pytest.fail("re-downloaded a finished chunk"))
-    catalonia.process_chunk(0, 0, core, region_dir)  # returns immediately
+    catalonia.process_chunk(0, 0, core, region_dir)           # returns immediately
 
 
 def test_process_chunk_empty_marks_done(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -483,31 +507,35 @@ def test_process_chunk_empty_marks_done(tmp_path: Path, monkeypatch: pytest.Monk
     monkeypatch.setattr(_dtm, "_download_tile",
                         lambda *a, **k: (_ for _ in ()).throw(RuntimeError("no coverage")))
     region_dir = tmp_path / "catalonia"
-    core = (200000.0, 4400000.0, 205000.0, 4405000.0)
+    core = (200000.0, 4400000.0, 210000.0, 4410000.0)
     catalonia.process_chunk(0, 0, core, region_dir)
-    # empty partition written, no geotiff
     assert (region_dir / "anchors" / "p_0_0.parquet").exists()
-    assert not (region_dir / "dtm" / "c_0_0.tif").exists()
-    from highliner.repositories.anchors import load_anchors
-    assert load_anchors(region_dir / "anchors" / "p_0_0.parquet") == []
+    assert (region_dir / "pairs" / "q_0_0.parquet").exists()
+    from highliner.repositories.candidates import load_candidates
+    assert load_candidates(region_dir / "pairs" / "q_0_0.parquet") == []
 ```
 
 - [ ] **Step 2: Run tests to verify they fail**
 
 Run: `uv run pytest tests/test_catalonia.py -k process_chunk -v`
-Expected: FAIL with `AttributeError: module 'highliner.services.catalonia' has no attribute 'process_chunk'`
+Expected: FAIL with `AttributeError: ... 'process_chunk'`
 
 - [ ] **Step 3: Implement process_chunk**
 
 Add to `highliner/services/catalonia.py`:
 
 ```python
+def _in_core(x: float, y: float, core: Bbox) -> bool:
+    return core[0] <= x < core[2] and core[1] <= y < core[3]
+
+
 def process_chunk(cx: int, cy: int, core_bbox: Bbox, region_dir: Path,
                   halo: float = config.CHUNK_HALO_M) -> int:
-    """Process one chunk. Returns the number of anchors kept. Idempotent: a
-    chunk whose partition parquet already exists is skipped (returns -1)."""
-    apath = region_dir / "anchors" / f"p_{cx}_{cy}.parquet"
-    if apath.exists():
+    """Process one chunk into anchor + pair partitions. Returns the number of
+    pairs kept. Idempotent: a chunk whose pair partition exists is skipped
+    (returns -1)."""
+    qpath = region_dir / "pairs" / f"q_{cx}_{cy}.parquet"
+    if qpath.exists():
         return -1
 
     minx, miny, maxx, maxy = core_bbox
@@ -515,21 +543,31 @@ def process_chunk(cx: int, cy: int, core_bbox: Bbox, region_dir: Path,
     tiles = dtm.fetch_tiles(halo_bbox, region_dir / "tiles")
 
     core_anchors: list[Anchor] = []
+    owned_pairs: list[Candidate] = []
     raster = dtm.raster_from_tiles(tiles)
     if raster is not None:
         anchors = extract_anchors(
             raster, slope_min=config.SLOPE_MIN_DEG, radius=config.DROP_RADIUS_M,
             n_azimuths=config.N_AZIMUTHS, min_sector_drop=config.MIN_SECTOR_DROP_M,
             thin_dist=config.THIN_DIST_M)
-        core_anchors = [a for a in anchors
-                        if minx <= a.x < maxx and miny <= a.y < maxy]
-        _write_core_geotiff(raster, core_bbox, region_dir / "dtm" / f"c_{cx}_{cy}.tif")
+        core_anchors = [a for a in anchors if _in_core(a.x, a.y, core_bbox)]
+        cands = find_candidates(
+            anchors, raster, max_len=config.MAX_PAIR_LEN,
+            min_len=config.PRECOMPUTE_MIN_LEN_M,
+            min_exposure=config.PRECOMPUTE_MIN_EXPOSURE_M,
+            max_dh=config.PRECOMPUTE_MAX_DH_M)
+        for c in cands:                          # own a pair via its canonical endpoint
+            kx, ky = min((c.a.x, c.a.y), (c.b.x, c.b.y))
+            if _in_core(kx, ky, core_bbox):
+                owned_pairs.append(c)
 
-    apath.parent.mkdir(parents=True, exist_ok=True)
-    save_anchors(core_anchors, apath)
+    (region_dir / "anchors").mkdir(parents=True, exist_ok=True)
+    (region_dir / "pairs").mkdir(parents=True, exist_ok=True)
+    save_anchors(core_anchors, region_dir / "anchors" / f"p_{cx}_{cy}.parquet")
+    save_candidates(owned_pairs, qpath)
     for t in tiles:
         t.unlink(missing_ok=True)
-    return len(core_anchors)
+    return len(owned_pairs)
 ```
 
 - [ ] **Step 4: Run tests to verify they pass**
@@ -541,12 +579,12 @@ Expected: PASS
 
 ```bash
 git add highliner/services/catalonia.py tests/test_catalonia.py
-git commit -m "feat: process a catalonia chunk into anchors + compact dtm"
+git commit -m "feat: process a catalonia chunk into anchor + pair partitions"
 ```
 
 ---
 
-## Task 6: precompute_catalonia driver (grid.json + iterate chunks)
+## Task 6: precompute_catalonia driver
 
 **Files:**
 - Modify: `highliner/services/catalonia.py`
@@ -559,30 +597,28 @@ Add to `tests/test_catalonia.py`:
 ```python
 def test_precompute_writes_grid_and_all_chunks(
         tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    _patch_cliff_download(monkeypatch)
-    # 10 km x 5 km area, 5 km chunks -> 2 chunks
-    bbox = (485000.0, 4646000.0, 495000.0, 4651000.0)
+    _patch_gap_download(monkeypatch)
+    bbox = (485000.0, 4646000.0, 505000.0, 4656000.0)        # 20 x 10 km -> 2 chunks
     seen = []
     n = catalonia.precompute_catalonia(
-        bbox, tmp_path, chunk_m=5000.0,
+        bbox, tmp_path, chunk_m=10000.0,
         report=lambda done, total: seen.append((done, total)))
     region_dir = tmp_path / "catalonia"
 
     import json
     grid = json.loads((region_dir / "grid.json").read_text())
-    assert grid["chunk_m"] == 5000.0
+    assert grid["chunk_m"] == 10000.0
     assert tuple(grid["bbox"]) == bbox
-
-    assert (region_dir / "anchors" / "p_0_0.parquet").exists()
-    assert (region_dir / "anchors" / "p_1_0.parquet").exists()
-    assert seen[-1] == (2, 2)        # finished at total
-    assert n == 2                    # chunks processed
+    assert (region_dir / "pairs" / "q_0_0.parquet").exists()
+    assert (region_dir / "pairs" / "q_1_0.parquet").exists()
+    assert seen[-1] == (2, 2)
+    assert n == 2
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `uv run pytest tests/test_catalonia.py::test_precompute_writes_grid_and_all_chunks -v`
-Expected: FAIL with `AttributeError: module 'highliner.services.catalonia' has no attribute 'precompute_catalonia'`
+Expected: FAIL with `AttributeError: ... 'precompute_catalonia'`
 
 - [ ] **Step 3: Implement the driver**
 
@@ -591,9 +627,9 @@ Add to `highliner/services/catalonia.py`:
 ```python
 def precompute_catalonia(bbox: Bbox, data_dir: Path, chunk_m: float = config.CHUNK_M,
                          report: Callable[[int, int], None] | None = None) -> int:
-    """Precompute anchors + compact DTM for ``bbox`` under ``data_dir/catalonia``.
+    """Precompute anchors + pairs for ``bbox`` under ``data_dir/catalonia``.
     Writes grid.json, then processes every chunk (skipping finished ones).
-    Returns the number of chunks processed (touched this run + already done)."""
+    Returns the number of chunks."""
     region_dir = Path(data_dir) / "catalonia"
     region_dir.mkdir(parents=True, exist_ok=True)
     (region_dir / "grid.json").write_text(json.dumps(
@@ -628,28 +664,26 @@ git commit -m "feat: add precompute_catalonia driver with grid.json + resume"
 - Modify: `highliner/cli.py`
 - Test: `tests/test_cli.py`
 
-- [ ] **Step 1: Write the failing test**
+- [ ] **Step 1: Write the failing tests**
 
-Add to `tests/test_cli.py` (match the existing style in that file — it monkeypatches the service the command calls):
+Add to `tests/test_cli.py`:
 
 ```python
-def test_precompute_catalonia_command(monkeypatch, capsys) -> None:
+def test_precompute_catalonia_command(monkeypatch) -> None:
     from highliner import cli
     calls = {}
 
-    def fake_precompute(bbox, data_dir, chunk_m=5000.0, report=None):
+    def fake(bbox, data_dir, chunk_m=10000.0, report=None):
         calls["bbox"] = bbox
         calls["chunk_m"] = chunk_m
         if report:
             report(1, 1)
         return 1
-    monkeypatch.setattr("highliner.services.catalonia.precompute_catalonia",
-                        fake_precompute)
-
+    monkeypatch.setattr("highliner.services.catalonia.precompute_catalonia", fake)
     cli.main(["precompute-catalonia", "--data-dir", "/tmp/x",
-              "--bbox", "0,0,5000,5000", "--chunk-km", "5"])
-    assert calls["bbox"] == (0.0, 0.0, 5000.0, 5000.0)
-    assert calls["chunk_m"] == 5000.0
+              "--bbox", "0,0,10000,10000", "--chunk-km", "10"])
+    assert calls["bbox"] == (0.0, 0.0, 10000.0, 10000.0)
+    assert calls["chunk_m"] == 10000.0
 
 
 def test_precompute_catalonia_defaults_to_full_bbox(monkeypatch) -> None:
@@ -657,7 +691,8 @@ def test_precompute_catalonia_defaults_to_full_bbox(monkeypatch) -> None:
     from highliner.core import config
     calls = {}
     monkeypatch.setattr("highliner.services.catalonia.precompute_catalonia",
-                        lambda bbox, data_dir, chunk_m=5000.0, report=None: calls.update(bbox=bbox) or 0)
+                        lambda bbox, data_dir, chunk_m=10000.0, report=None:
+                        calls.update(bbox=bbox) or 0)
     cli.main(["precompute-catalonia", "--data-dir", "/tmp/x"])
     assert calls["bbox"] == config.CATALONIA_BBOX
 ```
@@ -665,11 +700,11 @@ def test_precompute_catalonia_defaults_to_full_bbox(monkeypatch) -> None:
 - [ ] **Step 2: Run tests to verify they fail**
 
 Run: `uv run pytest tests/test_cli.py -k precompute_catalonia -v`
-Expected: FAIL (argparse exits with error: invalid choice `precompute-catalonia`)
+Expected: FAIL (argparse: invalid choice)
 
 - [ ] **Step 3: Implement the command**
 
-In `highliner/cli.py`, add the handler (after `_cmd_analyze`):
+In `highliner/cli.py`, add after `_cmd_analyze`:
 
 ```python
 def _cmd_precompute_catalonia(args: argparse.Namespace) -> None:
@@ -687,13 +722,13 @@ def _cmd_precompute_catalonia(args: argparse.Namespace) -> None:
     print(f"\nprocessed {n} chunks -> {Path(args.data_dir) / 'catalonia'}")
 ```
 
-And register it in `main`, after the `analyze` parser block:
+Register in `main`, after the `analyze` parser block:
 
 ```python
     pc = sub.add_parser("precompute-catalonia", parents=[common])
     pc.add_argument("--bbox", default=None,
                     help="minx,miny,maxx,maxy EPSG:25831 (default: all Catalonia)")
-    pc.add_argument("--chunk-km", type=float, default=5.0)
+    pc.add_argument("--chunk-km", type=float, default=10.0)
     pc.set_defaults(func=_cmd_precompute_catalonia)
 ```
 
@@ -711,7 +746,66 @@ git commit -m "feat: add precompute-catalonia CLI command"
 
 ---
 
-## Task 8: catalonia_store — grid + chunk-index math
+## Task 8: filter_candidates helper
+
+**Files:**
+- Modify: `highliner/services/pairing.py`
+- Test: `tests/test_pairing.py`
+
+- [ ] **Step 1: Write the failing test**
+
+Add to `tests/test_pairing.py`:
+
+```python
+def _cand(length: float, exposure: float, dh: float):
+    from highliner.models.candidate import Candidate
+    a = Anchor(x=0.0, y=0.0, elev=100.0, sectors=())
+    b = Anchor(x=length, y=0.0, elev=100.0 - dh, sectors=())
+    return Candidate(a=a, b=b, length=length, exposure=exposure, height_diff=dh)
+
+
+def test_filter_candidates_narrows_by_each_slider() -> None:
+    cands = [_cand(30, 50, 2), _cand(500, 50, 2), _cand(30, 15, 2), _cand(30, 50, 25)]
+    out = pairing.filter_candidates(cands, max_len=120, min_len=20,
+                                    min_exposure=40, max_dh=10)
+    assert len(out) == 1
+    assert out[0].length == 30 and out[0].exposure == 50 and out[0].height_diff == 2
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `uv run pytest tests/test_pairing.py::test_filter_candidates_narrows_by_each_slider -v`
+Expected: FAIL with `AttributeError: ... 'filter_candidates'`
+
+- [ ] **Step 3: Implement the helper**
+
+Add to `highliner/services/pairing.py`:
+
+```python
+def filter_candidates(candidates: list[Candidate], max_len: float, min_len: float,
+                      min_exposure: float, max_dh: float) -> list[Candidate]:
+    """Narrow precomputed candidates by the live slider thresholds."""
+    return [c for c in candidates
+            if min_len <= c.length <= max_len
+            and c.exposure >= min_exposure
+            and c.height_diff <= max_dh]
+```
+
+- [ ] **Step 4: Run test to verify it passes**
+
+Run: `uv run pytest tests/test_pairing.py::test_filter_candidates_narrows_by_each_slider -v`
+Expected: PASS
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add highliner/services/pairing.py tests/test_pairing.py
+git commit -m "feat: add filter_candidates for precomputed pairs"
+```
+
+---
+
+## Task 9: catalonia_store — grid + chunk-index math
 
 **Files:**
 - Create: `highliner/repositories/catalonia_store.py`
@@ -732,37 +826,32 @@ def _grid(tmp_path: Path) -> Path:
     region = tmp_path / "catalonia"
     region.mkdir()
     (region / "grid.json").write_text(json.dumps(
-        {"bbox": [0.0, 0.0, 15000.0, 10000.0], "chunk_m": 5000.0}))
+        {"bbox": [0.0, 0.0, 30000.0, 20000.0], "chunk_m": 10000.0}))
     return region
 
 
 def test_read_grid(tmp_path: Path) -> None:
-    region = _grid(tmp_path)
-    g = store.read_grid(region)
-    assert g.bbox == (0.0, 0.0, 15000.0, 10000.0)
-    assert g.chunk_m == 5000.0
+    g = store.read_grid(_grid(tmp_path))
+    assert g.bbox == (0.0, 0.0, 30000.0, 20000.0)
+    assert g.chunk_m == 10000.0
 
 
 def test_chunk_indices_for_bbox(tmp_path: Path) -> None:
-    region = _grid(tmp_path)
-    g = store.read_grid(region)
-    # bbox spanning x 4000..6000 (cols 0 and 1), y 1000..2000 (row 0)
-    idx = store.chunk_indices_for_bbox(g, (4000.0, 1000.0, 6000.0, 2000.0))
+    g = store.read_grid(_grid(tmp_path))
+    idx = store.chunk_indices_for_bbox(g, (8000.0, 1000.0, 12000.0, 2000.0))
     assert set(idx) == {(0, 0), (1, 0)}
 
 
 def test_chunk_indices_clipped_to_grid(tmp_path: Path) -> None:
-    region = _grid(tmp_path)
-    g = store.read_grid(region)
-    # bbox extends past the grid; indices must stay within 0..2 (x), 0..1 (y)
-    idx = store.chunk_indices_for_bbox(g, (-9999.0, -9999.0, 99999.0, 99999.0))
+    g = store.read_grid(_grid(tmp_path))
+    idx = store.chunk_indices_for_bbox(g, (-9e9, -9e9, 9e9, 9e9))
     assert set(idx) == {(cx, cy) for cx in range(3) for cy in range(2)}
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [ ] **Step 2: Run test to verify it fails**
 
 Run: `uv run pytest tests/test_catalonia_store.py -k "read_grid or chunk_indices" -v`
-Expected: FAIL with `ModuleNotFoundError: No module named 'highliner.repositories.catalonia_store'`
+Expected: FAIL with `ModuleNotFoundError: ... 'catalonia_store'`
 
 - [ ] **Step 3: Implement grid + index math**
 
@@ -773,17 +862,21 @@ Create `highliner/repositories/catalonia_store.py`:
 
 Layout under ``data/catalonia/``:
     grid.json                    {"bbox": [minx,miny,maxx,maxy], "chunk_m": N}
-    dtm/c_{cx}_{cy}.tif          compact DTM per chunk (core extent)
     anchors/p_{cx}_{cy}.parquet  anchors per chunk
+    pairs/q_{cx}_{cy}.parquet    candidate pairs per chunk
 """
 import json
 import math
 from dataclasses import dataclass
 from pathlib import Path
 
+from fastapi import HTTPException
+
 from highliner.core import config
 from highliner.models.anchor import Anchor
-from highliner.models.raster import Raster
+from highliner.models.candidate import Candidate
+from highliner.repositories.anchors import load_anchors
+from highliner.repositories.candidates import load_candidates
 
 Bbox = tuple[float, float, float, float]
 
@@ -809,14 +902,10 @@ def chunk_indices_for_bbox(grid: Grid, bbox: Bbox) -> list[tuple[int, int]]:
     cx1 = min(nx - 1, int(math.floor((bx1 - minx) / grid.chunk_m)))
     cy0 = max(0, int(math.floor((by0 - miny) / grid.chunk_m)))
     cy1 = min(ny - 1, int(math.floor((by1 - miny) / grid.chunk_m)))
-    out: list[tuple[int, int]] = []
-    for cy in range(cy0, cy1 + 1):
-        for cx in range(cx0, cx1 + 1):
-            out.append((cx, cy))
-    return out
+    return [(cx, cy) for cy in range(cy0, cy1 + 1) for cx in range(cx0, cx1 + 1)]
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [ ] **Step 4: Run test to verify it passes**
 
 Run: `uv run pytest tests/test_catalonia_store.py -k "read_grid or chunk_indices" -v`
 Expected: PASS
@@ -830,7 +919,7 @@ git commit -m "feat: add catalonia_store grid + chunk-index math"
 
 ---
 
-## Task 9: catalonia_store — windowed DTM + anchor reads
+## Task 10: catalonia_store — windowed anchor + pair reads
 
 **Files:**
 - Modify: `highliner/repositories/catalonia_store.py`
@@ -841,90 +930,65 @@ git commit -m "feat: add catalonia_store grid + chunk-index math"
 Add to `tests/test_catalonia_store.py`:
 
 ```python
-import numpy as np
-import rasterio
-from affine import Affine
 from fastapi import HTTPException
 from highliner.models.anchor import Anchor
+from highliner.models.candidate import Candidate
 from highliner.repositories.anchors import save_anchors
+from highliner.repositories.candidates import save_candidates
 
 
-def _write_chunk_tif(region: Path, cx: int, cy: int, origin: tuple[float, float],
-                     value: float) -> None:
-    # 1000x1000 @ 5 m = 5 km chunk, constant elevation
-    (region / "dtm").mkdir(exist_ok=True)
-    data = np.full((1000, 1000), value, dtype="float32")
-    transform = Affine(5.0, 0, origin[0], 0, -5.0, origin[1])
-    with rasterio.open(region / "dtm" / f"c_{cx}_{cy}.tif", "w", driver="GTiff",
-                       height=1000, width=1000, count=1, dtype="float32",
-                       crs="EPSG:25831", transform=transform, nodata=-9999.0,
-                       compress="lzw") as ds:
-        ds.write(data, 1)
-
-
-def test_load_dtm_window_merges_chunks(tmp_path: Path) -> None:
-    region = _grid(tmp_path)
-    # chunk (0,0) core x 0..5000 y 0..5000 -> top-left origin (0, 5000)
-    _write_chunk_tif(region, 0, 0, (0.0, 5000.0), 100.0)
-    _write_chunk_tif(region, 1, 0, (5000.0, 5000.0), 200.0)
-    g = store.read_grid(region)
-    r = store.load_dtm_window(region, (4000.0, 1000.0, 6000.0, 2000.0))
-    assert r is not None
-    assert r.value_at(2500.0, 2500.0) == 100.0   # in chunk (0,0)
-    assert r.value_at(7500.0, 2500.0) == 200.0   # in chunk (1,0)
-
-
-def test_load_dtm_window_too_many_chunks_raises(tmp_path: Path, monkeypatch) -> None:
-    region = _grid(tmp_path)
-    _write_chunk_tif(region, 0, 0, (0.0, 5000.0), 100.0)
-    monkeypatch.setattr(config, "MAX_VIEW_CHUNKS", 1)
-    with pytest.raises(HTTPException) as ei:
-        store.load_dtm_window(region, (0.0, 0.0, 15000.0, 10000.0))
-    assert ei.value.status_code == 413
+def _cand(x: float) -> Candidate:
+    a = Anchor(x=x, y=5000.0, elev=100.0, sectors=())
+    b = Anchor(x=x + 40.0, y=5000.0, elev=100.0, sectors=())
+    return Candidate(a=a, b=b, length=40.0, exposure=60.0, height_diff=0.0)
 
 
 def test_load_anchors_in_bbox_only_overlapping(tmp_path: Path) -> None:
     region = _grid(tmp_path)
     (region / "anchors").mkdir()
-    save_anchors([Anchor(x=2500.0, y=2500.0, elev=10.0, sectors=())],
+    save_anchors([Anchor(x=5000.0, y=5000.0, elev=10.0, sectors=())],
                  region / "anchors" / "p_0_0.parquet")
-    save_anchors([Anchor(x=7500.0, y=2500.0, elev=20.0, sectors=())],
+    save_anchors([Anchor(x=15000.0, y=5000.0, elev=20.0, sectors=())],
                  region / "anchors" / "p_1_0.parquet")
-    got = store.load_anchors_in_bbox(region, (0.0, 0.0, 4999.0, 5000.0))
-    assert [round(a.x) for a in got] == [2500]   # only chunk (0,0) loaded
+    got = store.load_anchors_in_bbox(region, (0.0, 0.0, 9999.0, 10000.0))
+    assert [round(a.x) for a in got] == [5000]
+
+
+def test_load_pairs_in_bbox_only_overlapping(tmp_path: Path) -> None:
+    region = _grid(tmp_path)
+    (region / "pairs").mkdir()
+    save_candidates([_cand(5000.0)], region / "pairs" / "q_0_0.parquet")
+    save_candidates([_cand(15000.0)], region / "pairs" / "q_1_0.parquet")
+    got = store.load_pairs_in_bbox(region, (0.0, 0.0, 9999.0, 10000.0))
+    assert [round(c.a.x) for c in got] == [5000]
+
+
+def test_load_pairs_too_many_chunks_raises(tmp_path: Path, monkeypatch) -> None:
+    region = _grid(tmp_path)
+    (region / "pairs").mkdir()
+    save_candidates([_cand(5000.0)], region / "pairs" / "q_0_0.parquet")
+    monkeypatch.setattr(config, "MAX_VIEW_CHUNKS", 1)
+    with pytest.raises(HTTPException) as ei:
+        store.load_pairs_in_bbox(region, (0.0, 0.0, 30000.0, 20000.0))
+    assert ei.value.status_code == 413
 ```
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `uv run pytest tests/test_catalonia_store.py -k "dtm_window or anchors_in_bbox" -v`
-Expected: FAIL with `AttributeError: module 'highliner.repositories.catalonia_store' has no attribute 'load_dtm_window'`
+Run: `uv run pytest tests/test_catalonia_store.py -k "in_bbox or too_many" -v`
+Expected: FAIL with `AttributeError: ... 'load_anchors_in_bbox'`
 
 - [ ] **Step 3: Implement the windowed reads**
 
 Add to `highliner/repositories/catalonia_store.py`:
 
 ```python
-from fastapi import HTTPException
-
-from highliner.repositories import dtm
-from highliner.repositories.anchors import load_anchors
-
-
-def load_dtm_window(region_dir: Path, bbox: Bbox) -> Raster | None:
-    """Merge the chunk DTM GeoTIFFs overlapping ``bbox`` into one Raster, or
-    None if none exist. Raises HTTPException(413) if too many chunks overlap."""
-    region_dir = Path(region_dir)
-    grid = read_grid(region_dir)
-    idx = chunk_indices_for_bbox(grid, bbox)
-    if len(idx) > config.MAX_VIEW_CHUNKS:
-        raise HTTPException(413, "viewport too large; zoom in")
-    paths = [region_dir / "dtm" / f"c_{cx}_{cy}.tif" for cx, cy in idx]
-    paths = [p for p in paths if p.exists()]
-    return dtm.raster_from_tiles(paths)
+def _expand(bbox: Bbox, m: float) -> Bbox:
+    return (bbox[0] - m, bbox[1] - m, bbox[2] + m, bbox[3] + m)
 
 
 def load_anchors_in_bbox(region_dir: Path, bbox: Bbox) -> list[Anchor]:
-    """Load anchors from the parquet partitions overlapping ``bbox``."""
+    """Anchors from the partitions overlapping ``bbox``."""
     region_dir = Path(region_dir)
     grid = read_grid(region_dir)
     out: list[Anchor] = []
@@ -932,6 +996,23 @@ def load_anchors_in_bbox(region_dir: Path, bbox: Bbox) -> list[Anchor]:
         p = region_dir / "anchors" / f"p_{cx}_{cy}.parquet"
         if p.exists():
             out.extend(load_anchors(p))
+    return out
+
+
+def load_pairs_in_bbox(region_dir: Path, bbox: Bbox) -> list[Candidate]:
+    """Candidate pairs from the partitions overlapping ``bbox`` (expanded by
+    MAX_PAIR_LEN so pairs straddling the viewport edge are included).
+    Raises HTTPException(413) if too many chunks overlap."""
+    region_dir = Path(region_dir)
+    grid = read_grid(region_dir)
+    idx = chunk_indices_for_bbox(grid, _expand(bbox, config.MAX_PAIR_LEN))
+    if len(idx) > config.MAX_VIEW_CHUNKS:
+        raise HTTPException(413, "viewport too large; zoom in")
+    out: list[Candidate] = []
+    for cx, cy in idx:
+        p = region_dir / "pairs" / f"q_{cx}_{cy}.parquet"
+        if p.exists():
+            out.extend(load_candidates(p))
     return out
 ```
 
@@ -944,102 +1025,53 @@ Expected: PASS
 
 ```bash
 git add highliner/repositories/catalonia_store.py tests/test_catalonia_store.py
-git commit -m "feat: add catalonia_store windowed dtm + anchor reads"
+git commit -m "feat: add catalonia_store windowed anchor + pair reads"
 ```
 
 ---
 
-## Task 10: deps.load_view — route chunked vs classic layout
+## Task 11: is_chunked_layout helper
 
 **Files:**
 - Modify: `highliner/router/deps.py`
 - Test: `tests/test_deps.py` (new)
 
-- [ ] **Step 1: Write the failing tests**
+- [ ] **Step 1: Write the failing test**
 
 Create `tests/test_deps.py`:
 
 ```python
 import json
 from pathlib import Path
-from types import SimpleNamespace
-import numpy as np
-import rasterio
-from affine import Affine
 from highliner.router import deps
-from highliner.models.anchor import Anchor
-from highliner.repositories.anchors import save_anchors
 
 
-def _request(data_dir: Path):
-    return SimpleNamespace(app=SimpleNamespace(state=SimpleNamespace(data_dir=data_dir)))
-
-
-def test_load_view_chunked_layout(tmp_path: Path) -> None:
-    region = tmp_path / "catalonia"
-    (region / "dtm").mkdir(parents=True)
-    (region / "anchors").mkdir(parents=True)
-    (region / "grid.json").write_text(json.dumps(
-        {"bbox": [0.0, 0.0, 5000.0, 5000.0], "chunk_m": 5000.0}))
-    data = np.full((1000, 1000), 100.0, dtype="float32")
-    with rasterio.open(region / "dtm" / "c_0_0.tif", "w", driver="GTiff",
-                       height=1000, width=1000, count=1, dtype="float32",
-                       crs="EPSG:25831", transform=Affine(5.0, 0, 0, 0, -5.0, 5000.0),
-                       nodata=-9999.0) as ds:
-        ds.write(data, 1)
-    save_anchors([Anchor(x=2500.0, y=2500.0, elev=100.0, sectors=())],
-                 region / "anchors" / "p_0_0.parquet")
-
-    anchors, raster = deps.load_view(_request(tmp_path), "catalonia",
-                                     (2000.0, 2000.0, 3000.0, 3000.0))
-    assert len(anchors) == 1
-    assert raster.value_at(2500.0, 2500.0) == 100.0
-
-
-def test_load_view_classic_layout(tmp_path: Path) -> None:
-    # reuse the classic region builder from the api tests
-    from tests.test_api import _setup_region
-    _setup_region(tmp_path)
-    anchors, raster = deps.load_view(_request(tmp_path), "test",
-                                     (0.0, 0.0, 300.0, 300.0))
-    assert len(anchors) == 2
-    assert raster.value_at(60.0, 100.0) == 100.0
+def test_is_chunked_layout(tmp_path: Path) -> None:
+    (tmp_path / "catalonia").mkdir()
+    (tmp_path / "catalonia" / "grid.json").write_text(json.dumps(
+        {"bbox": [0, 0, 1, 1], "chunk_m": 10000.0}))
+    (tmp_path / "classic").mkdir()
+    assert deps.is_chunked_layout(tmp_path, "catalonia") is True
+    assert deps.is_chunked_layout(tmp_path, "classic") is False
+    assert deps.is_chunked_layout(tmp_path, "missing") is False
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [ ] **Step 2: Run test to verify it fails**
 
 Run: `uv run pytest tests/test_deps.py -v`
-Expected: FAIL with `AttributeError: module 'highliner.router.deps' has no attribute 'load_view'`
+Expected: FAIL with `AttributeError: ... 'is_chunked_layout'`
 
-- [ ] **Step 3: Implement load_view**
+- [ ] **Step 3: Implement the helper**
 
-In `highliner/router/deps.py`, add the import and function. Add near the top imports:
-
-```python
-from highliner.repositories import catalonia_store
-```
-
-Add after `load_region`:
+Add to `highliner/router/deps.py`:
 
 ```python
-def load_view(request: Request, region: str,
-              bbox: Bbox) -> tuple[list[Anchor], Raster]:
-    """Return (anchors, raster) covering ``bbox``. For the chunked ``catalonia``
-    layout (grid.json present) this is windowed to the bbox plus a pairing
-    margin; otherwise it falls back to the full cached region load."""
-    region_dir = Path(str(request.app.state.data_dir)) / region
-    if (region_dir / "grid.json").exists():
-        m = config.DEFAULT_MAX_LEN_M
-        win = (bbox[0] - m, bbox[1] - m, bbox[2] + m, bbox[3] + m)
-        anchors = catalonia_store.load_anchors_in_bbox(region_dir, win)
-        raster = catalonia_store.load_dtm_window(region_dir, win)
-        if raster is None:
-            raise HTTPException(404, f"no DTM for view in region '{region}'")
-        return anchors, raster
-    return load_region(request, region)
+def is_chunked_layout(data_dir: Path, region: str) -> bool:
+    """True if ``region`` uses the chunked (grid.json) precompute layout."""
+    return (Path(data_dir) / region / "grid.json").exists()
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [ ] **Step 4: Run test to verify it passes**
 
 Run: `uv run pytest tests/test_deps.py -v`
 Expected: PASS
@@ -1048,42 +1080,38 @@ Expected: PASS
 
 ```bash
 git add highliner/router/deps.py tests/test_deps.py
-git commit -m "feat: add load_view routing chunked vs classic layout"
+git commit -m "feat: add is_chunked_layout helper"
 ```
 
 ---
 
-## Task 11: Wire zones + anchors routers to load_view
+## Task 12: Wire zones + anchors routers to the chunked layout
 
 **Files:**
 - Modify: `highliner/router/zones.py`
 - Modify: `highliner/router/anchors.py`
 - Test: `tests/test_api.py`
 
-- [ ] **Step 1: Write the failing test**
+- [ ] **Step 1: Write the failing tests**
 
-Add to `tests/test_api.py` a chunked-layout end-to-end test (a single chunk with a real cliff so a zone is found). Place near the other zone tests:
+Add to `tests/test_api.py` a chunked-layout fixture and end-to-end tests:
 
 ```python
 def _setup_catalonia(data_dir: Path) -> None:
     import json
-    from affine import Affine
+    from highliner.models.candidate import Candidate
+    from highliner.repositories.candidates import save_candidates
     region = data_dir / "catalonia"
-    (region / "dtm").mkdir(parents=True)
     (region / "anchors").mkdir(parents=True)
+    (region / "pairs").mkdir(parents=True)
     (region / "grid.json").write_text(json.dumps(
-        {"bbox": [0.0, 0.0, 5000.0, 5000.0], "chunk_m": 5000.0}))
-    # plateau 100 with a gap (20) between cols 31..69 at 2 m px
-    data = np.full((101, 101), 100.0, dtype="float32")
-    data[:, 31:70] = 20.0
-    transform = from_origin(0, 202, 2.0, 2.0)
-    with rasterio.open(region / "dtm" / "c_0_0.tif", "w", driver="GTiff",
-                       height=101, width=101, count=1, dtype="float32",
-                       crs="EPSG:25831", transform=transform, nodata=-9999.0) as ds:
-        ds.write(data, 1)
-    a = Anchor(x=60.0, y=100.0, elev=100.0, sectors=((80, 100, 60),))
-    b = Anchor(x=140.0, y=100.0, elev=100.0, sectors=((260, 280, 60),))
+        {"bbox": [0.0, 0.0, 10000.0, 10000.0], "chunk_m": 10000.0}))
+    a = Anchor(x=60.0, y=100.0, elev=100.0, sectors=())
+    b = Anchor(x=140.0, y=100.0, elev=100.0, sectors=())
     save_anchors([a, b], region / "anchors" / "p_0_0.parquet")
+    # one stored pair, exposure 80 (plateau 100 - gap 20), length 80
+    save_candidates([Candidate(a=a, b=b, length=80.0, exposure=80.0, height_diff=0.0)],
+                    region / "pairs" / "q_0_0.parquet")
 
 
 def test_zones_endpoint_catalonia_layout(tmp_path: Path) -> None:
@@ -1096,7 +1124,18 @@ def test_zones_endpoint_catalonia_layout(tmp_path: Path) -> None:
     assert r.status_code == 200
     fc = r.json()
     assert len(fc["features"]) == 1
-    assert fc["features"][0]["properties"]["n_pairs"] == 1
+    p = fc["features"][0]["properties"]
+    assert p["n_pairs"] == 1 and p["height_min"] == p["height_max"] == 80.0
+
+
+def test_zones_slider_filters_out_pair(tmp_path: Path) -> None:
+    _setup_catalonia(tmp_path)
+    client = TestClient(create_app(data_dir=tmp_path))
+    # min_exposure above the stored 80 -> no zones
+    r = client.get("/zones", params={
+        "region": "catalonia", "bbox": "0,0,300,300", "min_exposure": 90})
+    assert r.status_code == 200
+    assert r.json()["features"] == []
 
 
 def test_anchors_endpoint_catalonia_layout(tmp_path: Path) -> None:
@@ -1110,58 +1149,100 @@ def test_anchors_endpoint_catalonia_layout(tmp_path: Path) -> None:
 - [ ] **Step 2: Run tests to verify they fail**
 
 Run: `uv run pytest tests/test_api.py -k catalonia_layout -v`
-Expected: FAIL — `/zones` and `/anchors` still call `load_region`, which 404s (no `anchors.parquet`/`mosaic.tif` at the region root).
+Expected: FAIL — routers still call `load_region`, which 404s for the chunked region.
 
-- [ ] **Step 3: Update the routers to be bbox-first via load_view**
+- [ ] **Step 3: Update the routers**
 
-Replace the body of `highliner/router/zones.py`'s `zones` function. Change the import line:
-
-```python
-from highliner.router.deps import anchors_in_view, load_view, parse_bbox_utm
-```
-
-and the function body:
+Rewrite `highliner/router/zones.py`:
 
 ```python
-    bbox = parse_bbox_utm(bbox, bbox_lonlat)
-    anchors, raster = load_view(request, region, bbox)
-    in_view = anchors_in_view(anchors, bbox)
-    cands = find_candidates(in_view, raster, max_len, min_len,
-                            min_exposure, max_dh)
+from typing import Any
+
+from fastapi import APIRouter, Request
+
+from highliner.core import config
+from highliner.repositories import catalonia_store
+from highliner.services.pairing import find_candidates, filter_candidates
+from highliner.services import zones as zones_service
+from highliner.router import serializers
+from highliner.router.deps import (anchors_in_view, is_chunked_layout,
+                                   load_region, parse_bbox_utm)
+
+router = APIRouter()
+
+
+@router.get("/zones")
+def zones(
+    region: str,
+    request: Request,
+    bbox: str | None = None,
+    bbox_lonlat: str | None = None,
+    max_len: float = config.DEFAULT_MAX_LEN_M,
+    min_len: float = config.DEFAULT_MIN_LEN_M,
+    min_exposure: float = config.DEFAULT_MIN_EXPOSURE_M,
+    max_dh: float = config.DEFAULT_MAX_DH_M,
+    cluster_dist: float = config.CLUSTER_DIST_M,
+) -> dict[str, Any]:
+    box = parse_bbox_utm(bbox, bbox_lonlat)
+    data_dir = request.app.state.data_dir
+    if is_chunked_layout(data_dir, region):
+        pairs = catalonia_store.load_pairs_in_bbox(data_dir / region, box)
+        cands = filter_candidates(pairs, max_len, min_len, min_exposure, max_dh)
+    else:
+        anchors, raster = load_region(request, region)
+        in_view = anchors_in_view(anchors, box)
+        cands = find_candidates(in_view, raster, max_len, min_len,
+                                min_exposure, max_dh)
     return serializers.zones_to_geojson(
         zones_service.build_zones(cands, cluster_dist))
 ```
 
-Replace `highliner/router/anchors.py`'s import and body similarly. Import:
+Rewrite `highliner/router/anchors.py`:
 
 ```python
-from highliner.router.deps import anchors_in_view, load_view, parse_bbox_utm
-```
+from typing import Any
 
-Body of `anchors`:
+from fastapi import APIRouter, Request
 
-```python
-    bbox = parse_bbox_utm(bbox, bbox_lonlat)
-    anchor_list, _raster = load_view(request, region, bbox)
-    in_view = anchors_in_view(anchor_list, bbox)
-    return serializers.anchors_to_geojson(in_view)
+from highliner.repositories import catalonia_store
+from highliner.router import serializers
+from highliner.router.deps import (anchors_in_view, is_chunked_layout,
+                                   load_region, parse_bbox_utm)
+
+router = APIRouter()
+
+
+@router.get("/anchors")
+def anchors(
+    region: str,
+    request: Request,
+    bbox: str | None = None,
+    bbox_lonlat: str | None = None,
+) -> dict[str, Any]:
+    box = parse_bbox_utm(bbox, bbox_lonlat)
+    data_dir = request.app.state.data_dir
+    if is_chunked_layout(data_dir, region):
+        anchor_list = catalonia_store.load_anchors_in_bbox(data_dir / region, box)
+    else:
+        anchor_list, _raster = load_region(request, region)
+    return serializers.anchors_to_geojson(anchors_in_view(anchor_list, box))
 ```
 
 - [ ] **Step 4: Run tests to verify they pass**
 
 Run: `uv run pytest tests/test_api.py -v`
-Expected: PASS (new chunked tests plus existing classic-region tests still green)
+Expected: PASS (chunked tests + existing classic tests)
 
 - [ ] **Step 5: Commit**
 
 ```bash
 git add highliner/router/zones.py highliner/router/anchors.py tests/test_api.py
-git commit -m "feat: serve zones/anchors via windowed load_view"
+git commit -m "feat: serve zones/anchors from precomputed chunked partitions"
 ```
 
 ---
 
-## Task 12: regions listing includes the chunked layout
+## Task 13: regions listing includes the chunked layout
 
 **Files:**
 - Modify: `highliner/router/regions.py`
@@ -1175,22 +1256,22 @@ Add to `tests/test_api.py`:
 def test_regions_lists_catalonia_layout(tmp_path: Path) -> None:
     _setup_catalonia(tmp_path)
     client = TestClient(create_app(data_dir=tmp_path))
-    regions = client.get("/regions").json()["regions"]
-    cat = [r for r in regions if r["name"] == "catalonia"]
+    cat = [r for r in client.get("/regions").json()["regions"]
+           if r["name"] == "catalonia"]
     assert len(cat) == 1
     b = cat[0]["bounds_lonlat"]
     assert b is not None and len(b) == 4
-    assert b[0] < b[2] and b[1] < b[3]   # w<e, s<n
+    assert b[0] < b[2] and b[1] < b[3]
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `uv run pytest tests/test_api.py::test_regions_lists_catalonia_layout -v`
-Expected: FAIL — `catalonia` is skipped because it has no `anchors.parquet` at the region root.
+Expected: FAIL — `catalonia` skipped (no `anchors.parquet` at region root).
 
 - [ ] **Step 3: Update regions.py**
 
-Rewrite `highliner/router/regions.py` to detect both layouts:
+Rewrite `highliner/router/regions.py`:
 
 ```python
 from pathlib import Path
@@ -1209,8 +1290,7 @@ router = APIRouter()
 def _bounds_from_grid(region_dir: Path) -> list[float]:
     grid = catalonia_store.read_grid(region_dir)
     minx, miny, maxx, maxy = grid.bbox
-    corners = [geo.to_lonlat(x, y)
-               for x in (minx, maxx) for y in (miny, maxy)]
+    corners = [geo.to_lonlat(x, y) for x in (minx, maxx) for y in (miny, maxy)]
     lons = [c[0] for c in corners]
     lats = [c[1] for c in corners]
     return [min(lons), min(lats), max(lons), max(lats)]
@@ -1244,7 +1324,7 @@ git commit -m "feat: list chunked catalonia region with bounds from grid.json"
 
 ---
 
-## Task 13: Full suite + type check
+## Task 14: Full suite + type check
 
 **Files:** none (verification only)
 
@@ -1255,8 +1335,8 @@ Expected: all tests PASS.
 
 - [ ] **Step 2: Run mypy (this repo ships strict mypy)**
 
-Run: `uv run mypy highliner` (or the project's configured mypy command — check `justfile`)
-Expected: no new type errors. Fix any that the new modules introduce (e.g., annotate the `Bbox` returns and the `report` callbacks; they are already annotated in this plan).
+Run: check the `justfile` for the mypy target (e.g. `just typecheck`) and run it; otherwise `uv run mypy highliner`.
+Expected: no new type errors. The new modules are annotated in this plan; fix any incidental issues (e.g. pandas stubs) inline.
 
 - [ ] **Step 3: Commit any fixups**
 
@@ -1269,7 +1349,9 @@ git commit -m "chore: typecheck + test fixups for catalonia precompute"
 
 ## Self-Review Notes (for the implementer)
 
-- **Spec coverage:** Task 1 (config) · Tasks 2–6 (batch pipeline: tolerant download, chunk grid, compact GeoTIFF, process_chunk core/halo + deletion + resume, driver + grid.json) · Task 7 (CLI) · Tasks 8–9 (windowed store: grid math, DTM merge with 413 guard, anchor partitions) · Task 10 (load_view routing) · Task 11 (zones/anchors bbox-first) · Task 12 (regions listing). Every spec section maps to a task.
-- **Known imperfection** (per-chunk thinning at seams) is intentionally not addressed — see spec "Known minor imperfection".
-- **Margin:** `load_view` expands the viewport by `DEFAULT_MAX_LEN_M` so `find_candidates`' `sample_line` between in-view anchors stays inside the windowed raster.
-- **Type names used consistently:** `Bbox = tuple[float,float,float,float]`; `Grid(bbox, chunk_m)`; `process_chunk(cx, cy, core_bbox, region_dir, halo)`; `precompute_catalonia(bbox, data_dir, chunk_m, report)`; `load_dtm_window`, `load_anchors_in_bbox`, `chunk_indices_for_bbox`, `read_grid`; `load_view(request, region, bbox)`.
+- **Spec coverage:** Task 1 (config + envelope) · Task 2 (tolerant download + merge) · Task 3 (candidate parquet) · Tasks 4–6 (chunk grid, process_chunk extract+pair+own+delete, driver+grid.json) · Task 7 (CLI) · Task 8 (filter_candidates) · Tasks 9–10 (windowed store + 413 guard) · Task 11 (layout detection) · Task 12 (zones/anchors branching, slider filtering) · Task 13 (regions). No DTM is persisted or read at serve time — matches the revised spec.
+- **Sliders as filters:** `max_len`/`min_len`/`min_exposure`/`max_dh` filter stored pairs (`filter_candidates`); `cluster_dist` is applied by `build_zones`; `SECTOR_TOL_DEG` is baked in at precompute (only passing pairs stored). Precompute envelope (`MAX_PAIR_LEN=1000`, `PRECOMPUTE_MIN_LEN_M=10`, `PRECOMPUTE_MIN_EXPOSURE_M=10`, `PRECOMPUTE_MAX_DH_M=30`) is the outer bound the sliders narrow within.
+- **Cross-chunk pairs:** halo = `CHUNK_HALO_M` (1050 m ≥ `MAX_PAIR_LEN + DROP_RADIUS_M`); each pair owned by the chunk whose core holds its canonical (smaller-`(x,y)`) endpoint, so it is stored exactly once. Serve loads pair partitions over the viewport expanded by `MAX_PAIR_LEN`.
+- **Accepted imperfections** (per-chunk thinning at seams; boundary anchor coord drift re-merged by `cluster_dist`) are intentional — see spec.
+- **Type names used consistently:** `Bbox = tuple[float,float,float,float]`; `Grid(bbox, chunk_m)`; `process_chunk(cx, cy, core_bbox, region_dir, halo)`; `precompute_catalonia(bbox, data_dir, chunk_m, report)`; `chunk_grid`, `chunk_indices_for_bbox`, `read_grid`, `load_anchors_in_bbox`, `load_pairs_in_bbox`; `filter_candidates`; `is_chunked_layout`; `save_candidates`/`load_candidates`.
+```

@@ -20,3 +20,31 @@ def test_analyze_writes_anchors(tmp_path: Path) -> None:
     cli.main(["analyze", "--region", "demo", "--data-dir", str(tmp_path)])
     anchors = load_anchors(region / "anchors.parquet")
     assert len(anchors) > 0
+
+
+def test_precompute_catalonia_command(monkeypatch) -> None:
+    from highliner import cli
+    calls = {}
+
+    def fake(bbox, data_dir, chunk_m=10000.0, report=None):
+        calls["bbox"] = bbox
+        calls["chunk_m"] = chunk_m
+        if report:
+            report(1, 1)
+        return 1
+    monkeypatch.setattr("highliner.services.catalonia.precompute_catalonia", fake)
+    cli.main(["precompute-catalonia", "--data-dir", "/tmp/x",
+              "--bbox", "0,0,10000,10000", "--chunk-km", "10"])
+    assert calls["bbox"] == (0.0, 0.0, 10000.0, 10000.0)
+    assert calls["chunk_m"] == 10000.0
+
+
+def test_precompute_catalonia_defaults_to_full_bbox(monkeypatch) -> None:
+    from highliner import cli
+    from highliner.core import config
+    calls = {}
+    monkeypatch.setattr("highliner.services.catalonia.precompute_catalonia",
+                        lambda bbox, data_dir, chunk_m=10000.0, report=None:
+                        calls.update(bbox=bbox) or 0)
+    cli.main(["precompute-catalonia", "--data-dir", "/tmp/x"])
+    assert calls["bbox"] == config.CATALONIA_BBOX

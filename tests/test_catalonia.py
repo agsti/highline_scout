@@ -86,3 +86,23 @@ def test_process_chunk_empty_marks_done(tmp_path: Path, monkeypatch: pytest.Monk
     assert (region_dir / "pairs" / "q_0_0.parquet").exists()
     from highliner.repositories.candidates import load_candidates
     assert load_candidates(region_dir / "pairs" / "q_0_0.parquet") == []
+
+
+def test_precompute_writes_grid_and_all_chunks(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    _patch_gap_download(monkeypatch)
+    bbox = (485000.0, 4646000.0, 505000.0, 4656000.0)        # 20 x 10 km -> 2 chunks
+    seen = []
+    n = catalonia.precompute_catalonia(
+        bbox, tmp_path, chunk_m=10000.0,
+        report=lambda done, total: seen.append((done, total)))
+    region_dir = tmp_path / "catalonia"
+
+    import json
+    grid = json.loads((region_dir / "grid.json").read_text())
+    assert grid["chunk_m"] == 10000.0
+    assert tuple(grid["bbox"]) == bbox
+    assert (region_dir / "pairs" / "q_0_0.parquet").exists()
+    assert (region_dir / "pairs" / "q_1_0.parquet").exists()
+    assert seen[-1] == (2, 2)
+    assert n == 2

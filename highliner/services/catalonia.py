@@ -78,3 +78,22 @@ def process_chunk(cx: int, cy: int, core_bbox: Bbox, region_dir: Path,
     for t in tiles:
         t.unlink(missing_ok=True)
     return len(owned_pairs)
+
+
+def precompute_catalonia(bbox: Bbox, data_dir: Path, chunk_m: float = config.CHUNK_M,
+                         report: Callable[[int, int], None] | None = None) -> int:
+    """Precompute anchors + pairs for ``bbox`` under ``data_dir/catalonia``.
+    Writes grid.json, then processes every chunk (skipping finished ones).
+    Returns the number of chunks."""
+    region_dir = Path(data_dir) / "catalonia"
+    region_dir.mkdir(parents=True, exist_ok=True)
+    (region_dir / "grid.json").write_text(json.dumps(
+        {"bbox": list(bbox), "chunk_m": chunk_m}))
+
+    chunks = list(chunk_grid(bbox, chunk_m))
+    total = len(chunks)
+    for i, (cx, cy, core) in enumerate(chunks, start=1):
+        process_chunk(cx, cy, core, region_dir)
+        if report is not None:
+            report(i, total)
+    return total

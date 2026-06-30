@@ -44,3 +44,43 @@ def chunk_indices_for_bbox(grid: Grid, bbox: Bbox) -> list[tuple[int, int]]:
     cy0 = max(0, int(math.floor((by0 - miny) / grid.chunk_m)))
     cy1 = min(ny - 1, int(math.floor((by1 - miny) / grid.chunk_m)))
     return [(cx, cy) for cy in range(cy0, cy1 + 1) for cx in range(cx0, cx1 + 1)]
+
+
+def _expand(bbox: Bbox, m: float) -> Bbox:
+    return (bbox[0] - m, bbox[1] - m, bbox[2] + m, bbox[3] + m)
+
+
+def load_anchors_in_bbox(region_dir: Path, bbox: Bbox) -> list[Anchor]:
+    """Anchors from the partitions overlapping ``bbox``."""
+    region_dir = Path(region_dir)
+    grid = read_grid(region_dir)
+    out: list[Anchor] = []
+    for cx, cy in chunk_indices_for_bbox(grid, bbox):
+        p = region_dir / "anchors" / f"p_{cx}_{cy}.parquet"
+        if p.exists():
+            out.extend(load_anchors(p))
+    return out
+
+
+def _segment_intersects(c: Candidate, bbox: Bbox) -> bool:
+    minx, miny, maxx, maxy = bbox
+    return (min(c.a.x, c.b.x) <= maxx and max(c.a.x, c.b.x) >= minx
+            and min(c.a.y, c.b.y) <= maxy and max(c.a.y, c.b.y) >= miny)
+
+
+def load_pairs_in_bbox(region_dir: Path, bbox: Bbox) -> list[Candidate]:
+    """Candidate pairs from the partitions overlapping ``bbox`` (expanded by
+    MAX_PAIR_LEN so pairs straddling the viewport edge are included), filtered to
+    those whose segment intersects the viewport. Raises HTTPException(413) if too
+    many chunks overlap."""
+    region_dir = Path(region_dir)
+    grid = read_grid(region_dir)
+    idx = chunk_indices_for_bbox(grid, _expand(bbox, config.MAX_PAIR_LEN))
+    if len(idx) > config.MAX_VIEW_CHUNKS:
+        raise HTTPException(413, "viewport too large; zoom in")
+    out: list[Candidate] = []
+    for cx, cy in idx:
+        p = region_dir / "pairs" / f"q_{cx}_{cy}.parquet"
+        if p.exists():
+            out.extend(c for c in load_candidates(p) if _segment_intersects(c, bbox))
+    return out

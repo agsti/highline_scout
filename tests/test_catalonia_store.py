@@ -70,3 +70,14 @@ def test_load_pairs_too_many_chunks_raises(tmp_path: Path, monkeypatch: pytest.M
     with pytest.raises(HTTPException) as ei:
         store.load_pairs_in_bbox(region, (0.0, 0.0, 30000.0, 20000.0))
     assert ei.value.status_code == 413
+
+
+def test_load_anchors_too_many_chunks_raises(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    region = _grid(tmp_path)
+    (region / "anchors").mkdir()
+    save_anchors([Anchor(x=5000.0, y=5000.0, elev=10.0, sectors=())],
+                 region / "anchors" / "p_0_0.parquet")
+    monkeypatch.setattr(config, "MAX_VIEW_CHUNKS", 1)
+    with pytest.raises(HTTPException) as ei:
+        store.load_anchors_in_bbox(region, (0.0, 0.0, 30000.0, 20000.0))
+    assert ei.value.status_code == 413

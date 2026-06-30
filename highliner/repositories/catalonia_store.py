@@ -51,11 +51,15 @@ def _expand(bbox: Bbox, m: float) -> Bbox:
 
 
 def load_anchors_in_bbox(region_dir: Path, bbox: Bbox) -> list[Anchor]:
-    """Anchors from the partitions overlapping ``bbox``."""
+    """Anchors from the partitions overlapping ``bbox``.
+    Raises HTTPException(413) if too many chunks overlap."""
     region_dir = Path(region_dir)
     grid = read_grid(region_dir)
+    idx = chunk_indices_for_bbox(grid, bbox)
+    if len(idx) > config.MAX_VIEW_CHUNKS:
+        raise HTTPException(413, "viewport too large; zoom in")
     out: list[Anchor] = []
-    for cx, cy in chunk_indices_for_bbox(grid, bbox):
+    for cx, cy in idx:
         p = region_dir / "anchors" / f"p_{cx}_{cy}.parquet"
         if p.exists():
             out.extend(load_anchors(p))

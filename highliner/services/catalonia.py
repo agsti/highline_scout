@@ -67,7 +67,12 @@ def process_chunk(cx: int, cy: int, core_bbox: Bbox, region_dir: Path,
             min_exposure=config.PRECOMPUTE_MIN_EXPOSURE_M,
             max_dh=config.PRECOMPUTE_MAX_DH_M)
         for c in cands:
-            kx, ky = min((c.a.x, c.a.y), (c.b.x, c.b.y))
+            # Own a cross-chunk pair via its canonical endpoint. Round the
+            # tie-break coords so sub-meter drift between a pair re-extracted in
+            # adjacent chunks can't flip which endpoint is "canonical" (which
+            # could drop or duplicate a seam-crossing line).
+            kx, ky = min((float(round(c.a.x)), float(round(c.a.y)), c.a.x, c.a.y),
+                         (float(round(c.b.x)), float(round(c.b.y)), c.b.x, c.b.y))[2:]
             if _in_core(kx, ky, core_bbox):
                 owned_pairs.append(c)
 

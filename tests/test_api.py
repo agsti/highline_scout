@@ -237,3 +237,50 @@ def test_restrictions_missing_data_is_empty(tmp_path: Path) -> None:
     r = client.get("/restrictions", params={"bbox_lonlat": "1.0,41.0,2.0,42.0"})
     assert r.status_code == 200
     assert r.json()["features"] == []
+
+
+def _setup_catalonia(data_dir: Path) -> None:
+    import json
+    from highliner.models.candidate import Candidate
+    from highliner.repositories.candidates import save_candidates
+    region = data_dir / "catalonia"
+    (region / "anchors").mkdir(parents=True)
+    (region / "pairs").mkdir(parents=True)
+    (region / "grid.json").write_text(json.dumps(
+        {"bbox": [0.0, 0.0, 10000.0, 10000.0], "chunk_m": 10000.0}))
+    a = Anchor(x=60.0, y=100.0, elev=100.0, sectors=())
+    b = Anchor(x=140.0, y=100.0, elev=100.0, sectors=())
+    save_anchors([a, b], region / "anchors" / "p_0_0.parquet")
+    save_candidates([Candidate(a=a, b=b, length=80.0, exposure=80.0, height_diff=0.0)],
+                    region / "pairs" / "q_0_0.parquet")
+
+
+def test_zones_endpoint_catalonia_layout(tmp_path: Path) -> None:
+    _setup_catalonia(tmp_path)
+    client = TestClient(create_app(data_dir=tmp_path))
+    r = client.get("/zones", params={
+        "region": "catalonia", "bbox": "0,0,300,300",
+        "max_len": 120, "min_exposure": 50, "max_dh": 5,
+    })
+    assert r.status_code == 200
+    fc = r.json()
+    assert len(fc["features"]) == 1
+    p = fc["features"][0]["properties"]
+    assert p["n_pairs"] == 1 and p["height_min"] == p["height_max"] == 80.0
+
+
+def test_zones_slider_filters_out_pair(tmp_path: Path) -> None:
+    _setup_catalonia(tmp_path)
+    client = TestClient(create_app(data_dir=tmp_path))
+    r = client.get("/zones", params={
+        "region": "catalonia", "bbox": "0,0,300,300", "min_exposure": 90})
+    assert r.status_code == 200
+    assert r.json()["features"] == []
+
+
+def test_anchors_endpoint_catalonia_layout(tmp_path: Path) -> None:
+    _setup_catalonia(tmp_path)
+    client = TestClient(create_app(data_dir=tmp_path))
+    r = client.get("/anchors", params={"region": "catalonia", "bbox": "0,0,300,300"})
+    assert r.status_code == 200
+    assert len(r.json()["features"]) == 2

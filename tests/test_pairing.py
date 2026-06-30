@@ -54,3 +54,18 @@ def test_rejected_when_height_diff_too_big() -> None:
     res = pairing.find_candidates([a, b_high], r, max_len=60, min_len=10,
                                   min_exposure=50, max_dh=5)
     assert res == []
+
+
+def _cand(length: float, exposure: float, dh: float):
+    from highliner.models.candidate import Candidate
+    a = Anchor(x=0.0, y=0.0, elev=100.0, sectors=())
+    b = Anchor(x=length, y=0.0, elev=100.0 - dh, sectors=())
+    return Candidate(a=a, b=b, length=length, exposure=exposure, height_diff=dh)
+
+
+def test_filter_candidates_narrows_by_each_slider() -> None:
+    cands = [_cand(30, 50, 2), _cand(500, 50, 2), _cand(30, 15, 2), _cand(30, 50, 25)]
+    out = pairing.filter_candidates(cands, max_len=120, min_len=20,
+                                    min_exposure=40, max_dh=10)
+    assert len(out) == 1
+    assert out[0].length == 30 and out[0].exposure == 50 and out[0].height_diff == 2

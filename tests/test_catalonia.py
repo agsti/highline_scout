@@ -22,7 +22,8 @@ def _patch_gap_download(monkeypatch: pytest.MonkeyPatch) -> None:
     facing anchors exist across the trench (exposure ~80)."""
     from highliner.repositories import dtm as _dtm
 
-    def fake(bbox, width, height, dest):
+    def fake(bbox: tuple[float, float, float, float], width: int, height: int,
+             dest: Path) -> Path:
         minx, miny, maxx, maxy = bbox
         cell = (maxx - minx) / width
         rows = []

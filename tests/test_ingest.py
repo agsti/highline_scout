@@ -63,7 +63,8 @@ def test_tile_specs_covers_grid() -> None:
 
 
 def test_fetch_tiles_skips_failures(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    def fake_download(bbox, width, height, dest):
+    def fake_download(bbox: tuple[float, float, float, float], width: int,
+                      height: int, dest: Path) -> Path:
         if int(bbox[0]) == 484000:           # simulate out-of-coverage column
             raise RuntimeError("ICGC WCS did not return ArcGrid data")
         return _fake_asc(bbox, width, height, dest)

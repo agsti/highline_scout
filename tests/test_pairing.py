@@ -2,6 +2,7 @@ import numpy as np
 from affine import Affine
 from highliner.models.raster import Raster
 from highliner.models.anchor import Anchor
+from highliner.models.candidate import Candidate
 from highliner.services import pairing
 
 
@@ -56,8 +57,7 @@ def test_rejected_when_height_diff_too_big() -> None:
     assert res == []
 
 
-def _cand(length: float, exposure: float, dh: float):
-    from highliner.models.candidate import Candidate
+def _cand(length: float, exposure: float, dh: float) -> Candidate:
     a = Anchor(x=0.0, y=0.0, elev=100.0, sectors=())
     b = Anchor(x=length, y=0.0, elev=100.0 - dh, sectors=())
     return Candidate(a=a, b=b, length=length, exposure=exposure, height_diff=dh)

@@ -1,5 +1,7 @@
 from pathlib import Path
+from typing import Callable
 import numpy as np
+import pytest
 import rasterio
 from rasterio.transform import from_origin
 from highliner import cli
@@ -22,11 +24,12 @@ def test_analyze_writes_anchors(tmp_path: Path) -> None:
     assert len(anchors) > 0
 
 
-def test_precompute_catalonia_command(monkeypatch) -> None:
+def test_precompute_catalonia_command(monkeypatch: pytest.MonkeyPatch) -> None:
     from highliner import cli
-    calls = {}
+    calls: dict[str, object] = {}
 
-    def fake(bbox, data_dir, chunk_m=10000.0, report=None):
+    def fake(bbox: tuple[float, ...], data_dir: Path, chunk_m: float = 10000.0,
+             report: Callable[[int, int], None] | None = None) -> int:
         calls["bbox"] = bbox
         calls["chunk_m"] = chunk_m
         if report:
@@ -39,10 +42,10 @@ def test_precompute_catalonia_command(monkeypatch) -> None:
     assert calls["chunk_m"] == 10000.0
 
 
-def test_precompute_catalonia_defaults_to_full_bbox(monkeypatch) -> None:
+def test_precompute_catalonia_defaults_to_full_bbox(monkeypatch: pytest.MonkeyPatch) -> None:
     from highliner import cli
     from highliner.core import config
-    calls = {}
+    calls: dict[str, object] = {}
     monkeypatch.setattr("highliner.services.catalonia.precompute_catalonia",
                         lambda bbox, data_dir, chunk_m=10000.0, report=None:
                         calls.update(bbox=bbox) or 0)

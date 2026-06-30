@@ -49,6 +49,11 @@ def get_data_dir(request: Request) -> Path:
     return data_dir
 
 
+def is_chunked_layout(data_dir: Path, region: str) -> bool:
+    """True if ``region`` uses the chunked (grid.json) precompute layout."""
+    return (Path(data_dir) / region / "grid.json").exists()
+
+
 def get_jobstore(request: Request) -> JobStore:
     jobstore: JobStore = request.app.state.jobstore
     return jobstore

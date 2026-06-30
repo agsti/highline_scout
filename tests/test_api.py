@@ -284,3 +284,14 @@ def test_anchors_endpoint_catalonia_layout(tmp_path: Path) -> None:
     r = client.get("/anchors", params={"region": "catalonia", "bbox": "0,0,300,300"})
     assert r.status_code == 200
     assert len(r.json()["features"]) == 2
+
+
+def test_regions_lists_catalonia_layout(tmp_path: Path) -> None:
+    _setup_catalonia(tmp_path)
+    client = TestClient(create_app(data_dir=tmp_path))
+    cat = [r for r in client.get("/regions").json()["regions"]
+           if r["name"] == "catalonia"]
+    assert len(cat) == 1
+    b = cat[0]["bounds_lonlat"]
+    assert b is not None and len(b) == 4
+    assert b[0] < b[2] and b[1] < b[3]

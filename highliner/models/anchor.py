@@ -6,4 +6,4 @@ class Anchor:
     x: float
     y: float
     elev: float
-    sectors: tuple  # ((start_deg, end_deg, max_drop), ...)
+    sectors: tuple[tuple[float, float, float], ...]  # (start_deg, end_deg, max_drop) each

@@ -16,7 +16,7 @@ class Database:
 
     FILENAME = "jobs.db"
 
-    def __init__(self, data_dir):
+    def __init__(self, data_dir: str | Path):
         self._path = Path(data_dir) / self.FILENAME
         self._path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -31,7 +31,7 @@ def _database(data_dir: str) -> Database:
     return Database(data_dir)
 
 
-def get_database(data_dir) -> Database:
+def get_database(data_dir: str | Path) -> Database:
     """The single place a ``Database`` is created. Cached per ``data_dir`` so the
     API process and the in-process background worker obtain the same instance for
     a given region tree."""

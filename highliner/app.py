@@ -28,7 +28,7 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
         app.include_router(module.router)
 
     @app.on_event("startup")
-    def _start_consumer():
+    def _start_consumer() -> None:
         app.state.huey_consumer = None
         app.state.huey_consumer_stopped = False
         if not huey.immediate:
@@ -41,7 +41,7 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
             app.state.huey_consumer = consumer
 
     @app.on_event("shutdown")
-    def _stop_consumer():
+    def _stop_consumer() -> None:
         consumer = getattr(app.state, "huey_consumer", None)
         if consumer is not None:
             consumer.stop()

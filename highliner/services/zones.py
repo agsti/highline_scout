@@ -1,27 +1,31 @@
 from collections import defaultdict
+from typing import Callable
 import numpy as np
 from scipy.spatial import cKDTree
 from shapely.geometry import MultiPoint
 from highliner.core import config
+from highliner.models.anchor import Anchor
+from highliner.models.candidate import Candidate
 from highliner.models.zone import Zone
 
 
-def _union_find(n):
+def _union_find(n: int) -> tuple[Callable[[int], int], Callable[[int, int], None]]:
     parent = list(range(n))
 
-    def find(i):
+    def find(i: int) -> int:
         while parent[i] != i:
             parent[i] = parent[parent[i]]
             i = parent[i]
         return i
 
-    def union(i, j):
+    def union(i: int, j: int) -> None:
         parent[find(i)] = find(j)
 
     return find, union
 
 
-def build_zones(candidates, cluster_dist=config.CLUSTER_DIST_M) -> list[Zone]:
+def build_zones(candidates: list[Candidate],
+                cluster_dist: float = config.CLUSTER_DIST_M) -> list[Zone]:
     """Cluster the anchors of valid pairs into zones.
 
     Pair endpoints always join the same zone (merging both rims of a gap);
@@ -30,8 +34,8 @@ def build_zones(candidates, cluster_dist=config.CLUSTER_DIST_M) -> list[Zone]:
     if not candidates:
         return []
 
-    anchors = []                # unique anchors, in first-seen order
-    index = {}                  # Anchor -> position in `anchors`
+    anchors: list[Anchor] = []  # unique anchors, in first-seen order
+    index: dict[Anchor, int] = {}   # Anchor -> position in `anchors`
     for c in candidates:
         for a in (c.a, c.b):
             if a not in index:

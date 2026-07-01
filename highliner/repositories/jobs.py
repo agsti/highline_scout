@@ -1,5 +1,8 @@
 import uuid
 from datetime import datetime, timezone
+from typing import Any
+
+from highliner.repositories.db import Database
 
 _COLUMNS = ("id", "name", "region", "status", "phase", "done", "total",
             "message", "error", "created")
@@ -26,7 +29,7 @@ class JobStore:
     ``list``/``update`` methods; that the backing store is SQLite stays behind
     the Database."""
 
-    def __init__(self, db):
+    def __init__(self, db: Database):
         self._db = db
         with self._db.connect() as c:
             c.execute(_SCHEMA)
@@ -40,19 +43,19 @@ class JobStore:
                 (jid, name, region, datetime.now(timezone.utc).isoformat()))
         return jid
 
-    def get(self, job_id: str):
+    def get(self, job_id: str) -> dict[str, Any] | None:
         with self._db.connect() as c:
             row = c.execute("SELECT * FROM jobs WHERE id = ?",
                             (job_id,)).fetchone()
         return dict(row) if row else None
 
-    def list(self):
+    def list(self) -> list[dict[str, Any]]:
         with self._db.connect() as c:
             rows = c.execute(
                 "SELECT * FROM jobs ORDER BY created DESC, rowid DESC").fetchall()
         return [dict(r) for r in rows]
 
-    def update(self, job_id: str, **fields):
+    def update(self, job_id: str, **fields: object) -> None:
         allowed = {k: v for k, v in fields.items()
                    if k in _COLUMNS and k != "id"}
         if not allowed:

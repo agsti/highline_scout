@@ -1,6 +1,7 @@
 import numpy as np
 from scipy.spatial import cKDTree
 from highliner.core import config, geo
+from highliner.models.anchor import Anchor
 from highliner.models.raster import Raster
 from highliner.models.candidate import Candidate
 
@@ -14,8 +15,18 @@ def _interior_min(profile: np.ndarray) -> float:
     return float(np.min(interior)) if interior.size else float("nan")
 
 
-def find_candidates(anchors, raster: Raster, max_len, min_len,
-                    min_exposure, max_dh, sector_tol=config.SECTOR_TOL_DEG):
+def filter_candidates(candidates: list[Candidate], max_len: float, min_len: float,
+                      min_exposure: float, max_dh: float) -> list[Candidate]:
+    """Narrow precomputed candidates by the live slider thresholds."""
+    return [c for c in candidates
+            if min_len <= c.length <= max_len
+            and c.exposure >= min_exposure
+            and c.height_diff <= max_dh]
+
+
+def find_candidates(anchors: list[Anchor], raster: Raster, max_len: float,
+                    min_len: float, min_exposure: float, max_dh: float,
+                    sector_tol: float = config.SECTOR_TOL_DEG) -> list[Candidate]:
     if len(anchors) < 2:
         return []
     coords = np.array([[a.x, a.y] for a in anchors])

@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from pathlib import Path
 import numpy as np
 from affine import Affine
 
@@ -20,7 +21,8 @@ class Raster:
             return float(self.data[row, col])
         return float("nan")
 
-    def sample_line(self, x1, y1, x2, y2, step: float | None = None) -> np.ndarray:
+    def sample_line(self, x1: float, y1: float, x2: float, y2: float,
+                    step: float | None = None) -> np.ndarray:
         step = step or self.res
         length = float(np.hypot(x2 - x1, y2 - y1))
         n = max(2, int(length / step) + 1)
@@ -29,7 +31,7 @@ class Raster:
         return np.array([self.value_at(float(x), float(y)) for x, y in zip(xs, ys)])
 
     @classmethod
-    def open(cls, path) -> "Raster":
+    def open(cls, path: str | Path) -> "Raster":
         import rasterio
         with rasterio.open(path) as ds:
             arr = ds.read(1).astype("float32")

@@ -1,0 +1,12 @@
+# Run `pre-commit install` once to enable. The mypy hook is a local hook run
+# through uv so it sees the project's real dependencies and type stubs, which
+# strict mode needs to resolve imports.
+repos:
+  - repo: local
+    hooks:
+      - id: mypy
+        name: mypy
+        entry: uv run mypy
+        language: system
+        types: [python]
+        pass_filenames: false

@@ -1,8 +1,9 @@
+from pathlib import Path
 from highliner.models.anchor import Anchor
 from highliner.repositories.anchors import save_anchors, load_anchors
 
 
-def test_to_geojson_points_and_sectors():
+def test_to_geojson_points_and_sectors() -> None:
     from highliner.models.anchor import Anchor
     from highliner.router.serializers import anchors_to_geojson as to_geojson
     from highliner.core import geo
@@ -22,7 +23,7 @@ def test_to_geojson_points_and_sectors():
                                              [250.0, 280.0, 40.0]]
 
 
-def test_roundtrip(tmp_path):
+def test_roundtrip(tmp_path: Path) -> None:
     anchors = [
         Anchor(x=100.0, y=200.0, elev=540.5, sectors=((80.0, 100.0, 35.0),)),
         Anchor(x=150.0, y=210.0, elev=541.0,

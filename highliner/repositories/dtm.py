@@ -9,11 +9,17 @@ Each GetCoverage response is capped at ~140 KB (~35,800 pixels), so a region is
 fetched as a grid of small tiles and merged into a single ``mosaic.tif``.
 """
 from pathlib import Path
+from typing import Callable, TYPE_CHECKING
 import math
+import numpy as np
 import requests
 import rasterio
 from rasterio.merge import merge
 from highliner.core import config, geo
+if TYPE_CHECKING:
+    from highliner.models.raster import Raster
+
+Bbox = tuple[float, float, float, float]
 
 ICGC_WCS = "https://geoserveis.icgc.cat/icc_mdt/wcs/service"
 COVERAGE_ID = "icc:met"
@@ -22,7 +28,7 @@ MAX_TILE_PX = 175      # per side; 175*175 < 35,800 px request cap
 NODATA = -9999.0
 
 
-def _download_tile(bbox, width: int, height: int, dest: Path) -> Path:
+def _download_tile(bbox: Bbox, width: int, height: int, dest: Path) -> Path:
     minx, miny, maxx, maxy = bbox
     params = {
         "SERVICE": "WCS",
@@ -44,7 +50,7 @@ def _download_tile(bbox, width: int, height: int, dest: Path) -> Path:
     return dest
 
 
-def mosaic_bounds_lonlat(mosaic_path):
+def mosaic_bounds_lonlat(mosaic_path: Path) -> list[float] | None:
     """Lon/lat extent ``[w, s, e, n]`` of a region's mosaic, or ``None`` if
     missing. Reads only raster metadata (no pixel data) and converts the four
     UTM corners, taking min/max so the box stays axis-aligned in lon/lat."""
@@ -59,7 +65,7 @@ def mosaic_bounds_lonlat(mosaic_path):
     return [min(lons), min(lats), max(lons), max(lats)]
 
 
-def estimate_tiles(bbox, res: float = NATIVE_RES,
+def estimate_tiles(bbox: Bbox, res: float = NATIVE_RES,
                    tile_px: int = MAX_TILE_PX) -> int:
     minx, miny, maxx, maxy = (float(v) for v in bbox)
     minx = math.floor(minx / res) * res
@@ -72,9 +78,71 @@ def estimate_tiles(bbox, res: float = NATIVE_RES,
     return int(nx * ny)
 
 
-def fetch_dtm(bbox, region: str, data_dir: Path | None = None,
+def _snap(bbox: Bbox, res: float) -> Bbox:
+    minx, miny, maxx, maxy = (float(v) for v in bbox)
+    return (math.floor(minx / res) * res, math.floor(miny / res) * res,
+            math.ceil(maxx / res) * res, math.ceil(maxy / res) * res)
+
+
+def tile_specs(bbox: Bbox, res: float = NATIVE_RES, tile_px: int = MAX_TILE_PX
+               ) -> list[tuple[Bbox, int, int]]:
+    """Tile (bbox, width, height) specs tiling ``bbox`` snapped to the res grid."""
+    minx, miny, maxx, maxy = _snap(bbox, res)
+    step = tile_px * res
+    out: list[tuple[Bbox, int, int]] = []
+    y = miny
+    while y < maxy:
+        ty2 = min(y + step, maxy)
+        x = minx
+        while x < maxx:
+            tx2 = min(x + step, maxx)
+            w = int(round((tx2 - x) / res))
+            h = int(round((ty2 - y) / res))
+            if w > 0 and h > 0:
+                out.append(((x, y, tx2, ty2), w, h))
+            x = tx2
+        y = ty2
+    return out
+
+
+def fetch_tiles(bbox: Bbox, tiles_dir: Path, res: float = NATIVE_RES,
+                tile_px: int = MAX_TILE_PX) -> list[Path]:
+    """Download tiles covering ``bbox`` into ``tiles_dir``; reuse cached tiles;
+    skip tiles whose WCS response errors or is not ArcGrid (out of coverage).
+    Returns the paths that exist on disk."""
+    tiles_dir = Path(tiles_dir)
+    tiles_dir.mkdir(parents=True, exist_ok=True)
+    paths: list[Path] = []
+    for tb, w, h in tile_specs(bbox, res, tile_px):
+        dest = tiles_dir / f"t_{int(tb[0])}_{int(tb[1])}.asc"
+        if not dest.exists():
+            try:
+                _download_tile(tb, w, h, dest)
+            except (requests.RequestException, RuntimeError):
+                continue
+        paths.append(dest)
+    return paths
+
+
+def raster_from_tiles(paths: list[Path], res: float = NATIVE_RES) -> "Raster | None":
+    """Merge tile rasters into one in-memory ``Raster`` (NaN nodata), or None."""
+    from highliner.models.raster import Raster
+    if not paths:
+        return None
+    srcs = [rasterio.open(p) for p in paths]
+    try:
+        arr, transform = merge(srcs, nodata=NODATA)
+    finally:
+        for s in srcs:
+            s.close()
+    data = arr[0].astype("float32")
+    data[data == NODATA] = np.nan
+    return Raster(data=data, transform=transform, res=res)
+
+
+def fetch_dtm(bbox: Bbox, region: str, data_dir: Path | None = None,
               res: float = NATIVE_RES, tile_px: int = MAX_TILE_PX,
-              progress=None) -> Path:
+              progress: Callable[[int, int], None] | None = None) -> Path:
     """Download the DTM for ``bbox`` (EPSG:25831 meters) and build mosaic.tif.
 
     Tiles and the mosaic are cached: if mosaic.tif already exists it is returned

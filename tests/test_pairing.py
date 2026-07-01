@@ -2,24 +2,25 @@ import numpy as np
 from affine import Affine
 from highliner.models.raster import Raster
 from highliner.models.anchor import Anchor
+from highliner.models.candidate import Candidate
 from highliner.services import pairing
 
 
-def gap_raster():
+def gap_raster() -> Raster:
     # plateau 100m at x<=30 and x>=70, deep gap (20m) in the middle.
     data = np.full((101, 101), 100.0, dtype="float32")
     data[:, 31:70] = 20.0
     return Raster(data=data, transform=Affine(1, 0, 0, 0, -1, 101.0), res=1.0)
 
 
-def facing_pair():
+def facing_pair() -> tuple[Anchor, Anchor]:
     # west rim anchor faces east (90); east rim anchor faces west (270)
     a = Anchor(x=30.0, y=50.0, elev=100.0, sectors=((80.0, 100.0, 60.0),))
     b = Anchor(x=70.0, y=50.0, elev=100.0, sectors=((260.0, 280.0, 60.0),))
     return a, b
 
 
-def test_facing_pair_across_gap_is_found():
+def test_facing_pair_across_gap_is_found() -> None:
     r = gap_raster()
     a, b = facing_pair()
     res = pairing.find_candidates([a, b], r, max_len=60, min_len=10,
@@ -30,7 +31,7 @@ def test_facing_pair_across_gap_is_found():
     assert c.exposure >= 50
 
 
-def test_rejected_when_too_long():
+def test_rejected_when_too_long() -> None:
     r = gap_raster()
     a, b = facing_pair()
     res = pairing.find_candidates([a, b], r, max_len=30, min_len=10,
@@ -38,7 +39,7 @@ def test_rejected_when_too_long():
     assert res == []
 
 
-def test_rejected_when_not_facing():
+def test_rejected_when_not_facing() -> None:
     r = gap_raster()
     a, b = facing_pair()
     b_wrong = Anchor(x=70.0, y=50.0, elev=100.0, sectors=((80.0, 100.0, 60.0),))
@@ -47,10 +48,24 @@ def test_rejected_when_not_facing():
     assert res == []
 
 
-def test_rejected_when_height_diff_too_big():
+def test_rejected_when_height_diff_too_big() -> None:
     r = gap_raster()
     a, b = facing_pair()
     b_high = Anchor(x=70.0, y=50.0, elev=140.0, sectors=((260.0, 280.0, 60.0),))
     res = pairing.find_candidates([a, b_high], r, max_len=60, min_len=10,
                                   min_exposure=50, max_dh=5)
     assert res == []
+
+
+def _cand(length: float, exposure: float, dh: float) -> Candidate:
+    a = Anchor(x=0.0, y=0.0, elev=100.0, sectors=())
+    b = Anchor(x=length, y=0.0, elev=100.0 - dh, sectors=())
+    return Candidate(a=a, b=b, length=length, exposure=exposure, height_diff=dh)
+
+
+def test_filter_candidates_narrows_by_each_slider() -> None:
+    cands = [_cand(30, 50, 2), _cand(500, 50, 2), _cand(30, 15, 2), _cand(30, 50, 25)]
+    out = pairing.filter_candidates(cands, max_len=120, min_len=20,
+                                    min_exposure=40, max_dh=10)
+    assert len(out) == 1
+    assert out[0].length == 30 and out[0].exposure == 50 and out[0].height_diff == 2

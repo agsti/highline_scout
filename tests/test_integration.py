@@ -1,3 +1,4 @@
+from pathlib import Path
 import numpy as np
 import rasterio
 from rasterio.transform import from_origin
@@ -7,7 +8,7 @@ from highliner import cli
 from highliner.app import create_app
 
 
-def test_full_pipeline(tmp_path):
+def test_full_pipeline(tmp_path: Path) -> None:
     region = tmp_path / "demo"
     region.mkdir()
     # plateau 100m with a deep central gap -> two facing rims, one good line

@@ -4,7 +4,7 @@ from highliner.models.raster import Raster
 from highliner.services import terrain
 
 
-def cliff_raster():
+def cliff_raster() -> Raster:
     # 41x41, 1m pixels. Flat plateau at 100m for x<20, drops to 50m for x>=20.
     # An anchor at the rim (x=19) should "drop" toward the EAST (bearing 90).
     data = np.full((41, 41), 100.0, dtype="float32")
@@ -13,7 +13,7 @@ def cliff_raster():
     return Raster(data=data, transform=transform, res=1.0)
 
 
-def test_sectors_face_the_drop():
+def test_sectors_face_the_drop() -> None:
     r = cliff_raster()
     # point on the plateau just west of the edge, center row
     x, y = 19.5, 20.5
@@ -27,7 +27,7 @@ def test_sectors_face_the_drop():
     assert not bearing_in_sectors(270, sectors, tol=0)
 
 
-def test_flat_has_no_sectors():
+def test_flat_has_no_sectors() -> None:
     data = np.full((41, 41), 100.0, dtype="float32")
     r = Raster(data=data, transform=Affine(1, 0, 0, 0, -1, 41.0), res=1.0)
     assert terrain.drop_sectors(r, 20.5, 20.5, radius=15.0, n_azimuths=24,

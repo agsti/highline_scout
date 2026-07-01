@@ -1,11 +1,13 @@
 import pytest
+from pathlib import Path
+from pathlib import Path
 
 from highliner.repositories.db import Database
 from highliner.repositories.jobs import JobStore
 
 
 @pytest.fixture
-def database(tmp_path) -> Database:
+def database(tmp_path: Path) -> Database:
     """A Database isolated to the test's tmp_path. Single place tests obtain
     one; inject it (or the ``jobstore`` built on it) rather than constructing
     Database/JobStore by hand."""
@@ -13,5 +15,5 @@ def database(tmp_path) -> Database:
 
 
 @pytest.fixture
-def jobstore(database) -> JobStore:
+def jobstore(database: Database) -> JobStore:
     return JobStore(database)

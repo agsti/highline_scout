@@ -24,6 +24,21 @@ MAX_RESTRICTION_FEATURES = 4000  # cap protected-area polygons returned per view
 CLUSTER_DIST_M = 50.0       # paired anchors closer than this share a zone
 ZONE_BUFFER_M = 15.0        # hull buffer so 2-anchor zones render as polygons
 
+# Catalonia full-extent precompute
+# UTM EPSG:25831 bounding rectangle over Catalonia (brute-forced; corners over
+# sea/France/Aragon fall outside ICGC coverage and are skipped during download).
+CATALONIA_BBOX = (258000.0, 4485000.0, 530000.0, 4755000.0)
+CHUNK_M = 10000.0           # side of each analysis chunk (meters)
+MAX_PAIR_LEN = 1000.0       # longest highline searched for / stored
+CHUNK_HALO_M = 1050.0       # halo so 1000 m pairs + sector radius cross the core edge
+MAX_VIEW_CHUNKS = 64        # serve guard: refuse a viewport overlapping more partitions
+
+# Loose envelope the precomputed pairs are generated at; the live sliders only
+# narrow within it (defaults above are stricter and hide some real lines).
+PRECOMPUTE_MIN_LEN_M = 10.0
+PRECOMPUTE_MIN_EXPOSURE_M = 10.0
+PRECOMPUTE_MAX_DH_M = 30.0
+
 # Paths — this module lives at highliner/core/config.py, so the repo root
 # (which holds data/ and web/) is three parents up.
 DATA_DIR = Path(__file__).resolve().parent.parent.parent / "data"

@@ -33,6 +33,23 @@ def _cmd_serve(args: argparse.Namespace) -> None:
     uvicorn.run(app, host=args.host, port=args.port)
 
 
+def _cmd_precompute_catalonia(args: argparse.Namespace) -> None:
+    from highliner.services import catalonia
+    bbox: tuple[float, float, float, float]
+    if args.bbox:
+        minx, miny, maxx, maxy = (float(v) for v in args.bbox.split(","))
+        bbox = (minx, miny, maxx, maxy)
+    else:
+        bbox = config.CATALONIA_BBOX
+    chunk_m = args.chunk_km * 1000.0
+
+    def report(done: int, total: int) -> None:
+        print(f"\rchunk {done}/{total}", end="", flush=True)
+    n = catalonia.precompute_catalonia(bbox, Path(args.data_dir),
+                                       chunk_m=chunk_m, report=report)
+    print(f"\nprocessed {n} chunks -> {Path(args.data_dir) / 'catalonia'}")
+
+
 def _cmd_fetch_restrictions(args: argparse.Namespace) -> None:
     from highliner.repositories.restrictions import fetch_all
     print("Downloading protected-area layers from the Generalitat WFS...")
@@ -60,6 +77,12 @@ def main(argv: list[str] | None = None) -> None:
     ps.add_argument("--host", default="127.0.0.1")
     ps.add_argument("--port", type=int, default=8000)
     ps.set_defaults(func=_cmd_serve)
+
+    pc = sub.add_parser("precompute-catalonia", parents=[common])
+    pc.add_argument("--bbox", default=None,
+                    help="minx,miny,maxx,maxy EPSG:25831 (default: all Catalonia)")
+    pc.add_argument("--chunk-km", type=float, default=10.0)
+    pc.set_defaults(func=_cmd_precompute_catalonia)
 
     pr = sub.add_parser("fetch-restrictions", parents=[common])
     pr.set_defaults(func=_cmd_fetch_restrictions)

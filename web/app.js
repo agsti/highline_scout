@@ -159,12 +159,16 @@ async function fetchFC(url, statusEl, noun) {
   return res.json();
 }
 
+// The pairing sliders are the "range inputs": changing one invalidates every
+// zone on the map (they were computed under different parameters), so it wipes
+// the accumulated set and starts fresh. Panning/zooming, by contrast, keeps
+// what's there and only adds the new viewport's zones (see refresh()).
 const ctrls = ["maxLen", "minExp", "maxDh"];
 ctrls.forEach((id) => $(id).addEventListener("input", () => {
   $(id + "V").textContent = $(id).value;
-  refresh();
+  refresh({ reset: true });
 }));
-map.on("moveend", refresh);
+map.on("moveend", () => refresh());
 
 const regionBounds = {}; // region name -> [w, s, e, n] in lon/lat
 
@@ -190,7 +194,12 @@ async function loadRegions() {
     o.value = o.textContent = reg.name;
     $("region").appendChild(o);
   });
-  $("region").addEventListener("change", () => flyToRegion($("region").value));
+  // Switching region is a context switch, not a range change: drop the other
+  // region's accumulated zones before flying so they don't linger on the map.
+  $("region").addEventListener("change", () => {
+    clearZones();
+    flyToRegion($("region").value);
+  });
   if ($("region").value) flyToRegion($("region").value);
   else { refresh(); refreshAnchors(); }
 }
@@ -220,11 +229,37 @@ async function refreshDensity() {
   }
 }
 
-async function refresh() {
+// Zones accumulate across pans and zooms instead of being cleared on every
+// move, so a scout can range over the terrain and keep every zone found so far
+// on screen. Only a change to the range inputs, a region switch, or dropping to
+// the density view wipes the set (see clearZones callers).
+//
+// Zones carry no stable id — each is just a cluster of the anchors that fell in
+// the requested viewport — so overlapping viewports recompute the same cliff.
+// We dedupe by centroid snapped to a ~50 m grid so pans don't stack duplicate
+// polygons on top of each other.
+const ZONE_DEDUP_GRID_DEG = 0.0005; // ~50 m; centroid quantum for zone identity
+const shownZoneKeys = new Set();
+
+function zoneKey(feature) {
+  const ring = feature.geometry.coordinates[0];
+  let lon = 0, lat = 0;
+  for (const [x, y] of ring) { lon += x; lat += y; }
+  lon /= ring.length;
+  lat /= ring.length;
+  return `${Math.round(lat / ZONE_DEDUP_GRID_DEG)}:${Math.round(lon / ZONE_DEDUP_GRID_DEG)}`;
+}
+
+function clearZones() {
+  layer.clearLayers();
+  shownZoneKeys.clear();
+}
+
+async function refresh({ reset = false } = {}) {
   const region = $("region").value;
   if (!region) return;
   if (map.getZoom() <= DENSITY_MAX_ZOOM) {
-    layer.clearLayers();
+    clearZones();
     return refreshDensity();
   }
   densityLayer.clearLayers();
@@ -242,10 +277,18 @@ async function refresh() {
   setLoading(true);
   try {
     const fc = await fetchFC("/zones?" + params, $("status"), "zones");
-    layer.clearLayers();
+    if (reset) clearZones();
     if (!fc) return;
-    layer.addData(fc);
-    $("status").textContent = `${fc.features.length} zones`;
+    // Keep only zones not already on the map, so overlapping viewports don't
+    // stack duplicates as the user pans.
+    const fresh = fc.features.filter((ft) => {
+      const k = zoneKey(ft);
+      if (shownZoneKeys.has(k)) return false;
+      shownZoneKeys.add(k);
+      return true;
+    });
+    layer.addData({ type: "FeatureCollection", features: fresh });
+    $("status").textContent = `${shownZoneKeys.size} zones`;
   } catch (e) {
     $("status").textContent = "error: " + e;
   } finally {

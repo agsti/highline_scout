@@ -51,6 +51,12 @@ def density(
         features.append({
             "type": "Feature",
             "geometry": {"type": "Polygon", "coordinates": [ring]},
-            "properties": {"n_pairs": c["n"], "max_exposure": c["max_exp"]},
+            "properties": {
+                "n_pairs": c["n"],
+                "max_exposure": c["max_exp"],
+                # Absent in density layers built before length was tracked.
+                "length_min": c.get("min_len"),
+                "length_max": c.get("max_len"),
+            },
         })
     return {"type": "FeatureCollection", "features": features}

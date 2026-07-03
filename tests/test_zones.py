@@ -20,6 +20,7 @@ def test_single_pair_is_one_zone() -> None:
     assert z.n_anchors == 2
     assert z.n_pairs == 1
     assert z.height_min == z.height_max == 60.0
+    assert z.length_min == z.length_max == 80.0
     # 2-point hull is a line; the buffer must still yield a real polygon
     assert z.polygon.geom_type == "Polygon"
     assert z.polygon.area > 0
@@ -34,12 +35,14 @@ def test_far_pairs_make_separate_zones() -> None:
 def test_nearby_pairs_merge_with_height_range() -> None:
     # rows 30 m apart: anchors fall within cluster_dist=50 -> one zone
     cands = [make_pair(0, 80, 0, exposure=60.0),
-             make_pair(0, 80, 30, exposure=25.0)]
+             make_pair(0, 45, 30, exposure=25.0)]
     [z] = zones.build_zones(cands, cluster_dist=50.0)
     assert z.n_anchors == 4
     assert z.n_pairs == 2
     assert z.height_min == 25.0
     assert z.height_max == 60.0
+    assert z.length_min == 45.0
+    assert z.length_max == 80.0
 
 
 def test_zones_sorted_by_height_max_desc() -> None:
@@ -78,5 +81,6 @@ def test_to_geojson_polygons_with_properties() -> None:
     assert 1.5 < lon < 2.5 and 41.0 < lat < 42.0
     assert f["properties"] == {
         "height_min": 60.0, "height_max": 60.0,
+        "length_min": 80.0, "length_max": 80.0,
         "n_anchors": 2, "n_pairs": 1,
     }

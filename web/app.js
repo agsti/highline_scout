@@ -12,21 +12,19 @@ function tealShade(t) {
   return `hsl(${h}, ${s}%, ${l}%)`;
 }
 
-// Zone fill shaded by the zone's max highline height: 0 m -> pale mint,
-// 100 m and above -> deep teal.
-function zoneColor(heightMax) {
-  return tealShade(Math.min(heightMax / 100, 1));
-}
+// Every zone is drawn in the same dark cyan, regardless of its properties.
+const ZONE_COLOR = "hsl(184, 70%, 26%)";
 
 const layer = L.geoJSON(null, {
-  style: (f) => ({
-    color: zoneColor(f.properties.height_max),
+  style: () => ({
+    color: ZONE_COLOR,
     weight: 2,
     fillOpacity: 0.35,
   }),
   onEachFeature: (f, l) => {
     const p = f.properties;
     l.bindPopup(`height ${p.height_min}–${p.height_max} m<br>`
+      + `length ${Math.round(p.length_min)}–${Math.round(p.length_max)} m<br>`
       + `${p.n_anchors} anchors · ${p.n_pairs} lines`);
   },
 }).addTo(map);
@@ -72,7 +70,10 @@ const densityLayer = L.geoJSON(null, {
   },
   onEachFeature: (f, l) => {
     const p = f.properties;
-    l.bindTooltip(`${p.n_pairs} candidate lines · up to ${Math.round(p.max_exposure)} m`);
+    // length_min/max are absent (null) in density layers built before length tracking.
+    const lenHint = p.length_min == null ? ""
+      : ` · ${Math.round(p.length_min)}–${Math.round(p.length_max)} m long`;
+    l.bindTooltip(`${p.n_pairs} candidate lines · up to ${Math.round(p.max_exposure)} m${lenHint}`);
   },
 }).addTo(map);
 

@@ -37,6 +37,8 @@ def zones_to_geojson(zones: list[Zone]) -> dict[str, Any]:
             "properties": {
                 "height_min": z.height_min,
                 "height_max": z.height_max,
+                "length_min": z.length_min,
+                "length_max": z.length_max,
                 "n_anchors": z.n_anchors,
                 "n_pairs": z.n_pairs,
             },

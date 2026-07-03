@@ -62,10 +62,13 @@ def build_zones(candidates: list[Candidate],
         pairs = comp_pairs[root]
         hull = MultiPoint([(anchors[i].x, anchors[i].y) for i in idxs]).convex_hull
         exposures = [p.exposure for p in pairs]
+        lengths = [p.length for p in pairs]
         zones.append(Zone(
             polygon=hull.buffer(config.ZONE_BUFFER_M),
             height_min=min(exposures),
             height_max=max(exposures),
+            length_min=min(lengths),
+            length_max=max(lengths),
             n_anchors=len(idxs),
             n_pairs=len(pairs),
         ))

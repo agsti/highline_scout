@@ -28,7 +28,7 @@ def build_density(region_dir: Path,
     zooms = list(zoom_levels)
     pair_files = sorted((region_dir / "pairs").glob("q_*.parquet"))
 
-    # (z, xtile, ytile) -> [count, max_exposure]
+    # (z, xtile, ytile) -> [count, max_exposure, min_length, max_length]
     cells: dict[tuple[int, int, int], list[float]] = {}
     total = len(pair_files)
     for done, path in enumerate(pair_files, start=1):
@@ -39,10 +39,12 @@ def build_density(region_dir: Path,
                 key = (z, tx, ty)
                 cell = cells.get(key)
                 if cell is None:
-                    cells[key] = [1.0, c.exposure]
+                    cells[key] = [1.0, c.exposure, c.length, c.length]
                 else:
                     cell[0] += 1.0
                     cell[1] = max(cell[1], c.exposure)
+                    cell[2] = min(cell[2], c.length)
+                    cell[3] = max(cell[3], c.length)
         if report is not None:
             report(done, total)
 
@@ -50,8 +52,10 @@ def build_density(region_dir: Path,
     out_dir.mkdir(parents=True, exist_ok=True)
     written = 0
     for z in zooms:
-        rows = [{"x": tx, "y": ty, "n": int(n), "max_exp": max_exp}
-                for (zz, tx, ty), (n, max_exp) in cells.items() if zz == z]
+        rows = [{"x": tx, "y": ty, "n": int(n), "max_exp": max_exp,
+                 "min_len": min_len, "max_len": max_len}
+                for (zz, tx, ty), (n, max_exp, min_len, max_len) in cells.items()
+                if zz == z]
         (out_dir / f"z{z}.json").write_text(json.dumps(rows))
         written += len(rows)
     return written

@@ -27,8 +27,8 @@ def test_two_pairs_share_a_cell_third_apart(tmp_path: Path) -> None:
     # Two pairs at the same midpoint (Montserrat area, UTM), one ~5 km away.
     near = geo.to_utm(1.83, 41.59)
     far = geo.to_utm(1.90, 41.59)
-    p1 = _pair(near[0], near[1], exposure=40.0)
-    p2 = _pair(near[0], near[1], exposure=70.0)
+    p1 = _pair(near[0], near[1], exposure=40.0, spread=40.0)   # length 80
+    p2 = _pair(near[0], near[1], exposure=70.0, spread=25.0)   # length 50
     p3 = _pair(far[0], far[1], exposure=25.0)
     region = _write_region(tmp_path, [p1, p2, p3])
 
@@ -40,6 +40,8 @@ def test_two_pairs_share_a_cell_third_apart(tmp_path: Path) -> None:
     shared = tiles.lonlat_to_tile(1.83, 41.59, 12)
     assert by_key[shared]["n"] == 2
     assert by_key[shared]["max_exp"] == 70.0  # max across the shared cell's pairs
+    assert by_key[shared]["min_len"] == 50.0  # min/max length across the cell's pairs
+    assert by_key[shared]["max_len"] == 80.0
 
 
 def test_report_and_default_zooms(tmp_path: Path) -> None:

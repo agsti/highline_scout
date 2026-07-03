@@ -8,8 +8,8 @@ from highliner.core import config
 from highliner.repositories.db import get_database
 from highliner.repositories.jobs import JobStore
 from highliner.tasks.analyze import huey
-from highliner.router import (analyze, anchors, jobs, regions, restrictions,
-                              zones)
+from highliner.router import (analyze, anchors, density, jobs, regions,
+                              restrictions, zones)
 
 
 def create_app(data_dir: Path | None = None) -> FastAPI:
@@ -24,7 +24,7 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
     app.state.db = get_database(data_dir)
     app.state.jobstore = JobStore(app.state.db)
 
-    for module in (regions, zones, anchors, restrictions, jobs, analyze):
+    for module in (regions, zones, anchors, density, restrictions, jobs, analyze):
         app.include_router(module.router)
 
     @app.on_event("startup")

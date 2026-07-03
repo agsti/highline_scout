@@ -26,6 +26,11 @@ COVERAGE_ID = "icc:met"
 NATIVE_RES = 5.0       # meters — finest DTM resolution on this WCS
 MAX_TILE_PX = 175      # per side; 175*175 < 35,800 px request cap
 NODATA = -9999.0
+# ICGC encodes the sea surface with its own sentinel, distinct from the ArcGrid
+# NODATA_VALUE (-9999) used for out-of-coverage. If left unmasked it reads as a
+# real -8888 m elevation, so every coastal cell looks like an ~8888 m cliff and
+# becomes a spurious anchor/zone. Treat it as nodata.
+SEA_SENTINEL = -8888.0
 
 
 def _download_tile(bbox: Bbox, width: int, height: int, dest: Path) -> Path:
@@ -136,7 +141,7 @@ def raster_from_tiles(paths: list[Path], res: float = NATIVE_RES) -> "Raster | N
         for s in srcs:
             s.close()
     data = arr[0].astype("float32")
-    data[data == NODATA] = np.nan
+    data[(data == NODATA) | (data == SEA_SENTINEL)] = np.nan
     return Raster(data=data, transform=transform, res=res)
 
 

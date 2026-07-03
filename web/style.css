@@ -25,3 +25,11 @@ body { margin: 0; font-family: system-ui, sans-serif; }
 .restriction-desc mark { background: #fff3a0; color: inherit; font-weight: 600;
   padding: 0 1px; }
 #restrictionStatus { font-size: 12px; color: #555; margin: 6px 0 0; }
+.density-legend { background: rgba(255, 255, 255, 0.9); padding: 6px 8px;
+  border-radius: 4px; font-size: 11px; color: #333; line-height: 1.3;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3); }
+.density-legend .dl-title { font-weight: 600; margin-bottom: 3px; }
+.density-legend .dl-bar { display: flex; }
+.density-legend .dl-bar span { display: block; width: 22px; height: 10px; }
+.density-legend .dl-ends { display: flex; justify-content: space-between;
+  margin-top: 2px; color: #666; }

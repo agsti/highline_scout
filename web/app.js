@@ -2,11 +2,20 @@ const map = L.map("map").setView([41.6, 1.83], 13); // Montserrat area
 L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",
   { maxZoom: 19, attribution: "© OpenStreetMap" }).addTo(map);
 
-// Zone fill color scaled by the zone's max highline height:
-// 0 m -> yellow, 100 m and above -> deep red.
+// Sequential single-hue teal ramp, light -> dark. t in [0,1]. Shared by the
+// zone fills (below) and the zoomed-out density cells so the whole map speaks
+// one color language: more teal means more/taller highline potential.
+function tealShade(t) {
+  const h = 168 + 16 * t;   // 168 -> 184
+  const s = 45 + 25 * t;    // 45% -> 70%
+  const l = 88 - 62 * t;    // 88% -> 26%
+  return `hsl(${h}, ${s}%, ${l}%)`;
+}
+
+// Zone fill shaded by the zone's max highline height: 0 m -> pale mint,
+// 100 m and above -> deep teal.
 function zoneColor(heightMax) {
-  const t = Math.min(heightMax / 100, 1);
-  return `hsl(${50 - 50 * t}, 90%, 45%)`;
+  return tealShade(Math.min(heightMax / 100, 1));
 }
 
 const layer = L.geoJSON(null, {
@@ -31,25 +40,59 @@ const DENSITY_MAX_ZOOM = 12;   // show density at/below this Leaflet zoom, zones
 const DENSITY_ZOOM_OFFSET = 2;
 const DENSITY_TILE_MIN = 6;
 const DENSITY_TILE_MAX = 14;
-const DENSITY_FULL_COUNT = 50; // pair count that saturates the color ramp
+// Cell shading is *rank-based*: each cell is colored by where its pair count
+// ranks among the cells currently in view, not by the absolute count. Counts
+// span ~6 orders of magnitude and their range shifts with zoom, so any fixed
+// linear cutoff pins almost everything to one end of the ramp. Ranking spreads
+// the ramp evenly across whatever is on screen. Sparse -> pale mint, dense ->
+// deep teal (the anchor hue): more shading means more highline potential.
+let densitySorted = []; // ascending pair counts of the cells currently shown
 
-// Cell fill scaled by candidate-pair count: 0 -> yellow, DENSITY_FULL_COUNT+ -> red.
-function densityColor(n) {
-  const t = Math.min(n / DENSITY_FULL_COUNT, 1);
-  return `hsl(${50 - 50 * t}, 90%, 45%)`;
+// Fraction in [0,1] giving n's rank within the current cell set (0 = sparsest,
+// 1 = densest). Ties share their averaged rank.
+function densityRank(n) {
+  const m = densitySorted.length;
+  if (m <= 1) return 1;
+  let lo = 0, hi = m;
+  while (lo < hi) { const mid = (lo + hi) >> 1; if (densitySorted[mid] < n) lo = mid + 1; else hi = mid; }
+  let hiIdx = lo;
+  while (hiIdx < m && densitySorted[hiIdx] === n) hiIdx++;
+  return ((lo + hiIdx - 1) / 2) / (m - 1);
 }
 
 const densityLayer = L.geoJSON(null, {
-  style: (f) => ({
-    color: densityColor(f.properties.n_pairs),
-    weight: 1,
-    fillOpacity: 0.45,
-  }),
+  style: (f) => {
+    const t = densityRank(f.properties.n_pairs);
+    return {
+      color: tealShade(Math.min(t + 0.15, 1)), // stroke a shade darker than fill
+      weight: 0.5,
+      fillColor: tealShade(t),
+      fillOpacity: 0.2 + 0.55 * t,   // sparse cells fade back, dense ones read solid
+    };
+  },
   onEachFeature: (f, l) => {
     const p = f.properties;
     l.bindTooltip(`${p.n_pairs} candidate lines · up to ${Math.round(p.max_exposure)} m`);
   },
 }).addTo(map);
+
+// Relative-density key, shown only while the density layer is active.
+const densityLegend = L.control({ position: "bottomright" });
+densityLegend.onAdd = () => {
+  const div = L.DomUtil.create("div", "density-legend");
+  const bar = [0, 0.25, 0.5, 0.75, 1]
+    .map((t) => `<span style="background:${tealShade(t)}"></span>`).join("");
+  div.innerHTML = '<div class="dl-title">Line density</div>'
+    + `<div class="dl-bar">${bar}</div>`
+    + '<div class="dl-ends"><span>sparse</span><span>dense</span></div>';
+  return div;
+};
+let densityLegendShown = false;
+function showDensityLegend(on) {
+  if (on === densityLegendShown) return;
+  if (on) densityLegend.addTo(map); else densityLegend.remove();
+  densityLegendShown = on;
+}
 
 const ANCHOR_COLOR = "#1f9e8f";
 // Below this zoom the viewport covers so much terrain that /anchors would
@@ -158,7 +201,10 @@ async function refreshDensity() {
     const fc = await fetchFC("/density?" + params, $("status"), "hotspots");
     densityLayer.clearLayers();
     if (!fc) return;
+    // Rank each cell against the set now in view (styling reads densitySorted).
+    densitySorted = fc.features.map((ft) => ft.properties.n_pairs).sort((a, b) => a - b);
     densityLayer.addData(fc);
+    showDensityLegend(fc.features.length > 0);
     $("status").textContent = `${fc.features.length} hotspot cells (zoom in for zones)`;
   } catch (e) {
     $("status").textContent = "error: " + e;
@@ -173,6 +219,7 @@ async function refresh() {
     return refreshDensity();
   }
   densityLayer.clearLayers();
+  showDensityLegend(false);
   const b = map.getBounds();
   const bbox = [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()].join(",");
   const params = new URLSearchParams({

@@ -1,6 +1,13 @@
 import argparse
+import time
 from pathlib import Path
 from highliner.core import config
+
+
+def _fmt_hms(seconds: float) -> str:
+    """Format a duration as H:MM:SS."""
+    s = int(seconds)
+    return f"{s // 3600}:{(s % 3600) // 60:02d}:{s % 60:02d}"
 
 
 def _cmd_ingest(args: argparse.Namespace) -> None:
@@ -43,11 +50,32 @@ def _cmd_precompute_catalonia(args: argparse.Namespace) -> None:
         bbox = config.CATALONIA_BBOX
     chunk_m = args.chunk_km * 1000.0
 
+    start = time.monotonic()
+
     def report(done: int, total: int) -> None:
-        print(f"\rchunk {done}/{total}", end="", flush=True)
+        elapsed = time.monotonic() - start
+        pct = 100.0 * done / total if total else 100.0
+        eta = elapsed / done * (total - done) if done else 0.0
+        print(f"\rchunk {done}/{total} ({pct:4.1f}%)  "
+              f"elapsed {_fmt_hms(elapsed)}  eta {_fmt_hms(eta)}",
+              end="", flush=True)
     n = catalonia.precompute_catalonia(bbox, Path(args.data_dir),
                                        chunk_m=chunk_m, report=report)
     print(f"\nprocessed {n} chunks -> {Path(args.data_dir) / 'catalonia'}")
+
+
+def _cmd_precompute_density(args: argparse.Namespace) -> None:
+    from highliner.services import density
+    region_dir = Path(args.data_dir) / args.region
+    start = time.monotonic()
+
+    def report(done: int, total: int) -> None:
+        elapsed = time.monotonic() - start
+        pct = 100.0 * done / total if total else 100.0
+        print(f"\rpairs file {done}/{total} ({pct:4.1f}%)  "
+              f"elapsed {_fmt_hms(elapsed)}", end="", flush=True)
+    n = density.build_density(region_dir, report=report)
+    print(f"\nwrote {n} density cells -> {region_dir / 'density'}")
 
 
 def _cmd_fetch_restrictions(args: argparse.Namespace) -> None:
@@ -83,6 +111,10 @@ def main(argv: list[str] | None = None) -> None:
                     help="minx,miny,maxx,maxy EPSG:25831 (default: all Catalonia)")
     pc.add_argument("--chunk-km", type=float, default=10.0)
     pc.set_defaults(func=_cmd_precompute_catalonia)
+
+    pd = sub.add_parser("precompute-density", parents=[common])
+    pd.add_argument("--region", default="catalonia")
+    pd.set_defaults(func=_cmd_precompute_density)
 
     pr = sub.add_parser("fetch-restrictions", parents=[common])
     pr.set_defaults(func=_cmd_fetch_restrictions)

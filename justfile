@@ -37,3 +37,7 @@ fetch-restrictions:
 #   just precompute-catalonia --bbox 399134,4603853,403346,4607126 --chunk-km 5
 precompute-catalonia *args:
     uv run highliner precompute-catalonia {{args}}
+
+# Build the zoomed-out density pyramid from precomputed pairs.
+precompute-density *args:
+    uv run highliner precompute-density {{args}}

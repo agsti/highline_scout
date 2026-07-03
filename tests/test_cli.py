@@ -51,3 +51,18 @@ def test_precompute_catalonia_defaults_to_full_bbox(monkeypatch: pytest.MonkeyPa
                         calls.update(bbox=bbox) or 0)
     cli.main(["precompute-catalonia", "--data-dir", "/tmp/x"])
     assert calls["bbox"] == config.CATALONIA_BBOX
+
+
+def test_precompute_density_command(monkeypatch: pytest.MonkeyPatch) -> None:
+    from highliner import cli
+    calls: dict[str, object] = {}
+
+    def fake(region_dir: Path, zoom_levels: object = None,
+             report: Callable[[int, int], None] | None = None) -> int:
+        calls["region_dir"] = region_dir
+        if report:
+            report(1, 1)
+        return 7
+    monkeypatch.setattr("highliner.services.density.build_density", fake)
+    cli.main(["precompute-density", "--region", "catalonia", "--data-dir", "/tmp/x"])
+    assert calls["region_dir"] == Path("/tmp/x") / "catalonia"

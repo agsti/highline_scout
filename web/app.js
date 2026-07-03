@@ -22,7 +22,34 @@ const layer = L.geoJSON(null, {
   },
 }).addTo(map);
 
+// Zoomed-out density pyramid. At/below this zoom the viewport is too large for
+// per-pair zones, so we show precomputed hotspot cells shaded by pair count.
+const DENSITY_MAX_ZOOM = 12;
+const DENSITY_FULL_COUNT = 50; // pair count that saturates the color ramp
+
+// Cell fill scaled by candidate-pair count: 0 -> yellow, DENSITY_FULL_COUNT+ -> red.
+function densityColor(n) {
+  const t = Math.min(n / DENSITY_FULL_COUNT, 1);
+  return `hsl(${50 - 50 * t}, 90%, 45%)`;
+}
+
+const densityLayer = L.geoJSON(null, {
+  style: (f) => ({
+    color: densityColor(f.properties.n_pairs),
+    weight: 1,
+    fillOpacity: 0.45,
+  }),
+  onEachFeature: (f, l) => {
+    const p = f.properties;
+    l.bindTooltip(`${p.n_pairs} candidate lines · up to ${Math.round(p.max_exposure)} m`);
+  },
+}).addTo(map);
+
 const ANCHOR_COLOR = "#1f9e8f";
+// Below this zoom the viewport covers so much terrain that /anchors would
+// exceed the server's MAX_ANCHORS_IN_VIEW cap and 413. Skip the request
+// entirely and prompt the user to zoom in.
+const ANCHOR_MIN_ZOOM = 12;
 const ANCHOR_DETAIL_LIMIT = 400; // above this, draw dots instead of wedges
 const ANCHOR_WEDGE_RADIUS_M = 30;
 const anchorCanvas = L.canvas({ padding: 0.5 });
@@ -113,9 +140,32 @@ async function loadRegions() {
   else { refresh(); refreshAnchors(); }
 }
 
+async function refreshDensity() {
+  const region = $("region").value;
+  const z = Math.min(Math.max(map.getZoom(), 6), DENSITY_MAX_ZOOM);
+  const b = map.getBounds();
+  const bbox = [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()].join(",");
+  const params = new URLSearchParams({ region, z, bbox_lonlat: bbox });
+  $("status").textContent = "loading hotspots…";
+  try {
+    const fc = await fetchFC("/density?" + params, $("status"), "hotspots");
+    densityLayer.clearLayers();
+    if (!fc) return;
+    densityLayer.addData(fc);
+    $("status").textContent = `${fc.features.length} hotspot cells (zoom in for zones)`;
+  } catch (e) {
+    $("status").textContent = "error: " + e;
+  }
+}
+
 async function refresh() {
   const region = $("region").value;
   if (!region) return;
+  if (map.getZoom() <= DENSITY_MAX_ZOOM) {
+    layer.clearLayers();
+    return refreshDensity();
+  }
+  densityLayer.clearLayers();
   const b = map.getBounds();
   const bbox = [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()].join(",");
   const params = new URLSearchParams({
@@ -176,6 +226,11 @@ async function refreshAnchors() {
   }
   const region = $("region").value;
   if (!region) return;
+  if (map.getZoom() < ANCHOR_MIN_ZOOM) {
+    anchorLayer.clearLayers();
+    $("anchorStatus").textContent = "zoom in to see anchors";
+    return;
+  }
   const b = map.getBounds();
   const bbox = [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()].join(",");
   try {

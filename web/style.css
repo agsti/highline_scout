@@ -19,6 +19,16 @@ body { margin: 0; font-family: system-ui, sans-serif; }
 .restriction-desc mark { background: #fff3a0; color: inherit; font-weight: 600;
   padding: 0 1px; }
 #restrictionStatus { font-size: 12px; color: #555; margin: 6px 0 0; }
+/* Loading spinner shown while zones / density hotspots are being computed.
+   Sits over the map, top-center, above Leaflet panes but out of the way. */
+.spinner { position: absolute; top: 50%; left: 50%;
+  z-index: 1000; width: 64px; height: 64px; margin: -32px 0 0 -32px;
+  border-radius: 50%; border: 6px solid rgba(31, 158, 143, 0.25);
+  border-top-color: #1f9e8f; animation: spin 0.8s linear infinite;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35); background: rgba(255, 255, 255, 0.85); }
+.spinner[hidden] { display: none; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
 .density-legend { background: rgba(255, 255, 255, 0.9); padding: 6px 8px;
   border-radius: 4px; font-size: 11px; color: #333; line-height: 1.3;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3); }

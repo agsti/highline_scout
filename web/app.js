@@ -136,6 +136,11 @@ function wedge(lat, lon, start, end) {
 
 const $ = (id) => document.getElementById(id);
 
+// Show/hide the map spinner while zones or density hotspots are being computed.
+function setLoading(on) {
+  $("spinner").hidden = !on;
+}
+
 // Fetch a GeoJSON FeatureCollection, writing user-facing status to `statusEl`.
 // Returns the parsed FeatureCollection, or null when the request hit the
 // viewport cap (413) or otherwise errored — so callers must skip rendering on
@@ -198,6 +203,7 @@ async function refreshDensity() {
   const bbox = [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()].join(",");
   const params = new URLSearchParams({ region, z, bbox_lonlat: bbox });
   $("status").textContent = "loading hotspots…";
+  setLoading(true);
   try {
     const fc = await fetchFC("/density?" + params, $("status"), "hotspots");
     densityLayer.clearLayers();
@@ -209,6 +215,8 @@ async function refreshDensity() {
     $("status").textContent = `${fc.features.length} hotspot cells (zoom in for zones)`;
   } catch (e) {
     $("status").textContent = "error: " + e;
+  } finally {
+    setLoading(false);
   }
 }
 
@@ -231,6 +239,7 @@ async function refresh() {
     max_dh: $("maxDh").value,
   });
   $("status").textContent = "searching…";
+  setLoading(true);
   try {
     const fc = await fetchFC("/zones?" + params, $("status"), "zones");
     layer.clearLayers();
@@ -239,6 +248,8 @@ async function refresh() {
     $("status").textContent = `${fc.features.length} zones`;
   } catch (e) {
     $("status").textContent = "error: " + e;
+  } finally {
+    setLoading(false);
   }
 }
 

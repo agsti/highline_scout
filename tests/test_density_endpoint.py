@@ -42,11 +42,13 @@ def test_density_bbox_excludes_far_cell(tmp_path: Path) -> None:
 
 
 def test_density_clamps_zoom(tmp_path: Path) -> None:
-    _write_density(tmp_path, "catalonia", 12)  # only z12 exists
+    from highliner.core import config
+    zmax = config.DENSITY_ZOOM_LEVELS.stop - 1  # deepest precomputed layer
+    _write_density(tmp_path, "catalonia", zmax)  # only the deepest layer exists
     client = TestClient(create_app(data_dir=tmp_path))
     r = client.get("/density", params={
-        "region": "catalonia", "z": 20, "bbox_lonlat": "1.7,41.5,2.0,41.7"})
-    assert r.status_code == 200  # z clamped to 12
+        "region": "catalonia", "z": 99, "bbox_lonlat": "1.7,41.5,2.0,41.7"})
+    assert r.status_code == 200  # z clamped into the precomputed range
     assert len(r.json()["features"]) == 1
 
 

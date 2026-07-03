@@ -24,7 +24,13 @@ const layer = L.geoJSON(null, {
 
 // Zoomed-out density pyramid. At/below this zoom the viewport is too large for
 // per-pair zones, so we show precomputed hotspot cells shaded by pair count.
-const DENSITY_MAX_ZOOM = 12;
+const DENSITY_MAX_ZOOM = 12;   // show density at/below this Leaflet zoom, zones above
+// Request a tile layer finer than the display zoom so hotspot cells are smaller.
+// Mirrors config.DENSITY_ZOOM_OFFSET; DENSITY_TILE_MIN/MAX bracket the precomputed
+// pyramid (config.DENSITY_ZOOM_LEVELS) and clamp the requested layer.
+const DENSITY_ZOOM_OFFSET = 2;
+const DENSITY_TILE_MIN = 6;
+const DENSITY_TILE_MAX = 14;
 const DENSITY_FULL_COUNT = 50; // pair count that saturates the color ramp
 
 // Cell fill scaled by candidate-pair count: 0 -> yellow, DENSITY_FULL_COUNT+ -> red.
@@ -142,7 +148,8 @@ async function loadRegions() {
 
 async function refreshDensity() {
   const region = $("region").value;
-  const z = Math.min(Math.max(map.getZoom(), 6), DENSITY_MAX_ZOOM);
+  const z = Math.min(Math.max(Math.round(map.getZoom()) + DENSITY_ZOOM_OFFSET,
+                              DENSITY_TILE_MIN), DENSITY_TILE_MAX);
   const b = map.getBounds();
   const bbox = [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()].join(",");
   const params = new URLSearchParams({ region, z, bbox_lonlat: bbox });

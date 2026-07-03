@@ -48,5 +48,6 @@ MAX_ANALYZE_TILES = 300     # reject POST /analyze whose bbox needs more tiles
 HUEY_DB = DATA_DIR / "huey.db"
 
 # Zoomed-out density pyramid
-DENSITY_ZOOM_LEVELS = range(6, 13)  # slippy-map zoom layers precomputed (z6..z12)
-DENSITY_MAX_ZOOM = 12               # frontend shows density at/below this zoom, zones above
+DENSITY_ZOOM_LEVELS = range(6, 15)  # slippy-map zoom layers precomputed (z6..z14)
+DENSITY_MAX_ZOOM = 12               # frontend shows density at/below this Leaflet zoom, zones above
+DENSITY_ZOOM_OFFSET = 2             # request density tiles this many levels finer than the display zoom

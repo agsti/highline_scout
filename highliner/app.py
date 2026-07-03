@@ -2,14 +2,9 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from huey.consumer import Consumer
 
 from highliner.core import config
-from highliner.repositories.db import get_database
-from highliner.repositories.jobs import JobStore
-from highliner.tasks.analyze import huey
-from highliner.router import (analyze, anchors, density, jobs, regions,
-                              restrictions, zones)
+from highliner.router import (anchors, density, regions, restrictions, zones)
 
 
 def create_app(data_dir: Path | None = None) -> FastAPI:
@@ -18,34 +13,11 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
     app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"],
                        allow_headers=["*"])
 
-    # App-wide state the routers read via highliner.router.deps. The Database
-    # owns the connection details and is shared by the repositories that use it.
+    # App-wide state the routers read via highliner.router.deps.
     app.state.data_dir = data_dir
-    app.state.db = get_database(data_dir)
-    app.state.jobstore = JobStore(app.state.db)
 
-    for module in (regions, zones, anchors, density, restrictions, jobs, analyze):
+    for module in (regions, zones, anchors, density, restrictions):
         app.include_router(module.router)
-
-    @app.on_event("startup")
-    def _start_consumer() -> None:
-        app.state.huey_consumer = None
-        app.state.huey_consumer_stopped = False
-        if not huey.immediate:
-            consumer = Consumer(huey, workers=1, worker_type="thread")
-            # Embedded consumer: the app process owns signal handling, and
-            # startup may run off the main thread (e.g. TestClient), where
-            # signal.signal() raises. Skip huey's own handler registration.
-            consumer._set_signal_handlers = lambda: None
-            consumer.start()  # spawns worker + scheduler threads only
-            app.state.huey_consumer = consumer
-
-    @app.on_event("shutdown")
-    def _stop_consumer() -> None:
-        consumer = getattr(app.state, "huey_consumer", None)
-        if consumer is not None:
-            consumer.stop()
-        app.state.huey_consumer_stopped = True
 
     web_dir = Path(__file__).resolve().parent.parent / "web"
     if web_dir.exists():

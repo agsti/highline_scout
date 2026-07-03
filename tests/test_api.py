@@ -1,5 +1,4 @@
 from pathlib import Path
-from typing import Callable
 import pytest
 import numpy as np
 import rasterio
@@ -92,60 +91,6 @@ def test_zones_bbox_lonlat(tmp_path: Path) -> None:
     w, s, e_, n = entry["bounds_lonlat"]
     assert w < e_ and s < n
     assert w <= 1.83 <= e_ and s <= 41.59 <= n  # the mosaic's own extent
-
-
-def test_analyze_enqueues_and_completes(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    from highliner.tasks import analyze as tasks
-    from highliner.services import pipeline
-    tasks.huey.immediate = True
-    try:
-        def fake_analyze(bbox: object, region: str, data_dir: str | Path, report: Callable[[str, int, int], None] | None = None) -> int:
-            from pathlib import Path
-            d = Path(data_dir) / region
-            d.mkdir(parents=True, exist_ok=True)
-            save_anchors([], d / "anchors.parquet")
-            with rasterio.open(d / "mosaic.tif", "w", driver="GTiff", height=4,
-                               width=4, count=1, dtype="float32",
-                               crs="EPSG:25831",
-                               transform=from_origin(0, 8, 2.0, 2.0)) as ds:
-                ds.write(np.zeros((4, 4), "float32"), 1)
-            return 0
-        monkeypatch.setattr(pipeline, "analyze_area", fake_analyze)
-
-        client = TestClient(create_app(data_dir=tmp_path))
-        r = client.post("/analyze", json={
-            "name": "Test Area", "bbox_lonlat": "2.80,41.96,2.81,41.97"})
-        assert r.status_code == 200
-        job_id = r.json()["job_id"]
-
-        job = client.get(f"/jobs/{job_id}").json()
-        assert job["status"] == "done"
-        assert client.get("/jobs").json()["jobs"]  # non-empty list
-    finally:
-        tasks.huey.immediate = False
-
-
-def test_analyze_rejects_too_large(tmp_path: Path) -> None:
-    client = TestClient(create_app(data_dir=tmp_path))
-    # ~0.5 x 0.5 degree -> tens of thousands of tiles, over the cap
-    r = client.post("/analyze", json={
-        "name": "Huge", "bbox_lonlat": "2.0,41.5,2.5,42.0"})
-    assert r.status_code == 400
-
-
-def test_jobs_unknown_id_404(tmp_path: Path) -> None:
-    client = TestClient(create_app(data_dir=tmp_path))
-    assert client.get("/jobs/nope").status_code == 404
-
-
-def test_consumer_starts_when_not_immediate(tmp_path: Path) -> None:
-    from highliner.tasks import analyze as tasks
-    assert tasks.huey.immediate is False  # default
-    app = create_app(data_dir=tmp_path)
-    with TestClient(app):  # triggers startup
-        assert getattr(app.state, "huey_consumer", None) is not None
-    # after context exit (shutdown) the consumer is stopped
-    assert app.state.huey_consumer_stopped is True
 
 
 def test_anchors_endpoint(tmp_path: Path) -> None:

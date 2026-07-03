@@ -11,7 +11,6 @@ from fastapi import HTTPException, Request
 
 from highliner.core import config, geo
 from highliner.repositories.anchors import load_anchors
-from highliner.repositories.jobs import JobStore
 from highliner.models.anchor import Anchor
 from highliner.models.raster import Raster
 
@@ -54,9 +53,6 @@ def is_chunked_layout(data_dir: Path, region: str) -> bool:
     return (Path(data_dir) / region / "grid.json").exists()
 
 
-def get_jobstore(request: Request) -> JobStore:
-    jobstore: JobStore = request.app.state.jobstore
-    return jobstore
 
 
 def parse_bbox_utm(bbox: str | None, bbox_lonlat: str | None) -> Bbox:

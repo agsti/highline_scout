@@ -13,12 +13,6 @@ def test_defaults_are_sane() -> None:
     assert config.DATA_DIR.name == "data"
 
 
-def test_analysis_job_constants() -> None:
-    assert config.MAX_ANALYZE_TILES > 0
-    assert config.HUEY_DB.name == "huey.db"
-    assert config.HUEY_DB.parent == config.DATA_DIR
-
-
 def test_catalonia_constants_present() -> None:
     from highliner.core import config
     minx, miny, maxx, maxy = config.CATALONIA_BBOX

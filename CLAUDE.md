@@ -36,18 +36,17 @@ The package is organized into layers (MVC-ish). Each module is one domain's
 slice of that layer:
 
     highliner/
-      app.py                 FastAPI factory: wires routers, CORS, the embedded
-                             Huey consumer, and the web/ static mount
+      app.py                 FastAPI factory: wires routers, CORS, and the
+                             web/ static mount
       cli.py                 `highliner` entry point (ingest/analyze/serve/fetch-restrictions)
       core/                  cross-cutting: config.py, geo.py (coord transforms)
       models/                pure domain dataclasses: anchor, candidate, zone, raster
       repositories/          persistence & external IO: anchors (parquet), dtm
-                             (ICGC WCS), restrictions (Generalitat WFS), jobs (SQLite)
-      services/              domain logic: terrain, pairing, zones, pipeline,
+                             (ICGC WCS), restrictions (Generalitat WFS)
+      services/              domain logic: terrain, pairing, zones,
                              restrictions (serving helpers)
-      tasks/                 async work: analyze.py (Huey task + huey instance)
       router/                HTTP layer: one APIRouter per resource (regions,
-                             zones, anchors, restrictions, jobs, analyze) plus
+                             zones, anchors, density, restrictions) plus
                              deps.py (bbox parsing, region cache, app.state access)
                              and serializers.py (domain → GeoJSON)
 
@@ -94,12 +93,6 @@ only at the web boundary, in `core/geo.py` (and the GeoJSON serializers in
 `router/serializers.py`). API bbox params accept either `bbox` (UTM) or
 `bbox_lonlat`.
 
-**Web-triggered analysis** (`tasks/analyze.py`, `repositories/jobs.py`): `POST
-/analyze` runs the full ingest+analyze pipeline as a background **Huey** task
-(SQLite-backed), with progress tracked in a separate SQLite `JobStore` and polled
-via `GET /jobs/{id}`. The Huey consumer runs *embedded* in the FastAPI process
-(started in the app's startup hook), so no separate worker process is needed.
-
 **Restrictions** (`repositories/restrictions.py` for download/storage +
 `services/restrictions.py` for serving): informational protected-area overlays
 (PEIN, Parcs Naturals, Reserves de Fauna) downloaded once from the Generalitat
@@ -113,7 +106,6 @@ requests User-Agent with 403 — a custom UA header is required.
     data/<region>/anchors.parquet   extracted anchors + sectors
     data/<region>/tiles/            cached ArcGrid download tiles
     data/restrictions/<id>.parquet  protected-area overlays
-    data/huey.db, data/jobs.db      task queue + job status
 
 ## Tuning
 

@@ -23,9 +23,11 @@ const layer = L.geoJSON(null, {
   }),
   onEachFeature: (f, l) => {
     const p = f.properties;
-    l.bindPopup(`height ${p.height_min}–${p.height_max} m<br>`
-      + `length ${Math.round(p.length_min)}–${Math.round(p.length_max)} m<br>`
-      + `${p.n_anchors} anchors · ${p.n_pairs} lines`);
+    l.bindPopup(t("zonePopup", {
+      min: p.height_min, max: p.height_max,
+      lmin: Math.round(p.length_min), lmax: Math.round(p.length_max),
+      na: p.n_anchors, np: p.n_pairs,
+    }));
   },
 }).addTo(map);
 
@@ -72,8 +74,10 @@ const densityLayer = L.geoJSON(null, {
     const p = f.properties;
     // length_min/max are absent (null) in density layers built before length tracking.
     const lenHint = p.length_min == null ? ""
-      : ` · ${Math.round(p.length_min)}–${Math.round(p.length_max)} m long`;
-    l.bindTooltip(`${p.n_pairs} candidate lines · up to ${Math.round(p.max_exposure)} m${lenHint}`);
+      : t("densityLenHint", { min: Math.round(p.length_min), max: Math.round(p.length_max) });
+    l.bindTooltip(t("densityTooltip", {
+      n: p.n_pairs, max: Math.round(p.max_exposure), lenHint,
+    }));
   },
 }).addTo(map);
 
@@ -83,9 +87,9 @@ densityLegend.onAdd = () => {
   const div = L.DomUtil.create("div", "density-legend");
   const bar = [0, 0.25, 0.5, 0.75, 1]
     .map((t) => `<span style="background:${tealShade(t)}"></span>`).join("");
-  div.innerHTML = '<div class="dl-title">Line density</div>'
+  div.innerHTML = `<div class="dl-title">${t("lineDensity")}</div>`
     + `<div class="dl-bar">${bar}</div>`
-    + '<div class="dl-ends"><span>sparse</span><span>dense</span></div>';
+    + `<div class="dl-ends"><span>${t("sparse")}</span><span>${t("dense")}</span></div>`;
   return div;
 };
 let densityLegendShown = false;
@@ -145,15 +149,15 @@ function setLoading(on) {
 // Returns the parsed FeatureCollection, or null when the request hit the
 // viewport cap (413) or otherwise errored — so callers must skip rendering on
 // null instead of assuming a `.features` array.
-async function fetchFC(url, statusEl, noun) {
+async function fetchFC(url, statusEl, nounKey) {
   const res = await fetch(url);
   if (res.status === 413) {
-    statusEl.textContent = `zoom in to see ${noun}`;
+    statusEl.textContent = t("zoomInToSee", { noun: t(nounKey) });
     return null;
   }
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    statusEl.textContent = `error: ${body.detail || res.status}`;
+    statusEl.textContent = t("error", { detail: body.detail || res.status });
     return null;
   }
   return res.json();
@@ -211,19 +215,19 @@ async function refreshDensity() {
   const b = map.getBounds();
   const bbox = [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()].join(",");
   const params = new URLSearchParams({ region, z, bbox_lonlat: bbox });
-  $("status").textContent = "loading hotspots…";
+  $("status").textContent = t("loadingHotspots");
   setLoading(true);
   try {
-    const fc = await fetchFC("/density?" + params, $("status"), "hotspots");
+    const fc = await fetchFC("/density?" + params, $("status"), "nounHotspots");
     densityLayer.clearLayers();
     if (!fc) return;
     // Rank each cell against the set now in view (styling reads densitySorted).
     densitySorted = fc.features.map((ft) => ft.properties.n_pairs).sort((a, b) => a - b);
     densityLayer.addData(fc);
     showDensityLegend(fc.features.length > 0);
-    $("status").textContent = `${fc.features.length} hotspot cells (zoom in for zones)`;
+    $("status").textContent = t("hotspotCells", { n: fc.features.length });
   } catch (e) {
-    $("status").textContent = "error: " + e;
+    $("status").textContent = t("error", { detail: e });
   } finally {
     setLoading(false);
   }
@@ -272,10 +276,10 @@ async function refresh({ reset = false } = {}) {
     max_len: $("maxLen").value,
     min_exposure: $("minExp").value,
   });
-  $("status").textContent = "searching…";
+  $("status").textContent = t("searching");
   setLoading(true);
   try {
-    const fc = await fetchFC("/zones?" + params, $("status"), "zones");
+    const fc = await fetchFC("/zones?" + params, $("status"), "nounZones");
     if (reset) clearZones();
     if (!fc) return;
     // Keep only zones not already on the map, so overlapping viewports don't
@@ -287,9 +291,9 @@ async function refresh({ reset = false } = {}) {
       return true;
     });
     layer.addData({ type: "FeatureCollection", features: fresh });
-    $("status").textContent = `${shownZoneKeys.size} zones`;
+    $("status").textContent = t("zonesCount", { n: shownZoneKeys.size });
   } catch (e) {
-    $("status").textContent = "error: " + e;
+    $("status").textContent = t("error", { detail: e });
   } finally {
     setLoading(false);
   }
@@ -297,9 +301,11 @@ async function refresh({ reset = false } = {}) {
 
 function anchorPopup(p) {
   const secs = p.sectors
-    .map((s) => `drop ${Math.round(s[0])}–${Math.round(s[1])}° (${Math.round(s[2])} m)`)
+    .map((s) => t("anchorSector", {
+      a: Math.round(s[0]), b: Math.round(s[1]), drop: Math.round(s[2]),
+    }))
     .join("<br>");
-  return `anchor • elev ${Math.round(p.elev)} m<br>${secs}`;
+  return t("anchorPopup", { elev: Math.round(p.elev), sectors: secs });
 }
 
 function renderAnchors(fc) {
@@ -336,23 +342,23 @@ async function refreshAnchors() {
   if (!region) return;
   if (map.getZoom() < ANCHOR_MIN_ZOOM) {
     anchorLayer.clearLayers();
-    $("anchorStatus").textContent = "zoom in to see anchors";
+    $("anchorStatus").textContent = t("zoomInToSee", { noun: t("nounAnchors") });
     return;
   }
   const b = map.getBounds();
   const bbox = [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()].join(",");
   try {
     const url = "/anchors?" + new URLSearchParams({ region, bbox_lonlat: bbox });
-    const fc = await fetchFC(url, $("anchorStatus"), "anchors");
+    const fc = await fetchFC(url, $("anchorStatus"), "nounAnchors");
     if (!fc) {
       anchorLayer.clearLayers();
       return;
     }
     renderAnchors(fc);
-    $("anchorStatus").textContent = `${fc.features.length} anchors`;
+    $("anchorStatus").textContent = t("anchorsCount", { n: fc.features.length });
   } catch (e) {
     anchorLayer.clearLayers();
-    $("anchorStatus").textContent = "anchor error: " + e;
+    $("anchorStatus").textContent = t("anchorError", { detail: e });
   }
 }
 
@@ -397,14 +403,14 @@ async function refreshRestrictions() {
   const url = "/restrictions?" + new URLSearchParams(
     { bbox_lonlat: bbox, layers: ids.join(",") });
   try {
-    const fc = await fetchFC(url, $("restrictionStatus"), "protected areas");
+    const fc = await fetchFC(url, $("restrictionStatus"), "nounProtectedAreas");
     restrictionLayer.clearLayers();
     if (!fc) return;
     restrictionLayer.addData(fc);
-    $("restrictionStatus").textContent = `${fc.features.length} protected areas`;
+    $("restrictionStatus").textContent = t("protectedAreasCount", { n: fc.features.length });
   } catch (e) {
     restrictionLayer.clearLayers();
-    $("restrictionStatus").textContent = "error: " + e;
+    $("restrictionStatus").textContent = t("error", { detail: e });
   }
 }
 

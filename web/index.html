@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="ca">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -10,19 +10,19 @@
 <body>
   <div id="panel">
     <h1>RemoteScout</h1>
-    <label>Region <select id="region"></select></label>
-    <label>Max length <span id="maxLenV">150</span> m
+    <label><span data-i18n="region">Region</span> <select id="region"></select></label>
+    <label><span data-i18n="maxLength">Max length</span> <span id="maxLenV">150</span> m
       <input type="range" id="maxLen" min="20" max="500" value="150" /></label>
-    <label>Min exposure <span id="minExpV">30</span> m
+    <label><span data-i18n="minExposure">Min exposure</span> <span id="minExpV">30</span> m
       <input type="range" id="minExp" min="0" max="300" value="30" /></label>
-    <label><input type="checkbox" id="showAnchors" checked /> Show anchors</label>
+    <label><input type="checkbox" id="showAnchors" checked /> <span data-i18n="showAnchors">Show anchors</span></label>
     <p id="anchorStatus"></p>
     <fieldset id="restrictions">
-      <legend>Restrictions</legend>
+      <legend data-i18n="restrictions">Restrictions</legend>
       <div id="restrictionLayers"></div>
       <p id="restrictionStatus"></p>
     </fieldset>
-    <p class="caveat">Zones to scout — not confirmed-riggable. No bolts,
+    <p class="caveat" data-i18n="caveat">Zones to scout — not confirmed-riggable. No bolts,
       trees, loose rock, access or permissions are verified.</p>
     <p id="status"></p>
   </div>
@@ -30,6 +30,8 @@
     <div id="spinner" class="spinner" hidden aria-hidden="true"></div>
   </div>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="i18n.js"></script>
+  <script>applyStaticI18n();</script>
   <script src="app.js"></script>
 </body>
 </html>

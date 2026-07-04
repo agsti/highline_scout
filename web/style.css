@@ -32,8 +32,9 @@ body { margin: 0; font-family: system-ui, sans-serif; }
   #panel { transform: translateX(-320px); width: min(300px, 85vw); }
   #panel.open { transform: translateX(0); }
   #map { left: 0; }
-  /* On mobile, slightly inset when closed. Slightly bigger touch target. */
-  .panel-toggle { left: 4px; width: 32px; height: 64px; }
+  /* On mobile, flush to the left edge when closed (mirrors desktop-collapsed).
+     Slightly bigger touch target. */
+  .panel-toggle { left: 0; width: 32px; height: 64px; }
 }
 
 /* Overlay behind mobile panel when open (tap to close) */

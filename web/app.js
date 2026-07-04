@@ -603,9 +603,9 @@ function updateTogglePosition() {
   const open = isPanelOpen();
   const mw = Math.min(300, window.innerWidth * 0.85);
   if (mobile && open) {
-    panelToggle.style.left = `${mw - 39}px`; // 1px border offset
+    panelToggle.style.left = `${mw - 4}px`; // 4px overlap, tab straddles panel's right edge
   } else if (mobile) {
-    panelToggle.style.left = "8px";
+    panelToggle.style.left = "0px"; // flush to screen's left edge, like desktop-collapsed
   } else if (open) {
     panelToggle.style.left = "316px";
   } else {
@@ -617,6 +617,10 @@ function updatePanelToggleLabel() {
   const open = isPanelOpen();
   panelToggle.setAttribute("aria-expanded", String(open));
   panelToggle.setAttribute("aria-label", open ? t("panelMinimize") : t("panelExpand"));
+  // Arrow shows the direction the panel will move on click:
+  //   open  -> ◀ (collapse, slide left)
+  //   closed -> ▶ (expand, slide right)
+  panelToggle.textContent = open ? "\u25C0" : "\u25B6";
 }
 
 function collapsePanel() {

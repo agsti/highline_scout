@@ -17,6 +17,13 @@ FROM python:3.12-slim-bookworm
 
 WORKDIR /app
 
+# rasterio's bundled native libs (GDAL et al.) link against libexpat, which the
+# slim image omits — without it `import rasterio` fails with a missing
+# libexpat.so.1 at startup.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libexpat1 \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY --from=builder /app/.venv /app/.venv
 COPY highliner ./highliner
 COPY web ./web

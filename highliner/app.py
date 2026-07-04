@@ -2,9 +2,27 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from highliner.core import config
 from highliner.router import (anchors, density, regions, restrictions, zones)
+
+
+class _NoCacheStaticFiles(StaticFiles):
+    """Serve the web/ assets with forced revalidation.
+
+    There's no build step, so assets keep stable unversioned names (app.js,
+    i18n.js, ...). With the default heuristic browser cache a returning visitor
+    can pair a stale cached app.js with a freshly deployed index.html and throw
+    (e.g. `restrictionText is not defined`). `Cache-Control: no-cache` lets the
+    browser cache but revalidate via ETag on every load — a cheap 304 when a
+    file is unchanged, fresh bytes the moment a deploy changes it.
+    """
+
+    async def get_response(self, path, scope):
+        response = await super().get_response(path, scope)
+        response.headers["Cache-Control"] = "no-cache"
+        return response
 
 
 def create_app(data_dir: Path | None = None) -> FastAPI:
@@ -21,8 +39,7 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 
     web_dir = Path(__file__).resolve().parent.parent / "web"
     if web_dir.exists():
-        from fastapi.staticfiles import StaticFiles
-        app.mount("/", StaticFiles(directory=web_dir, html=True), name="web")
+        app.mount("/", _NoCacheStaticFiles(directory=web_dir, html=True), name="web")
 
     return app
 

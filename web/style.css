@@ -14,10 +14,11 @@ body { margin: 0; font-family: system-ui, sans-serif; }
   z-index: 1000; transition: transform 0.25s ease; }
 #panel h1 { font-size: 18px; }
 
-/* --- Panel toggle button — fixed, always on-screen --- */
-.panel-toggle { position: fixed; top: 14px; left: 0; width: 24px; height: 40px;
+/* --- Panel toggle button — fixed, always on-screen, vertically centered --- */
+.panel-toggle { position: fixed; top: 50%; left: 0; translate: 0 -50%;
+  width: 28px; height: 56px;
   background: #f7f7f7; border: 1px solid #ddd; border-left: none;
-  border-radius: 0 6px 6px 0; cursor: pointer; font-size: 11px; line-height: 1;
+  border-radius: 0 6px 6px 0; cursor: pointer; font-size: 13px; line-height: 1;
   color: #666; display: flex; align-items: center; justify-content: center;
   z-index: 1100; transition: left 0.25s ease, background 0.15s, color 0.15s; padding: 0; }
 .panel-toggle:hover { background: #1f9e8f; color: #fff; border-color: #1f9e8f; }

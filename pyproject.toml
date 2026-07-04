@@ -13,6 +13,7 @@ dependencies = [
     "requests",
     "fastapi",
     "uvicorn[standard]",
+    "pydantic-settings",
 ]
 
 [project.optional-dependencies]

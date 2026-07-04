@@ -29,7 +29,7 @@ const STRINGS = {
       + "una línia — mai no confirma ancoratges sòlids, accessos segurs, la "
       + "qualitat de la roca ni que una línia es pugui equipar.",
     disclaimerResponsibility: "Ets l'únic responsable de valorar qualsevol "
-      + "lloc i de la teva pròpia seguretat. RemoteScout no es fa responsable "
+      + "lloc i de la teva pròpia seguretat. Highline Scout no es fa responsable "
       + "de cap lesió, mort o dany derivat del seu ús.",
     disclaimerAccept: "Ho entenc",
     // --- status line ---
@@ -78,7 +78,7 @@ const STRINGS = {
       + "admitir una línea — nunca confirma anclajes sólidos, accesos seguros, "
       + "la calidad de la roca ni que una línea se pueda montar.",
     disclaimerResponsibility: "Eres el único responsable de valorar cualquier "
-      + "sitio y de tu propia seguridad. RemoteScout no se hace responsable de "
+      + "sitio y de tu propia seguridad. Highline Scout no se hace responsable de "
       + "ninguna lesión, muerte o daño derivado de su uso.",
     disclaimerAccept: "Lo entiendo",
     searching: "buscando…",
@@ -123,7 +123,7 @@ const STRINGS = {
       + "line — it never confirms solid anchors, safe access, rock quality, or "
       + "that a line can be rigged.",
     disclaimerResponsibility: "You alone are responsible for assessing any "
-      + "spot and for your own safety. RemoteScout accepts no liability for any "
+      + "spot and for your own safety. Highline Scout accepts no liability for any "
       + "injury, death, or damage arising from its use.",
     disclaimerAccept: "I understand",
     searching: "searching…",

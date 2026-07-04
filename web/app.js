@@ -603,7 +603,7 @@ function updateTogglePosition() {
   const open = isPanelOpen();
   const mw = Math.min(300, window.innerWidth * 0.85);
   if (mobile && open) {
-    panelToggle.style.left = `${mw - 23}px`;
+    panelToggle.style.left = `${mw - 39}px`; // 1px border offset
   } else if (mobile) {
     panelToggle.style.left = "8px";
   } else if (open) {

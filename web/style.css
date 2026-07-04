@@ -32,10 +32,18 @@ body { margin: 0; font-family: system-ui, sans-serif; }
   #panel { transform: translateX(-320px); width: min(300px, 85vw); }
   #panel.open { transform: translateX(0); }
   #map { left: 0 !important; }
-  /* On mobile the button stays at a small offset when closed so it's always visible */
-  .panel-toggle { left: 8px; }
-  /* When panel is open on mobile, button tracks to right edge of panel */
-  .panel-open-mobile .panel-toggle { left: calc(min(300px, 85vw) - 23px); }
+  /* On mobile the button sits at the top-left like a hamburger toggle */
+  .panel-toggle {
+    top: 10px;
+    left: 8px;
+    translate: none;
+    width: 40px;
+    height: 36px;
+    border: 1px solid rgba(0,0,0,0.15);
+    border-radius: 6px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+    font-size: 14px;
+  }
 }
 
 /* Overlay behind mobile panel when open (tap to close) */

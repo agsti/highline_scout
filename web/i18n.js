@@ -55,9 +55,9 @@ const STRINGS = {
     anchorPopup: "ancoratge • elev {elev} m<br>{sectors}",
     anchorSector: "caiguda {a}–{b}° ({drop} m)",
     // --- density legend ---
-    lineDensity: "Densitat de línies",
-    sparse: "escàs",
-    dense: "dens",
+    lineDensity: "Probabilitat de línies",
+    sparse: "baixa",
+    dense: "alta",
   },
 
   es: {
@@ -100,9 +100,9 @@ const STRINGS = {
     densityLenHint: " · {min}–{max} m de largo",
     anchorPopup: "anclaje • elev {elev} m<br>{sectors}",
     anchorSector: "caída {a}–{b}° ({drop} m)",
-    lineDensity: "Densidad de líneas",
-    sparse: "escaso",
-    dense: "denso",
+    lineDensity: "Probabilidad de líneas",
+    sparse: "baja",
+    dense: "alta",
   },
 
   en: {
@@ -145,9 +145,9 @@ const STRINGS = {
     densityLenHint: " · {min}–{max} m long",
     anchorPopup: "anchor • elev {elev} m<br>{sectors}",
     anchorSector: "drop {a}–{b}° ({drop} m)",
-    lineDensity: "Line density",
-    sparse: "sparse",
-    dense: "dense",
+    lineDensity: "Line chance",
+    sparse: "low",
+    dense: "high",
   },
 };
 

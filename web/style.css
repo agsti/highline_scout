@@ -31,19 +31,9 @@ body { margin: 0; font-family: system-ui, sans-serif; }
 @media (max-width: 768px) {
   #panel { transform: translateX(-320px); width: min(300px, 85vw); }
   #panel.open { transform: translateX(0); }
-  #map { left: 0 !important; }
-  /* On mobile the button sits at the top-left like a hamburger toggle */
-  .panel-toggle {
-    top: 10px;
-    left: 8px;
-    translate: none;
-    width: 40px;
-    height: 36px;
-    border: 1px solid rgba(0,0,0,0.15);
-    border-radius: 6px;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.2);
-    font-size: 14px;
-  }
+  #map { left: 0; }
+  /* On mobile, slightly inset when closed. Slightly bigger touch target. */
+  .panel-toggle { left: 4px; width: 32px; height: 64px; }
 }
 
 /* Overlay behind mobile panel when open (tap to close) */

@@ -10,6 +10,9 @@
 const STRINGS = {
   ca: {
     language: "Idioma",
+    // --- panel toggle ---
+    panelMinimize: "Minimitza el panell",
+    panelExpand: "Expandeix el panell",
     // --- static panel (index.html [data-i18n]) ---
     region: "Regió",
     maxLength: "Longitud màxima",
@@ -18,6 +21,17 @@ const STRINGS = {
     restrictions: "Restriccions",
     caveat: "Zones per explorar — no s'ha confirmat que es puguin equipar. "
       + "No s'han verificat ancoratges, arbres, roca solta, accessos ni permisos.",
+    // --- safety disclaimer modal (shown on load) ---
+    disclaimerTitle: "Abans de començar",
+    disclaimerLead: "Muntar una highline és perillós i pot ser mortal.",
+    disclaimerBody: "Trobar i valorar un lloc és la part més perillosa de "
+      + "l'highlining: aquesta eina només assenyala terreny que podria admetre "
+      + "una línia — mai no confirma ancoratges sòlids, accessos segurs, la "
+      + "qualitat de la roca ni que una línia es pugui equipar.",
+    disclaimerResponsibility: "Ets l'únic responsable de valorar qualsevol "
+      + "lloc i de la teva pròpia seguretat. RemoteScout no es fa responsable "
+      + "de cap lesió, mort o dany derivat del seu ús.",
+    disclaimerAccept: "Ho entenc",
     // --- status line ---
     searching: "cercant…",
     loadingHotspots: "carregant punts d'interès…",
@@ -48,6 +62,8 @@ const STRINGS = {
 
   es: {
     language: "Idioma",
+    panelMinimize: "Minimizar panel",
+    panelExpand: "Expandir panel",
     region: "Región",
     maxLength: "Longitud máxima",
     minExposure: "Exposición mínima",
@@ -55,6 +71,16 @@ const STRINGS = {
     restrictions: "Restricciones",
     caveat: "Zonas para explorar — no se ha confirmado que se puedan montar. "
       + "No se han verificado anclajes, árboles, roca suelta, accesos ni permisos.",
+    disclaimerTitle: "Antes de empezar",
+    disclaimerLead: "Montar una highline es peligroso y puede ser mortal.",
+    disclaimerBody: "Encontrar y valorar un sitio es la parte más peligrosa "
+      + "del highlining: esta herramienta solo señala terreno que podría "
+      + "admitir una línea — nunca confirma anclajes sólidos, accesos seguros, "
+      + "la calidad de la roca ni que una línea se pueda montar.",
+    disclaimerResponsibility: "Eres el único responsable de valorar cualquier "
+      + "sitio y de tu propia seguridad. RemoteScout no se hace responsable de "
+      + "ninguna lesión, muerte o daño derivado de su uso.",
+    disclaimerAccept: "Lo entiendo",
     searching: "buscando…",
     loadingHotspots: "cargando puntos de interés…",
     zonesCount: "{n} zonas",
@@ -81,6 +107,8 @@ const STRINGS = {
 
   en: {
     language: "Language",
+    panelMinimize: "Minimize panel",
+    panelExpand: "Expand panel",
     region: "Region",
     maxLength: "Max length",
     minExposure: "Min exposure",
@@ -88,6 +116,16 @@ const STRINGS = {
     restrictions: "Restrictions",
     caveat: "Zones to scout — not confirmed-riggable. No bolts, trees, "
       + "loose rock, access or permissions are verified.",
+    disclaimerTitle: "Before you scout",
+    disclaimerLead: "Rigging a highline is dangerous and can be fatal.",
+    disclaimerBody: "Finding and assessing a spot is the most dangerous part "
+      + "of highlining: this tool only points to terrain that might hold a "
+      + "line — it never confirms solid anchors, safe access, rock quality, or "
+      + "that a line can be rigged.",
+    disclaimerResponsibility: "You alone are responsible for assessing any "
+      + "spot and for your own safety. RemoteScout accepts no liability for any "
+      + "injury, death, or damage arising from its use.",
+    disclaimerAccept: "I understand",
     searching: "searching…",
     loadingHotspots: "loading hotspots…",
     zonesCount: "{n} zones",

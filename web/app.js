@@ -21,15 +21,18 @@ const layer = L.geoJSON(null, {
     weight: 2,
     fillOpacity: 0.35,
   }),
-  onEachFeature: (f, l) => {
-    const p = f.properties;
-    l.bindPopup(t("zonePopup", {
-      min: p.height_min, max: p.height_max,
-      lmin: Math.round(p.length_min), lmax: Math.round(p.length_max),
-      na: p.n_anchors, np: p.n_pairs,
-    }));
-  },
+  onEachFeature: (f, l) => l.bindPopup(zonePopupHTML(f.properties)),
 }).addTo(map);
+
+// Popup/tooltip text for a zone. Kept separate from onEachFeature so a language
+// switch can re-render it in place (see retranslateMap) without re-fetching.
+function zonePopupHTML(p) {
+  return t("zonePopup", {
+    min: p.height_min, max: p.height_max,
+    lmin: Math.round(p.length_min), lmax: Math.round(p.length_max),
+    na: p.n_anchors, np: p.n_pairs,
+  });
+}
 
 // Zoomed-out density pyramid. At/below this zoom the viewport is too large for
 // per-pair zones, so we show precomputed hotspot cells shaded by pair count.
@@ -70,16 +73,15 @@ const densityLayer = L.geoJSON(null, {
       fillOpacity: 0.2 + 0.55 * t,   // sparse cells fade back, dense ones read solid
     };
   },
-  onEachFeature: (f, l) => {
-    const p = f.properties;
-    // length_min/max are absent (null) in density layers built before length tracking.
-    const lenHint = p.length_min == null ? ""
-      : t("densityLenHint", { min: Math.round(p.length_min), max: Math.round(p.length_max) });
-    l.bindTooltip(t("densityTooltip", {
-      n: p.n_pairs, max: Math.round(p.max_exposure), lenHint,
-    }));
-  },
+  onEachFeature: (f, l) => l.bindTooltip(densityTooltipHTML(f.properties)),
 }).addTo(map);
+
+function densityTooltipHTML(p) {
+  // length_min/max are absent (null) in density layers built before length tracking.
+  const lenHint = p.length_min == null ? ""
+    : t("densityLenHint", { min: Math.round(p.length_min), max: Math.round(p.length_max) });
+  return t("densityTooltip", { n: p.n_pairs, max: Math.round(p.max_exposure), lenHint });
+}
 
 // Relative-density key, shown only while the density layer is active.
 const densityLegend = L.control({ position: "bottomright" });
@@ -139,6 +141,20 @@ function wedge(lat, lon, start, end) {
 }
 
 const $ = (id) => document.getElementById(id);
+
+// Status lines (zone/anchor/restriction counts, prompts, errors) are the one
+// piece of on-screen text a fetch leaves behind. Remember each element's latest
+// render as a thunk so a language switch can replay it — re-translated via t()
+// in the new LANG — without re-fetching. Keyed by element, so the newest render
+// per line wins (its resting state).
+const statusRenderers = new Map();
+function setStatus(el, thunk) {
+  statusRenderers.set(el, thunk);
+  el.textContent = thunk();
+}
+function replayStatuses() {
+  statusRenderers.forEach((thunk, el) => { el.textContent = thunk(); });
+}
 
 // Show/hide the map spinner while zones or density hotspots are being computed.
 function setLoading(on) {
@@ -487,22 +503,166 @@ function applyRestrictionI18n() {
 map.on("moveend", refreshRestrictions);
 loadRestrictionLayers();
 
-// Language switcher. i18n.js already resolved the initial LANG (remembered
-// choice / browser / Catalan); reflect it in the control, then on change swap
-// the language and re-render everything: static labels plus the dynamic layers
-// whose popups, tooltips, status line and density legend are built via t().
-$("lang").value = LANG;
-$("lang").addEventListener("change", () => {
-  setLang($("lang").value);
-  applyStaticI18n();
-  // The density legend's text is baked in by its onAdd, which only runs on
-  // add — drop it so refresh() re-adds (and re-translates) it in the new
-  // language. refresh() rebuilds the status line, popups and tooltips.
-  showDensityLegend(false);
-  applyRestrictionI18n();
-  refresh();
-  refreshAnchors();
-  refreshRestrictions();
+// Language switcher — flag buttons at the foot of the panel. i18n.js already
+// resolved the initial LANG (remembered choice / browser / Catalan); mark it
+// active, then on click swap the language and re-render everything: static
+// labels plus the dynamic layers whose popups, tooltips, status line and
+// density legend are built via t().
+// Mirror the sidebar's flag switcher into the disclaimer modal so a user can
+// pick their language before reading (and dismissing) the warning. Clone the
+// existing group — one markup source — and suffix the flag SVGs' internal ids
+// so the copy stays valid (duplicate ids would break the clip-path reference).
+// The modal shows only the current language's flag (see .modal-lang CSS); a
+// caret hints that clicking it reveals the others.
+(function mirrorLangFlagsIntoModal() {
+  const slot = $("modalLang");
+  if (!slot) return;
+  const clone = $("langFlags").cloneNode(true);
+  clone.querySelectorAll("[id]").forEach((el) => { el.id += "-m"; });
+  clone.querySelectorAll("[clip-path]").forEach((el) => {
+    el.setAttribute("clip-path",
+      el.getAttribute("clip-path").replace(/\)$/, "-m)"));
+  });
+  while (clone.firstChild) slot.appendChild(clone.firstChild);
+  const caret = document.createElement("span");
+  caret.className = "modal-lang-caret";
+  caret.textContent = "▾";
+  caret.setAttribute("aria-hidden", "true");
+  slot.appendChild(caret);
+  // Collapsed, only the active flag is clickable: the first click expands the
+  // group (swallowed so it doesn't re-select the current language); once open,
+  // clicking any flag switches language (per-flag handler below) and collapses.
+  slot.addEventListener("click", (e) => {
+    if (!e.target.closest(".flag")) return;
+    if (slot.classList.contains("open")) {
+      slot.classList.remove("open");
+    } else {
+      e.stopImmediatePropagation();
+      slot.classList.add("open");
+    }
+  }, true);
+})();
+
+// Every flag button, in the sidebar and in the modal, drives the same switch.
+const langFlags = document.querySelectorAll(".flag");
+function markActiveLang() {
+  langFlags.forEach((b) => {
+    const on = b.dataset.lang === LANG;
+    b.classList.toggle("active", on);
+    b.setAttribute("aria-pressed", on ? "true" : "false");
+  });
+}
+markActiveLang();
+langFlags.forEach((b) => {
+  b.addEventListener("click", () => {
+    if (b.dataset.lang === LANG) return;
+    setLang(b.dataset.lang);
+    markActiveLang();
+    applyStaticI18n();
+    // The density legend's text is baked in by its onAdd, which only runs on
+    // add — drop it so refresh() re-adds (and re-translates) it in the new
+    // language. refresh() rebuilds the status line, popups and tooltips.
+    showDensityLegend(false);
+    applyRestrictionI18n();
+    refresh();
+    refreshAnchors();
+    refreshRestrictions();
+  });
 });
+
+// Safety disclaimer — shown over the whole app on every load. Finding and
+// judging a spot is the most dangerous part of highlining, so the user must
+// acknowledge that the tool only suggests terrain and carries no liability
+// before scouting. Dismissed (not remembered) on "I understand".
+$("disclaimerAccept").addEventListener("click", () => {
+  $("disclaimer").hidden = true;
+});
+$("disclaimerAccept").focus();
+
+// --- Panel minimize / expand and mobile auto-hide ---
+const panel = document.getElementById("panel");
+const panelToggle = document.getElementById("panelToggle");
+const panelBackdrop = document.getElementById("panelBackdrop");
+
+function isMobile() { return window.innerWidth <= 768; }
+
+function isPanelOpen() {
+  return isMobile() ? panel.classList.contains("open") : !panel.classList.contains("collapsed");
+}
+
+// Debounce: call invalidateSize after CSS transition finishes (250ms)
+function scheduleInvalidate() {
+  clearTimeout(panelTimer);
+  panelTimer = setTimeout(() => map.invalidateSize(), 300);
+}
+let panelTimer;
+
+// Position the floating toggle button when panel opens/closes
+function updateTogglePosition() {
+  const mobile = isMobile();
+  const open = isPanelOpen();
+  const mw = Math.min(300, window.innerWidth * 0.85);
+  if (mobile && open) {
+    panelToggle.style.left = `${mw - 23}px`;
+  } else if (mobile) {
+    panelToggle.style.left = "8px";
+  } else if (open) {
+    panelToggle.style.left = "316px";
+  } else {
+    panelToggle.style.left = "0px";
+  }
+}
+
+function updatePanelToggleLabel() {
+  const open = isPanelOpen();
+  panelToggle.setAttribute("aria-expanded", String(open));
+  panelToggle.setAttribute("aria-label", open ? t("panelMinimize") : t("panelExpand"));
+}
+
+function collapsePanel() {
+  if (isMobile()) {
+    panel.classList.remove("open");
+  } else {
+    panel.classList.add("collapsed");
+  }
+  updateTogglePosition();
+  updatePanelToggleLabel();
+  scheduleInvalidate();
+}
+
+function expandPanel() {
+  if (isMobile()) {
+    panel.classList.add("open");
+  } else {
+    panel.classList.remove("collapsed");
+  }
+  updateTogglePosition();
+  updatePanelToggleLabel();
+  scheduleInvalidate();
+}
+
+function togglePanel() {
+  isPanelOpen() ? collapsePanel() : expandPanel();
+}
+
+panelToggle.addEventListener("click", togglePanel);
+panelBackdrop.addEventListener("click", collapsePanel);
+
+window.addEventListener("resize", () => {
+  if (isMobile()) {
+    panel.classList.remove("collapsed");
+  } else {
+    panel.classList.remove("open");
+  }
+  updateTogglePosition();
+  updatePanelToggleLabel();
+  scheduleInvalidate();
+});
+
+// Start collapsed on mobile, open on desktop
+collapsePanel();
+if (!isMobile()) expandPanel();
+updateTogglePosition();
+updatePanelToggleLabel();
 
 loadRegions();

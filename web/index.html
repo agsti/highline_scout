@@ -8,14 +8,9 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
+  <button type="button" id="panelToggle" class="panel-toggle" aria-label="Minimize panel" aria-expanded="true" title="Toggle panel">&#9664;</button>
   <div id="panel">
     <h1>RemoteScout</h1>
-    <label><span data-i18n="language">Language</span>
-      <select id="lang">
-        <option value="ca">Català</option>
-        <option value="es">Español</option>
-        <option value="en">English</option>
-      </select></label>
     <label><span data-i18n="region">Region</span> <select id="region"></select></label>
     <label><span data-i18n="maxLength">Max length</span> <span id="maxLenV">150</span> m
       <input type="range" id="maxLen" min="20" max="500" value="150" /></label>
@@ -31,9 +26,58 @@
     <p class="caveat" data-i18n="caveat">Zones to scout — not confirmed-riggable. No bolts,
       trees, loose rock, access or permissions are verified.</p>
     <p id="status"></p>
+    <div id="langBar">
+      <span class="lang-caption" data-i18n="language">Language</span>
+      <div id="langFlags" role="group">
+        <button type="button" class="flag" data-lang="ca" title="Català" aria-label="Català">
+          <svg viewBox="0 0 27 18" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+            <rect width="27" height="18" fill="#FCDD09" />
+            <rect y="2" width="27" height="2" fill="#DA121A" />
+            <rect y="6" width="27" height="2" fill="#DA121A" />
+            <rect y="10" width="27" height="2" fill="#DA121A" />
+            <rect y="14" width="27" height="2" fill="#DA121A" />
+          </svg>
+        </button>
+        <button type="button" class="flag" data-lang="es" title="Español" aria-label="Español">
+          <svg viewBox="0 0 3 2" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+            <rect width="3" height="2" fill="#AA151B" />
+            <rect y="0.5" width="3" height="1" fill="#F1BF00" />
+          </svg>
+        </button>
+        <button type="button" class="flag" data-lang="en" title="English" aria-label="English">
+          <svg viewBox="0 0 60 30" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+            <clipPath id="uk-s"><path d="M30,15h30v15zv15h-30zh-30v-15zv-15h30z" /></clipPath>
+            <path d="M0,0v30h60V0z" fill="#012169" />
+            <path d="M0,0 60,30M60,0 0,30" stroke="#fff" stroke-width="6" />
+            <path d="M0,0 60,30M60,0 0,30" clip-path="url(#uk-s)" stroke="#C8102E" stroke-width="4" />
+            <path d="M30,0v30M0,15h60" stroke="#fff" stroke-width="10" />
+            <path d="M30,0v30M0,15h60" stroke="#C8102E" stroke-width="6" />
+          </svg>
+        </button>
+      </div>
+    </div>
   </div>
+  <div class="panel-backdrop" id="panelBackdrop"></div>
   <div id="map">
     <div id="spinner" class="spinner" hidden aria-hidden="true"></div>
+  </div>
+  <div id="disclaimer" class="modal-overlay" role="dialog" aria-modal="true"
+       aria-labelledby="disclaimerHeading">
+    <div class="modal">
+      <div id="modalLang" class="modal-lang" role="group" aria-label="Language"></div>
+      <h2 id="disclaimerHeading" data-i18n="disclaimerTitle">Before you scout</h2>
+      <p class="modal-lead" data-i18n="disclaimerLead">Rigging a highline is
+        dangerous and can be fatal.</p>
+      <p data-i18n="disclaimerBody">Finding and assessing a spot is the most
+        dangerous part of highlining: this tool only points to terrain that
+        might hold a line — it never confirms solid anchors, safe access, rock
+        quality, or that a line can be rigged.</p>
+      <p data-i18n="disclaimerResponsibility">You alone are responsible for
+        assessing any spot and for your own safety. RemoteScout accepts no
+        liability for any injury, death, or damage arising from its use.</p>
+      <button type="button" id="disclaimerAccept" class="modal-btn"
+        data-i18n="disclaimerAccept">I understand</button>
+    </div>
   </div>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="i18n.js"></script>

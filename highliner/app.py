@@ -3,6 +3,8 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from starlette.responses import Response
+from starlette.types import Scope
 
 from highliner.core import config
 from highliner.router import (anchors, density, regions, restrictions, zones)
@@ -19,7 +21,7 @@ class _NoCacheStaticFiles(StaticFiles):
     file is unchanged, fresh bytes the moment a deploy changes it.
     """
 
-    async def get_response(self, path, scope):
+    async def get_response(self, path: str, scope: Scope) -> Response:
         response = await super().get_response(path, scope)
         response.headers["Cache-Control"] = "no-cache"
         return response

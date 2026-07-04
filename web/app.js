@@ -458,4 +458,21 @@ async function loadRestrictionLayers() {
 map.on("moveend", refreshRestrictions);
 loadRestrictionLayers();
 
+// Language switcher. i18n.js already resolved the initial LANG (remembered
+// choice / browser / Catalan); reflect it in the control, then on change swap
+// the language and re-render everything: static labels plus the dynamic layers
+// whose popups, tooltips, status line and density legend are built via t().
+$("lang").value = LANG;
+$("lang").addEventListener("change", () => {
+  setLang($("lang").value);
+  applyStaticI18n();
+  // The density legend's text is baked in by its onAdd, which only runs on
+  // add — drop it so refresh() re-adds (and re-translates) it in the new
+  // language. refresh() rebuilds the status line, popups and tooltips.
+  showDensityLegend(false);
+  refresh();
+  refreshAnchors();
+  refreshRestrictions();
+});
+
 loadRegions();

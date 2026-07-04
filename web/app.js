@@ -371,7 +371,8 @@ $("showAnchors").addEventListener("change", refreshAnchors);
 map.createPane("restrictions");
 map.getPane("restrictions").style.zIndex = 350;
 const restrictionColor = {}; // layer id -> hex color
-const restrictionLabel = {}; // layer id -> display label
+const restrictionLabel = {}; // layer id -> display label (current language)
+const restrictionServer = {}; // layer id -> server {label,tooltip,highlight} (Catalan fallback)
 
 const restrictionLayer = L.geoJSON(null, {
   pane: "restrictions",
@@ -432,18 +433,28 @@ async function loadRestrictionLayers() {
   const box = $("restrictionLayers");
   r.layers.forEach((rl) => {
     restrictionColor[rl.id] = rl.color;
-    restrictionLabel[rl.id] = rl.label;
+    // Keep the server's Catalan text as the fallback, then resolve the label /
+    // tooltip / highlight for the active language.
+    restrictionServer[rl.id] = {
+      label: rl.label, tooltip: rl.tooltip, highlight: rl.highlight };
+    const tx = restrictionText(rl.id, restrictionServer[rl.id]);
+    restrictionLabel[rl.id] = tx.label;
     const row = document.createElement("div");
     row.className = "restriction-row";
+    row.dataset.layer = rl.id;
     const label = document.createElement("label");
     label.className = "restriction";
+    // Label text lives in its own span (set via textContent) so it can be
+    // re-translated in place on a language switch — see applyRestrictionI18n.
     label.innerHTML = `<input type="checkbox" data-layer="${rl.id}" /> `
-      + `<span class="swatch" style="background:${rl.color}"></span> ${rl.label}`;
+      + `<span class="swatch" style="background:${rl.color}"></span> `
+      + `<span class="restr-label"></span>`;
+    label.querySelector(".restr-label").textContent = tx.label || "";
     // The description sits inline under the toggle, shown only while the layer
     // is enabled, with the highliner-relevant clause highlighted.
     const desc = document.createElement("p");
     desc.className = "restriction-desc";
-    appendDescText(desc, rl.tooltip || "", rl.highlight);
+    appendDescText(desc, tx.tooltip || "", tx.highlight);
     desc.hidden = true;
     const cb = label.querySelector("input");
     cb.addEventListener("change", () => {
@@ -452,6 +463,24 @@ async function loadRestrictionLayers() {
     });
     row.append(label, desc);
     box.appendChild(row);
+  });
+}
+
+// Re-translate the restriction panel rows in place for the active language,
+// preserving each checkbox and whether its description is shown. Map popups
+// pick up the new label via restrictionLabel when refreshRestrictions runs.
+function applyRestrictionI18n() {
+  document.querySelectorAll("#restrictionLayers .restriction-row").forEach((row) => {
+    const id = row.dataset.layer;
+    const tx = restrictionText(id, restrictionServer[id]);
+    restrictionLabel[id] = tx.label;
+    const lbl = row.querySelector(".restr-label");
+    if (lbl) lbl.textContent = tx.label || "";
+    const desc = row.querySelector(".restriction-desc");
+    if (desc) {
+      desc.textContent = "";
+      appendDescText(desc, tx.tooltip || "", tx.highlight);
+    }
   });
 }
 
@@ -470,6 +499,7 @@ $("lang").addEventListener("change", () => {
   // add — drop it so refresh() re-adds (and re-translates) it in the new
   // language. refresh() rebuilds the status line, popups and tooltips.
   showDensityLegend(false);
+  applyRestrictionI18n();
   refresh();
   refreshAnchors();
   refreshRestrictions();

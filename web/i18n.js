@@ -113,6 +113,92 @@ const STRINGS = {
   },
 };
 
+// Translations for the protected-area restriction layers (label / tooltip /
+// highlighted clause), keyed by layer id. Catalan is intentionally absent: it
+// comes from the backend (see restrictionText's fallback), so it is never
+// duplicated here. Per language, `highlight` MUST be a verbatim substring of
+// `tooltip` — the panel description marks it with indexOf().
+const RESTRICTION_STRINGS = {
+  es: {
+    pein: {
+      label: "PEIN",
+      tooltip: "Plan de Espacios de Interés Natural — el nivel básico de "
+        + "protección en Cataluña (Decreto 328/1992); incluye los espacios de "
+        + "la Red Natura 2000. Régimen urbanístico riguroso; las actividades "
+        + "que puedan lesionar los valores naturales pueden requerir evaluación "
+        + "de impacto ambiental. Muchos riscos tienen cierres estacionales de "
+        + "escalada por la nidificación de rapaces (aprox. enero-agosto, varía "
+        + "según el espacio).",
+      highlight: "las actividades que puedan lesionar los valores naturales "
+        + "pueden requerir evaluación de impacto ambiental. Muchos riscos "
+        + "tienen cierres estacionales de escalada por la nidificación de "
+        + "rapaces (aprox. enero-agosto, varía según el espacio).",
+    },
+    parcs: {
+      label: "Parques Naturales",
+      tooltip: "El nivel de protección más alto (ENPE), cada uno con su propio "
+        + "plan de gestión. Actividades como la escalada, el vivac, los drones "
+        + "y los actos organizados están reguladas y a menudo necesitan "
+        + "autorización del órgano gestor del parque.",
+      highlight: "Actividades como la escalada, el vivac, los drones y los "
+        + "actos organizados están reguladas y a menudo necesitan autorización "
+        + "del órgano gestor del parque.",
+    },
+    fauna: {
+      label: "Reservas de Fauna",
+      tooltip: "Reserva Natural de Fauna Salvaje — protege la fauna. Se prohíbe "
+        + "cualquier actividad que pueda perjudicar directa o indirectamente a "
+        + "la fauna protegida; consulte al órgano gestor antes de realizar "
+        + "cualquier actividad.",
+      highlight: "Se prohíbe cualquier actividad que pueda perjudicar directa o "
+        + "indirectamente a la fauna protegida; consulte al órgano gestor antes "
+        + "de realizar cualquier actividad.",
+    },
+  },
+  en: {
+    pein: {
+      label: "PEIN",
+      tooltip: "Plan for Areas of Natural Interest — Catalonia's baseline level "
+        + "of protection (Decree 328/1992); it includes the Natura 2000 network "
+        + "sites. Strict land-use regime; activities that may harm natural "
+        + "values can require an environmental impact assessment. Many cliffs "
+        + "have seasonal climbing closures for raptor nesting (roughly "
+        + "January–August, varies by site).",
+      highlight: "activities that may harm natural values can require an "
+        + "environmental impact assessment. Many cliffs have seasonal climbing "
+        + "closures for raptor nesting (roughly January–August, varies by site).",
+    },
+    parcs: {
+      label: "Nature Parks",
+      tooltip: "The highest level of protection (ENPE), each with its own "
+        + "management plan. Activities such as climbing, bivouacking, drones "
+        + "and organized events are regulated and often need authorization from "
+        + "the park's managing body.",
+      highlight: "Activities such as climbing, bivouacking, drones and "
+        + "organized events are regulated and often need authorization from the "
+        + "park's managing body.",
+    },
+    fauna: {
+      label: "Wildlife Reserves",
+      tooltip: "Wildlife Nature Reserve — protects fauna. Any activity that "
+        + "could directly or indirectly harm the protected fauna is forbidden; "
+        + "consult the managing body before doing any activity.",
+      highlight: "Any activity that could directly or indirectly harm the "
+        + "protected fauna is forbidden; consult the managing body before doing "
+        + "any activity.",
+    },
+  },
+};
+
+// Resolve a restriction layer's text for the active language. `fallback` is the
+// server-provided (Catalan) {label,tooltip,highlight}; it is used for `ca` and
+// for any layer without a translation, so backend-added layers degrade to
+// Catalan rather than breaking.
+function restrictionText(id, fallback) {
+  const tr = RESTRICTION_STRINGS[LANG] && RESTRICTION_STRINGS[LANG][id];
+  return tr || fallback || {};
+}
+
 // Pick the language to start in: a remembered choice wins, else the browser's
 // preferred language (matched by 2-letter prefix), else Catalan. localStorage
 // can throw (private mode / disabled), so every access is guarded.

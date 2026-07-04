@@ -184,10 +184,12 @@ async function fetchFC(url, statusEl, nounKey) {
 // the accumulated set and starts fresh. Panning/zooming, by contrast, keeps
 // what's there and only adds the new viewport's zones (see refresh()).
 const ctrls = ["maxLen", "minExp"];
-ctrls.forEach((id) => $(id).addEventListener("input", () => {
-  $(id + "V").textContent = $(id).value;
-  refresh({ reset: true });
-}));
+// `input` fires continuously while dragging (keep the label live); `change`
+// fires once on release, so that's where the network refresh() goes.
+ctrls.forEach((id) => {
+  $(id).addEventListener("input", () => { $(id + "V").textContent = $(id).value; });
+  $(id).addEventListener("change", () => refresh({ reset: true }));
+});
 map.on("moveend", () => refresh());
 
 const regionBounds = {}; // region name -> [w, s, e, n] in lon/lat

@@ -163,7 +163,7 @@ async function fetchFC(url, statusEl, noun) {
 // zone on the map (they were computed under different parameters), so it wipes
 // the accumulated set and starts fresh. Panning/zooming, by contrast, keeps
 // what's there and only adds the new viewport's zones (see refresh()).
-const ctrls = ["maxLen", "minExp", "maxDh"];
+const ctrls = ["maxLen", "minExp"];
 ctrls.forEach((id) => $(id).addEventListener("input", () => {
   $(id + "V").textContent = $(id).value;
   refresh({ reset: true });
@@ -271,7 +271,6 @@ async function refresh({ reset = false } = {}) {
     bbox_lonlat: bbox,
     max_len: $("maxLen").value,
     min_exposure: $("minExp").value,
-    max_dh: $("maxDh").value,
   });
   $("status").textContent = "searching…";
   setLoading(true);

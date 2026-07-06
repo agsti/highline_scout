@@ -118,3 +118,11 @@ body { margin: 0; font-family: system-ui, sans-serif; }
 .density-legend .dl-bar span { display: block; width: 22px; height: 10px; }
 .density-legend .dl-ends { display: flex; justify-content: space-between;
   margin-top: 2px; color: #666; }
+
+/* --- Right-click map context menu (Leaflet popup content) --- */
+.map-context-menu { display: flex; flex-direction: column; gap: 6px; min-width: 140px; }
+.map-context-menu a, .map-context-menu button {
+  font: inherit; text-align: left; background: none; border: none; padding: 2px 0;
+  color: #1f9e8f; cursor: pointer; text-decoration: none;
+}
+.map-context-menu a:hover, .map-context-menu button:hover { text-decoration: underline; }

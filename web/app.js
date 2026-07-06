@@ -12,7 +12,8 @@ function initialViewFromURL() {
   return null;
 }
 
-const initialView = initialViewFromURL() || { center: [41.6, 1.83], zoom: 13 }; // Montserrat area
+const urlView = initialViewFromURL();
+const initialView = urlView || { center: [41.6, 1.83], zoom: 13 }; // Montserrat area
 const map = L.map("map").setView(initialView.center, initialView.zoom);
 L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",
   { maxZoom: 19, attribution: "© OpenStreetMap" }).addTo(map);
@@ -301,7 +302,8 @@ async function loadRegions() {
     clearZones();
     flyToRegion($("region").value);
   });
-  if ($("region").value) flyToRegion($("region").value);
+  if (urlView) { refresh(); refreshAnchors(); }
+  else if ($("region").value) flyToRegion($("region").value);
   else { refresh(); refreshAnchors(); }
 }
 

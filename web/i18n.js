@@ -60,6 +60,8 @@ const STRINGS = {
     dense: "alta",
     // --- right-click map menu ---
     viewInGoogleMaps: "Veure a Google Maps",
+    copyLink: "Copia l'enllaç",
+    linkCopied: "Enllaç copiat",
   },
 
   es: {
@@ -107,6 +109,8 @@ const STRINGS = {
     dense: "alta",
     // --- right-click map menu ---
     viewInGoogleMaps: "Ver en Google Maps",
+    copyLink: "Copiar enlace",
+    linkCopied: "Enlace copiado",
   },
 
   en: {
@@ -154,6 +158,8 @@ const STRINGS = {
     dense: "high",
     // --- right-click map menu ---
     viewInGoogleMaps: "View in Google Maps",
+    copyLink: "Copy link",
+    linkCopied: "Link copied",
   },
 };
 

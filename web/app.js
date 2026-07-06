@@ -192,6 +192,18 @@ ctrls.forEach((id) => {
 });
 map.on("moveend", () => refresh());
 
+// Right-click anywhere on the map: offer a link to the exact same point on
+// Google Maps. Leaflet's "contextmenu" event already suppresses the browser's
+// native right-click menu and reports the clicked coordinate as e.latlng.
+map.on("contextmenu", (e) => {
+  const { lat, lng } = e.latlng;
+  const url = `https://www.google.com/maps?q=${lat},${lng}`;
+  L.popup()
+    .setLatLng(e.latlng)
+    .setContent(`<a href="${url}" target="_blank" rel="noopener">${t("viewInGoogleMaps")}</a>`)
+    .openOn(map);
+});
+
 const regionBounds = {}; // region name -> [w, s, e, n] in lon/lat
 
 // Fly the map to a region's extent. fitBounds fires `moveend`, which already

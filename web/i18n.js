@@ -58,6 +58,8 @@ const STRINGS = {
     lineDensity: "Probabilitat de línies",
     sparse: "baixa",
     dense: "alta",
+    // --- right-click map menu ---
+    viewInGoogleMaps: "Veure a Google Maps",
   },
 
   es: {
@@ -103,6 +105,8 @@ const STRINGS = {
     lineDensity: "Probabilidad de líneas",
     sparse: "baja",
     dense: "alta",
+    // --- right-click map menu ---
+    viewInGoogleMaps: "Ver en Google Maps",
   },
 
   en: {
@@ -148,6 +152,8 @@ const STRINGS = {
     lineDensity: "Line chance",
     sparse: "low",
     dense: "high",
+    // --- right-click map menu ---
+    viewInGoogleMaps: "View in Google Maps",
   },
 };
 

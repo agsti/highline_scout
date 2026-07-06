@@ -1,4 +1,20 @@
-const map = L.map("map").setView([41.6, 1.83], 13); // Montserrat area
+// If the URL carries a viewport (from a copied "Copy link"), start there
+// instead of the hardcoded default. All three params must be present and
+// parse to finite numbers, or we fall back to the default view.
+function initialViewFromURL() {
+  const params = new URLSearchParams(window.location.search);
+  const lat = parseFloat(params.get("lat"));
+  const lng = parseFloat(params.get("lng"));
+  const z = parseFloat(params.get("z"));
+  if (Number.isFinite(lat) && Number.isFinite(lng) && Number.isFinite(z)) {
+    return { center: [lat, lng], zoom: z };
+  }
+  return null;
+}
+
+const urlView = initialViewFromURL();
+const initialView = urlView || { center: [41.6, 1.83], zoom: 13 }; // Montserrat area
+const map = L.map("map").setView(initialView.center, initialView.zoom);
 L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",
   { maxZoom: 19, attribution: "© OpenStreetMap" }).addTo(map);
 
@@ -192,17 +208,69 @@ ctrls.forEach((id) => {
 });
 map.on("moveend", () => refresh());
 
-// Right-click anywhere on the map: offer a link to the exact same point on
-// Google Maps. Leaflet's "contextmenu" event already suppresses the browser's
-// native right-click menu and reports the clicked coordinate as e.latlng.
+// Right-click anywhere on the map: offer a small menu for the clicked point —
+// open it in Google Maps, or copy a link that reopens this app at the same
+// point and zoom. Leaflet's "contextmenu" event already suppresses the
+// browser's native right-click menu and reports the clicked coordinate as
+// e.latlng.
 map.on("contextmenu", (e) => {
   const { lat, lng } = e.latlng;
-  const url = `https://www.google.com/maps?q=${lat},${lng}`;
-  L.popup()
-    .setLatLng(e.latlng)
-    .setContent(`<a href="${url}" target="_blank" rel="noopener">${t("viewInGoogleMaps")}</a>`)
-    .openOn(map);
+  const zoom = map.getZoom();
+  L.popup().setLatLng(e.latlng).setContent(buildMapContextMenu(lat, lng, zoom)).openOn(map);
 });
+
+// Build the right-click popup's content: a link to view the point in Google
+// Maps, and a button that copies a link back into this app at the same point.
+function buildMapContextMenu(lat, lng, zoom) {
+  const menu = document.createElement("div");
+  menu.className = "map-context-menu";
+
+  const gmapsLink = document.createElement("a");
+  gmapsLink.href = `https://www.google.com/maps?q=${lat},${lng}`;
+  gmapsLink.target = "_blank";
+  gmapsLink.rel = "noopener";
+  gmapsLink.textContent = t("viewInGoogleMaps");
+  menu.appendChild(gmapsLink);
+
+  const copyBtn = document.createElement("button");
+  copyBtn.type = "button";
+  copyBtn.textContent = t("copyLink");
+  copyBtn.addEventListener("click", () => copyViewportLink(lat, lng, zoom));
+  menu.appendChild(copyBtn);
+
+  return menu;
+}
+
+// Build a URL that reopens this app at (lat, lng, zoom), copy it to the
+// clipboard, and confirm via #status. Falls back to prompt() with the URL if
+// the Clipboard API is unavailable or the write is rejected (e.g. permission
+// denied, insecure context).
+function copyViewportLink(lat, lng, zoom) {
+  const params = new URLSearchParams({
+    lat: lat.toFixed(5),
+    lng: lng.toFixed(5),
+    z: zoom,
+  });
+  const url = `${window.location.origin}${window.location.pathname}?${params}`;
+
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(url).then(
+      () => { map.closePopup(); flashStatus(t("linkCopied")); },
+      () => { window.prompt(t("copyLink"), url); },
+    );
+  } else {
+    window.prompt(t("copyLink"), url);
+  }
+}
+
+// Temporarily overwrite #status's text with `message`, restoring whatever
+// text was there before after `ms` milliseconds.
+function flashStatus(message, ms = 2000) {
+  const el = $("status");
+  const prev = el.textContent;
+  el.textContent = message;
+  setTimeout(() => { el.textContent = prev; }, ms);
+}
 
 const regionBounds = {}; // region name -> [w, s, e, n] in lon/lat
 
@@ -234,7 +302,8 @@ async function loadRegions() {
     clearZones();
     flyToRegion($("region").value);
   });
-  if ($("region").value) flyToRegion($("region").value);
+  if (urlView) { refresh(); refreshAnchors(); }
+  else if ($("region").value) flyToRegion($("region").value);
   else { refresh(); refreshAnchors(); }
 }
 

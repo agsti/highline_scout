@@ -1,4 +1,19 @@
-const map = L.map("map").setView([41.6, 1.83], 13); // Montserrat area
+// If the URL carries a viewport (from a copied "Copy link"), start there
+// instead of the hardcoded default. All three params must be present and
+// parse to finite numbers, or we fall back to the default view.
+function initialViewFromURL() {
+  const params = new URLSearchParams(window.location.search);
+  const lat = parseFloat(params.get("lat"));
+  const lng = parseFloat(params.get("lng"));
+  const z = parseFloat(params.get("z"));
+  if (Number.isFinite(lat) && Number.isFinite(lng) && Number.isFinite(z)) {
+    return { center: [lat, lng], zoom: z };
+  }
+  return null;
+}
+
+const initialView = initialViewFromURL() || { center: [41.6, 1.83], zoom: 13 }; // Montserrat area
+const map = L.map("map").setView(initialView.center, initialView.zoom);
 L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",
   { maxZoom: 19, attribution: "© OpenStreetMap" }).addTo(map);
 

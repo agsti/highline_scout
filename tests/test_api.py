@@ -1,35 +1,39 @@
 from pathlib import Path
+import json
 import pytest
-import numpy as np
-import rasterio
-from rasterio.transform import from_origin
 from fastapi.testclient import TestClient
 
 from highliner.models.anchor import Anchor
+from highliner.models.candidate import Candidate
 from highliner.repositories.anchors import save_anchors
+from highliner.repositories.candidates import save_candidates
 from highliner.app import create_app
 from highliner.core import config
 
 
-def _setup_region(data_dir: Path) -> None:
-    region = data_dir / "test"
-    region.mkdir(parents=True)
-    # DTM: plateau 100 with a gap (20) between x cols 31..69 (2m px from origin)
-    data = np.full((101, 101), 100.0, dtype="float32")
-    data[:, 31:70] = 20.0
-    transform = from_origin(0, 202, 2.0, 2.0)
-    with rasterio.open(region / "mosaic.tif", "w", driver="GTiff",
-                       height=101, width=101, count=1, dtype="float32",
-                       crs="EPSG:25831", transform=transform) as ds:
-        ds.write(data, 1)
-    # two facing anchors across the gap (UTM coords)
-    a = Anchor(x=60.0, y=100.0, elev=100.0, sectors=((80, 100, 60),))
-    b = Anchor(x=140.0, y=100.0, elev=100.0, sectors=((260, 280, 60),))
-    save_anchors([a, b], region / "anchors.parquet")
+def _write_region(data_dir: Path, region: str,
+                  bbox: tuple[float, float, float, float],
+                  anchors: list[Anchor], candidates: list[Candidate],
+                  chunk_m: float = 10000.0) -> None:
+    """Write a minimal one-chunk region in the layout the API expects."""
+    rdir = data_dir / region
+    (rdir / "anchors").mkdir(parents=True)
+    (rdir / "pairs").mkdir(parents=True)
+    (rdir / "grid.json").write_text(json.dumps({"bbox": list(bbox), "chunk_m": chunk_m}))
+    save_anchors(anchors, rdir / "anchors" / "p_0_0.parquet")
+    save_candidates(candidates, rdir / "pairs" / "q_0_0.parquet")
+
+
+def _gap_region(data_dir: Path, region: str = "test") -> None:
+    """Two facing anchors 80 m apart across an 80 m-deep gap (plateau 100, gap 20)."""
+    a = Anchor(x=60.0, y=100.0, elev=100.0, sectors=((80.0, 100.0, 60.0),))
+    b = Anchor(x=140.0, y=100.0, elev=100.0, sectors=((260.0, 280.0, 60.0),))
+    c = Candidate(a=a, b=b, length=80.0, exposure=80.0, height_diff=0.0)
+    _write_region(data_dir, region, (0.0, 0.0, 300.0, 300.0), [a, b], [c])
 
 
 def test_zones_endpoint(tmp_path: Path) -> None:
-    _setup_region(tmp_path)
+    _gap_region(tmp_path)
     app = create_app(data_dir=tmp_path)
     client = TestClient(app)
 
@@ -51,8 +55,15 @@ def test_zones_endpoint(tmp_path: Path) -> None:
     assert p["height_min"] == p["height_max"] == 80.0  # plateau 100, gap 20
 
 
+def test_zones_slider_filters_out_pair(tmp_path: Path) -> None:
+    _gap_region(tmp_path)
+    client = TestClient(create_app(data_dir=tmp_path))
+    r = client.get("/zones", params={"region": "test", "bbox": "0,0,300,300", "min_exposure": 90})
+    assert r.status_code == 200
+    assert r.json()["features"] == []
+
+
 def test_candidates_route_removed(tmp_path: Path) -> None:
-    _setup_region(tmp_path)
     client = TestClient(create_app(data_dir=tmp_path))
     r = client.get("/candidates", params={"region": "test", "bbox": "0,0,300,300"})
     assert r.status_code == 404
@@ -62,19 +73,11 @@ def test_zones_bbox_lonlat(tmp_path: Path) -> None:
     # Place the region's anchors at real Catalan UTM coords and query with a
     # lon/lat bbox that covers them, exercising the WGS84 -> UTM conversion.
     from highliner.core import geo
-    region = tmp_path / "geo"
-    region.mkdir(parents=True)
     cx, cy = geo.to_utm(1.83, 41.59)  # near Montserrat
-    data = np.full((101, 101), 100.0, dtype="float32")
-    data[:, 31:70] = 20.0
-    transform = from_origin(cx - 100, cy + 102, 2.0, 2.0)
-    with rasterio.open(region / "mosaic.tif", "w", driver="GTiff",
-                       height=101, width=101, count=1, dtype="float32",
-                       crs="EPSG:25831", transform=transform) as ds:
-        ds.write(data, 1)
-    a = Anchor(x=cx - 40, y=cy, elev=100.0, sectors=((80, 100, 60),))
-    b = Anchor(x=cx + 40, y=cy, elev=100.0, sectors=((260, 280, 60),))
-    save_anchors([a, b], region / "anchors.parquet")
+    a = Anchor(x=cx - 40, y=cy, elev=100.0, sectors=((80.0, 100.0, 60.0),))
+    b = Anchor(x=cx + 40, y=cy, elev=100.0, sectors=((260.0, 280.0, 60.0),))
+    c = Candidate(a=a, b=b, length=80.0, exposure=80.0, height_diff=0.0)
+    _write_region(tmp_path, "geo", (cx - 200.0, cy - 200.0, cx + 200.0, cy + 200.0), [a, b], [c])
 
     client = TestClient(create_app(data_dir=tmp_path))
     r = client.get("/zones", params={
@@ -90,11 +93,11 @@ def test_zones_bbox_lonlat(tmp_path: Path) -> None:
                  if e["name"] == "geo")
     w, s, e_, n = entry["bounds_lonlat"]
     assert w < e_ and s < n
-    assert w <= 1.83 <= e_ and s <= 41.59 <= n  # the mosaic's own extent
+    assert w <= 1.83 <= e_ and s <= 41.59 <= n  # the region's own extent
 
 
 def test_anchors_endpoint(tmp_path: Path) -> None:
-    _setup_region(tmp_path)
+    _gap_region(tmp_path)
     client = TestClient(create_app(data_dir=tmp_path))
     r = client.get("/anchors", params={"region": "test", "bbox": "0,0,300,300"})
     assert r.status_code == 200
@@ -106,7 +109,7 @@ def test_anchors_endpoint(tmp_path: Path) -> None:
 
 
 def test_anchors_filters_out_of_view(tmp_path: Path) -> None:
-    _setup_region(tmp_path)
+    _gap_region(tmp_path)
     client = TestClient(create_app(data_dir=tmp_path))
     # bbox covers anchor a (x=60) but not b (x=140)
     r = client.get("/anchors", params={"region": "test", "bbox": "0,0,100,300"})
@@ -115,11 +118,21 @@ def test_anchors_filters_out_of_view(tmp_path: Path) -> None:
 
 
 def test_anchors_cap_413(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    _setup_region(tmp_path)
+    _gap_region(tmp_path)
     monkeypatch.setattr(config, "MAX_ANCHORS_IN_VIEW", 1)
     client = TestClient(create_app(data_dir=tmp_path))
     r = client.get("/anchors", params={"region": "test", "bbox": "0,0,300,300"})
     assert r.status_code == 413
+
+
+def test_regions_lists_region(tmp_path: Path) -> None:
+    _gap_region(tmp_path)
+    client = TestClient(create_app(data_dir=tmp_path))
+    found = [r for r in client.get("/regions").json()["regions"] if r["name"] == "test"]
+    assert len(found) == 1
+    b = found[0]["bounds_lonlat"]
+    assert b is not None and len(b) == 4
+    assert b[0] < b[2] and b[1] < b[3]
 
 
 def _write_restriction_layer(data_dir: Path, layer_id: str, name: str, lonlat_box: tuple[float, float, float, float]) -> None:
@@ -182,61 +195,3 @@ def test_restrictions_missing_data_is_empty(tmp_path: Path) -> None:
     r = client.get("/restrictions", params={"bbox_lonlat": "1.0,41.0,2.0,42.0"})
     assert r.status_code == 200
     assert r.json()["features"] == []
-
-
-def _setup_catalonia(data_dir: Path) -> None:
-    import json
-    from highliner.models.candidate import Candidate
-    from highliner.repositories.candidates import save_candidates
-    region = data_dir / "catalonia"
-    (region / "anchors").mkdir(parents=True)
-    (region / "pairs").mkdir(parents=True)
-    (region / "grid.json").write_text(json.dumps(
-        {"bbox": [0.0, 0.0, 10000.0, 10000.0], "chunk_m": 10000.0}))
-    a = Anchor(x=60.0, y=100.0, elev=100.0, sectors=())
-    b = Anchor(x=140.0, y=100.0, elev=100.0, sectors=())
-    save_anchors([a, b], region / "anchors" / "p_0_0.parquet")
-    save_candidates([Candidate(a=a, b=b, length=80.0, exposure=80.0, height_diff=0.0)],
-                    region / "pairs" / "q_0_0.parquet")
-
-
-def test_zones_endpoint_catalonia_layout(tmp_path: Path) -> None:
-    _setup_catalonia(tmp_path)
-    client = TestClient(create_app(data_dir=tmp_path))
-    r = client.get("/zones", params={
-        "region": "catalonia", "bbox": "0,0,300,300",
-        "max_len": 120, "min_exposure": 50, "max_dh": 5,
-    })
-    assert r.status_code == 200
-    fc = r.json()
-    assert len(fc["features"]) == 1
-    p = fc["features"][0]["properties"]
-    assert p["n_pairs"] == 1 and p["height_min"] == p["height_max"] == 80.0
-
-
-def test_zones_slider_filters_out_pair(tmp_path: Path) -> None:
-    _setup_catalonia(tmp_path)
-    client = TestClient(create_app(data_dir=tmp_path))
-    r = client.get("/zones", params={
-        "region": "catalonia", "bbox": "0,0,300,300", "min_exposure": 90})
-    assert r.status_code == 200
-    assert r.json()["features"] == []
-
-
-def test_anchors_endpoint_catalonia_layout(tmp_path: Path) -> None:
-    _setup_catalonia(tmp_path)
-    client = TestClient(create_app(data_dir=tmp_path))
-    r = client.get("/anchors", params={"region": "catalonia", "bbox": "0,0,300,300"})
-    assert r.status_code == 200
-    assert len(r.json()["features"]) == 2
-
-
-def test_regions_lists_catalonia_layout(tmp_path: Path) -> None:
-    _setup_catalonia(tmp_path)
-    client = TestClient(create_app(data_dir=tmp_path))
-    cat = [r for r in client.get("/regions").json()["regions"]
-           if r["name"] == "catalonia"]
-    assert len(cat) == 1
-    b = cat[0]["bounds_lonlat"]
-    assert b is not None and len(b) == 4
-    assert b[0] < b[2] and b[1] < b[3]

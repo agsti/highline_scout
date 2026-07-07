@@ -1,35 +1,17 @@
 """Shared request-handling helpers for the routers.
 
-Holds the per-region anchor/raster cache, accessors for app-wide state stashed
-on ``app.state`` by ``create_app``, and the bbox-parsing helpers that translate
-``bbox`` / ``bbox_lonlat`` query params into UTM or lon/lat tuples.
+Holds the bbox-parsing helpers that translate ``bbox`` / ``bbox_lonlat`` query
+params into UTM or lon/lat tuples, plus the anchor viewport filter and
+app.state accessor.
 """
-from functools import lru_cache
 from pathlib import Path
 
 from fastapi import HTTPException, Request
 
 from highliner.core import config, geo
-from highliner.repositories.anchors import load_anchors
 from highliner.models.anchor import Anchor
-from highliner.models.raster import Raster
 
 Bbox = tuple[float, float, float, float]
-
-
-@lru_cache(maxsize=8)
-def _load_region(data_dir_str: str, region: str) -> tuple[list[Anchor], Raster]:
-    rdir = Path(data_dir_str) / region
-    apath = rdir / "anchors.parquet"
-    mpath = rdir / "mosaic.tif"
-    if not apath.exists() or not mpath.exists():
-        raise HTTPException(404, f"region '{region}' not found")
-    return load_anchors(apath), Raster.open(mpath)
-
-
-def load_region(request: Request, region: str) -> tuple[list[Anchor], Raster]:
-    """Load (anchors, raster) for a region, cached per data_dir + region."""
-    return _load_region(str(request.app.state.data_dir), region)
 
 
 def anchors_in_view(anchors: list[Anchor], bbox: Bbox) -> list[Anchor]:
@@ -46,13 +28,6 @@ def anchors_in_view(anchors: list[Anchor], bbox: Bbox) -> list[Anchor]:
 def get_data_dir(request: Request) -> Path:
     data_dir: Path = request.app.state.data_dir
     return data_dir
-
-
-def is_chunked_layout(data_dir: Path, region: str) -> bool:
-    """True if ``region`` uses the chunked (grid.json) precompute layout."""
-    return (Path(data_dir) / region / "grid.json").exists()
-
-
 
 
 def parse_bbox_utm(bbox: str | None, bbox_lonlat: str | None) -> Bbox:

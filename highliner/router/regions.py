@@ -4,7 +4,6 @@ from typing import Any
 from fastapi import APIRouter, Depends
 
 from highliner.core import geo
-from highliner.repositories.dtm import mosaic_bounds_lonlat
 from highliner.repositories import chunked_store
 from highliner.router.deps import get_data_dir
 
@@ -28,7 +27,4 @@ def regions(data_dir: Path = Depends(get_data_dir)) -> dict[str, Any]:
     for p in sorted(data_dir.iterdir()):
         if (p / "grid.json").exists():
             out.append({"name": p.name, "bounds_lonlat": _bounds_from_grid(p)})
-        elif (p / "anchors.parquet").exists():
-            out.append({"name": p.name,
-                        "bounds_lonlat": mosaic_bounds_lonlat(p / "mosaic.tif")})
     return {"regions": out}

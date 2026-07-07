@@ -11,16 +11,17 @@ point between the anchors.
 
 ## How it works
 
-1. **Ingest** — download ICGC bare-earth DTM (5 m, EPSG:25831) for a region.
-   ICGC's WCS caps each request at ~140 KB, so the bbox is fetched as small
-   tiles and merged into a single `mosaic.tif` automatically.
-2. **Analyze** (offline) — compute slope, find cliff-rim **anchor points**, and
-   record, per anchor, the **directional sectors** where the ground drops away.
-   Stored sparsely as GeoParquet.
-3. **Serve** — a FastAPI + Leaflet map pairs anchors live in the current
-   viewport (directional gate + exposure check) with adjustable sliders,
-   clusters the paired anchors, and draws potential **zones** colored by
-   highline height.
+1. **Precompute** (offline) — tile a region's bbox into chunks; for each chunk,
+   download ICGC bare-earth DTM (5 m, EPSG:25831), compute slope, find cliff-rim
+   **anchor points** with their **directional sectors** (where the ground drops
+   away), and pair facing anchors across a gap (directional gate + exposure
+   check) at a loose envelope. Anchors and candidate pairs are stored sparsely
+   as GeoParquet partitions; the raw DTM is discarded once a chunk is processed
+   — nothing raster-shaped persists on disk.
+2. **Serve** — a FastAPI + Leaflet map reads the precomputed pairs in the
+   current viewport, narrows them with adjustable sliders (length, height
+   difference, exposure), clusters the survivors, and draws potential **zones**
+   colored by highline height.
 
 ## Setup
 
@@ -35,12 +36,10 @@ This project uses [`uv`](https://docs.astral.sh/uv/). The geospatial stack
 
 ## Use
 
-    # 1. fetch terrain for a bbox (EPSG:25831 meters) -> builds mosaic.tif
-    .venv/bin/highliner ingest --region montserrat \
+    # 1. precompute anchors + candidate pairs for a bbox (EPSG:25831 meters)
+    .venv/bin/highliner precompute --region montserrat \
         --bbox 402000,4606000,406000,4610000
-    # 2. extract anchors
-    .venv/bin/highliner analyze --region montserrat
-    # 3. serve the map
+    # 2. serve the map
     .venv/bin/highliner serve
     # open http://127.0.0.1:8000/
 

@@ -27,8 +27,8 @@ system interpreter's plain `venv` is known-broken here.
 
 CLI (`highliner` entry point, `highliner/cli.py`):
 
-    .venv/bin/highliner ingest --region NAME --bbox minx,miny,maxx,maxy   # EPSG:25831
-    .venv/bin/highliner analyze --region NAME
+    .venv/bin/highliner precompute --region NAME --bbox minx,miny,maxx,maxy [--chunk-km N]
+    .venv/bin/highliner precompute-density --region NAME
     .venv/bin/highliner serve
 
 ## Package layout
@@ -39,7 +39,7 @@ slice of that layer:
     highliner/
       app.py                 FastAPI factory: wires routers, CORS, and the
                              web/ static mount
-      cli.py                 `highliner` entry point (ingest/analyze/serve/fetch-restrictions)
+      cli.py                 `highliner` entry point (precompute/precompute-density/serve/fetch-restrictions)
       core/                  cross-cutting: config.py, geo.py (coord transforms)
       models/                pure domain dataclasses: anchor, candidate, zone, raster
       repositories/          persistence & external IO: anchors (parquet), dtm
@@ -55,27 +55,33 @@ Dependencies flow router → services/tasks → repositories → models/core.
 
 ## Architecture
 
-Three stages. The expensive geospatial work (1, 2) is done offline and cached;
-the server (3) only does cheap in-viewport pairing on every request.
+Two stages. All geospatial work is done offline by `precompute` and cached as
+parquet partitions; the server only does cheap in-viewport reads and filtering
+on every request — no DTM raster is ever touched at serve time.
 
-1. **Ingest** (`repositories/dtm.py`) — downloads ICGC bare-earth DTM (5 m,
-   EPSG:25831) over a WCS endpoint. Each request is capped at ~140 KB, so a bbox
-   is fetched as a grid of small ArcGrid tiles and merged into one `mosaic.tif`.
-   Tiles and the mosaic are cached on disk; an existing `mosaic.tif` is returned
-   untouched.
+1. **Precompute** (`highliner precompute`, `services/precompute.py`) — tiles
+   the region's bbox into `chunk_m`-sized squares (`chunk_grid`). For each chunk
+   (`process_chunk`): downloads ICGC bare-earth DTM tiles (5 m, EPSG:25831) over
+   a WCS endpoint for the chunk's core plus a halo (`repositories/dtm.py`; each
+   WCS request is capped at ~140 KB, so tiles are downloaded individually and
+   merged in memory), runs `extract_anchors` (`services/terrain.py` — slope
+   threshold, directional drop-sector sweep, greedy non-max-suppression spacing)
+   to get anchors, then `find_candidates` (`services/pairing.py`) to get
+   candidate pairs (length / height-diff / directional / exposure gated,
+   exposure computed by sampling the raster between each pair) at a loose
+   envelope. Anchors owned by the chunk's core and pairs whose canonical endpoint
+   falls in the core are written as `anchors/p_{cx}_{cy}.parquet` /
+   `pairs/q_{cx}_{cy}.parquet` (`repositories/anchors.py`,
+   `repositories/candidates.py`); the raw DTM tiles are deleted afterward —
+   nothing raster-shaped persists.
 
-2. **Analyze** (`services/pipeline.py` → `services/terrain.py`) — `extract_anchors`
-   computes slope, takes steep cells as candidate cliff cells, and for each sweeps
-   azimuths (`drop_sectors`) to record the **directional sectors** where ground
-   drops away. Greedy non-max suppression (`_thin`) spaces anchors out. The
-   `Anchor` model (`models/anchor.py`) is stored sparsely as GeoParquet
-   (`repositories/anchors.py`): each anchor keeps its `(start, end, max_drop)`
-   sectors so pairing can later test bearings without re-reading the raster.
-
-3. **Serve** (`app.py` + `router/`) — FastAPI + a Leaflet frontend in `web/`. On
-   each `GET /zones` (`router/zones.py`) it filters anchors to the viewport bbox,
-   runs `find_candidates` (`services/pairing.py`), and builds zones
-   (`services/zones.py`). Pairing defaults are exposed as live sliders.
+2. **Serve** (`app.py` + `router/`) — FastAPI + a Leaflet frontend in `web/`.
+   On each `GET /zones` (`router/zones.py`) it reads the precomputed pair
+   partitions overlapping the viewport (`repositories/chunked_store.py`),
+   narrows them with the live `min_len`/`max_len`/`min_exposure`/`max_dh`
+   sliders (`services/pairing.filter_candidates`), and clusters them into zones
+   (`services/zones.py`). `GET /anchors` reads the overlapping anchor partitions
+   the same way.
 
 **Pairing** (`services/pairing.py`): for anchor pairs within `max_len`, gates on
 length, height difference, a **directional check** (each anchor's bearing to the
@@ -103,10 +109,12 @@ requests User-Agent with 403 — a custom UA header is required.
 
 ## Data layout (gitignored)
 
-    data/<region>/mosaic.tif        merged DTM raster
-    data/<region>/anchors.parquet   extracted anchors + sectors
-    data/<region>/tiles/            cached ArcGrid download tiles
-    data/restrictions/<id>.parquet  protected-area overlays
+    data/<region>/grid.json                       {bbox, chunk_m}
+    data/<region>/anchors/p_{cx}_{cy}.parquet     anchors per chunk
+    data/<region>/pairs/q_{cx}_{cy}.parquet       candidate pairs per chunk (exposure baked in)
+    data/<region>/tiles/                          transient DTM tile cache, deleted once a chunk finishes
+    data/<region>/density/z{z}.json               zoomed-out density pyramid (optional, `precompute-density`)
+    data/restrictions/<id>.parquet                protected-area overlays
 
 ## Tuning
 

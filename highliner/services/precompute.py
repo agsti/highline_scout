@@ -1,4 +1,4 @@
-"""Batch precompute of anchors + candidate pairs for all of Catalonia.
+"""Batch precompute of anchors + candidate pairs for one region.
 
 Tiles the region into ``chunk_m`` squares processed independently: download DTM
 tiles (+halo), extract anchors, find candidate pairs at a loose envelope, keep
@@ -85,12 +85,12 @@ def process_chunk(cx: int, cy: int, core_bbox: Bbox, region_dir: Path,
     return len(owned_pairs)
 
 
-def precompute_catalonia(bbox: Bbox, data_dir: Path, chunk_m: float = config.CHUNK_M,
-                         report: Callable[[int, int], None] | None = None) -> int:
-    """Precompute anchors + pairs for ``bbox`` under ``data_dir/catalonia``.
+def precompute(region: str, bbox: Bbox, data_dir: Path, chunk_m: float = config.CHUNK_M,
+              report: Callable[[int, int], None] | None = None) -> int:
+    """Precompute anchors + pairs for ``bbox`` under ``data_dir/<region>``.
     Writes grid.json, then processes every chunk (skipping finished ones).
     Returns the number of chunks."""
-    region_dir = Path(data_dir) / "catalonia"
+    region_dir = Path(data_dir) / region
     region_dir.mkdir(parents=True, exist_ok=True)
     (region_dir / "grid.json").write_text(json.dumps(
         {"bbox": list(bbox), "chunk_m": chunk_m}))

@@ -1,6 +1,6 @@
-"""Viewport-windowed reads over the chunked ``catalonia`` layout.
+"""Viewport-windowed reads over the chunked region layout.
 
-Layout under ``data/catalonia/``:
+Layout under ``data/<region>/``:
     grid.json                    {"bbox": [minx,miny,maxx,maxy], "chunk_m": N}
     anchors/p_{cx}_{cy}.parquet  anchors per chunk
     pairs/q_{cx}_{cy}.parquet    candidate pairs per chunk

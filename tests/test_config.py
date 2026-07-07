@@ -13,10 +13,8 @@ def test_defaults_are_sane() -> None:
     assert config.DATA_DIR.name == "data"
 
 
-def test_catalonia_constants_present() -> None:
+def test_chunked_precompute_constants_present() -> None:
     from highliner.core import config
-    minx, miny, maxx, maxy = config.CATALONIA_BBOX
-    assert minx < maxx and miny < maxy
     assert config.CHUNK_M > 0
     assert config.MAX_PAIR_LEN == 1000.0
     # halo must cover a full max-length line plus the sector radius

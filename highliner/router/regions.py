@@ -5,14 +5,14 @@ from fastapi import APIRouter, Depends
 
 from highliner.core import geo
 from highliner.repositories.dtm import mosaic_bounds_lonlat
-from highliner.repositories import catalonia_store
+from highliner.repositories import chunked_store
 from highliner.router.deps import get_data_dir
 
 router = APIRouter()
 
 
 def _bounds_from_grid(region_dir: Path) -> list[float]:
-    grid = catalonia_store.read_grid(region_dir)
+    grid = chunked_store.read_grid(region_dir)
     minx, miny, maxx, maxy = grid.bbox
     corners = [geo.to_lonlat(x, y) for x in (minx, maxx) for y in (miny, maxy)]
     lons = [c[0] for c in corners]

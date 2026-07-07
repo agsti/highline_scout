@@ -31,12 +31,12 @@ update:
 fetch-restrictions:
     uv run highliner fetch-restrictions
 
-# Precompute anchors + candidate pairs for ALL of Catalonia into data/catalonia/.
+# Precompute anchors + candidate pairs for a region into data/<region>/.
 # Long, resumable batch: Ctrl-C anytime and re-run to continue where it left off.
 # Test a small area first, e.g.:
-#   just precompute-catalonia --bbox 399134,4603853,403346,4607126 --chunk-km 5
-precompute-catalonia *args:
-    uv run highliner precompute-catalonia {{args}}
+#   just precompute --region catalonia --bbox 399134,4603853,403346,4607126 --chunk-km 5
+precompute *args:
+    uv run highliner precompute {{args}}
 
 # Build the zoomed-out density pyramid from precomputed pairs.
 precompute-density *args:

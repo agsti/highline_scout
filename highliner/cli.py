@@ -40,14 +40,10 @@ def _cmd_serve(args: argparse.Namespace) -> None:
     uvicorn.run(app, host=args.host, port=args.port)
 
 
-def _cmd_precompute_catalonia(args: argparse.Namespace) -> None:
-    from highliner.services import catalonia
-    bbox: tuple[float, float, float, float]
-    if args.bbox:
-        minx, miny, maxx, maxy = (float(v) for v in args.bbox.split(","))
-        bbox = (minx, miny, maxx, maxy)
-    else:
-        bbox = config.CATALONIA_BBOX
+def _cmd_precompute(args: argparse.Namespace) -> None:
+    from highliner.services import precompute as precompute_service
+    minx, miny, maxx, maxy = (float(v) for v in args.bbox.split(","))
+    bbox = (minx, miny, maxx, maxy)
     chunk_m = args.chunk_km * 1000.0
 
     start = time.monotonic()
@@ -59,9 +55,9 @@ def _cmd_precompute_catalonia(args: argparse.Namespace) -> None:
         print(f"\rchunk {done}/{total} ({pct:4.1f}%)  "
               f"elapsed {_fmt_hms(elapsed)}  eta {_fmt_hms(eta)}",
               end="", flush=True)
-    n = catalonia.precompute_catalonia(bbox, Path(args.data_dir),
-                                       chunk_m=chunk_m, report=report)
-    print(f"\nprocessed {n} chunks -> {Path(args.data_dir) / 'catalonia'}")
+    n = precompute_service.precompute(args.region, bbox, Path(args.data_dir),
+                                      chunk_m=chunk_m, report=report)
+    print(f"\nprocessed {n} chunks -> {Path(args.data_dir) / args.region}")
 
 
 def _cmd_precompute_density(args: argparse.Namespace) -> None:
@@ -106,14 +102,15 @@ def main(argv: list[str] | None = None) -> None:
     ps.add_argument("--port", type=int, default=8000)
     ps.set_defaults(func=_cmd_serve)
 
-    pc = sub.add_parser("precompute-catalonia", parents=[common])
-    pc.add_argument("--bbox", default=None,
-                    help="minx,miny,maxx,maxy EPSG:25831 (default: all Catalonia)")
+    pc = sub.add_parser("precompute", parents=[common])
+    pc.add_argument("--region", required=True)
+    pc.add_argument("--bbox", required=True,
+                    help="minx,miny,maxx,maxy in the region's CRS")
     pc.add_argument("--chunk-km", type=float, default=10.0)
-    pc.set_defaults(func=_cmd_precompute_catalonia)
+    pc.set_defaults(func=_cmd_precompute)
 
     pd = sub.add_parser("precompute-density", parents=[common])
-    pd.add_argument("--region", default="catalonia")
+    pd.add_argument("--region", required=True)
     pd.set_defaults(func=_cmd_precompute_density)
 
     pr = sub.add_parser("fetch-restrictions", parents=[common])

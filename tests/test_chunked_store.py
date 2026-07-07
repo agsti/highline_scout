@@ -5,7 +5,7 @@ from fastapi import HTTPException
 from highliner.core import config
 from highliner.models.anchor import Anchor
 from highliner.models.candidate import Candidate
-from highliner.repositories import catalonia_store as store
+from highliner.repositories import chunked_store as store
 from highliner.repositories.anchors import save_anchors
 from highliner.repositories.candidates import save_candidates
 

@@ -1,7 +1,6 @@
 from pathlib import Path
 import numpy as np
 import pytest
-import rasterio
 from highliner.repositories import dtm as ingest
 
 
@@ -21,31 +20,6 @@ def _fake_asc(bbox: tuple[float, float, float, float], width: int, height: int, 
                      for _ in range(height))
     dest.write_text("\n".join(header) + "\n" + body + "\n")
     return dest
-
-
-def test_fetch_tiles_builds_mosaic_and_caches(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    calls = []
-
-    def fake_download(bbox: tuple[float, float, float, float], width: int, height: int, dest: Path) -> Path:
-        calls.append(bbox)
-        return _fake_asc(bbox, width, height, dest)
-    monkeypatch.setattr(ingest, "_download_tile", fake_download)
-
-    # 2000 x 1500 m at 5 m, tile cap 175 px (875 m) -> 3 x 2 = 6 tiles
-    bbox = (484000, 4646000, 486000, 4647500)
-    p = ingest.fetch_dtm(bbox, region="t", data_dir=tmp_path,
-                         res=5.0, tile_px=175)
-    assert p.name == "mosaic.tif" and p.exists()
-    assert len(calls) == 6
-
-    with rasterio.open(p) as ds:
-        assert ds.crs.to_string() == "EPSG:25831"
-        assert abs(ds.res[0] - 5.0) < 1e-6
-        assert (ds.read(1) == 100.0).any()
-
-    # second call hits the mosaic cache: no further downloads
-    ingest.fetch_dtm(bbox, region="t", data_dir=tmp_path, res=5.0, tile_px=175)
-    assert len(calls) == 6
 
 
 def test_estimate_tiles_matches_grid() -> None:
@@ -108,16 +82,3 @@ def test_raster_from_tiles_masks_sea_sentinel(tmp_path: Path) -> None:
     assert not (r.data == ingest.SEA_SENTINEL).any()
     assert (r.data == 100.0).any()              # land half kept
 
-
-def test_progress_called_per_tile(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    def fake_download(bbox: tuple[float, float, float, float], width: int, height: int, dest: Path) -> Path:
-        return _fake_asc(bbox, width, height, dest)
-    monkeypatch.setattr(ingest, "_download_tile", fake_download)
-
-    seen = []
-    ingest.fetch_dtm((484000, 4646000, 486000, 4647500), region="p",
-                     data_dir=tmp_path, res=5.0, tile_px=175,
-                     progress=lambda d, t: seen.append((d, t)))
-    assert seen[-1] == (6, 6)            # finishes at total
-    assert [d for d, _ in seen] == [1, 2, 3, 4, 5, 6]  # monotonic
-    assert all(t == 6 for _, t in seen)  # total constant

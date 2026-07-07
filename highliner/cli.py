@@ -10,29 +10,6 @@ def _fmt_hms(seconds: float) -> str:
     return f"{s // 3600}:{(s % 3600) // 60:02d}:{s % 60:02d}"
 
 
-def _cmd_ingest(args: argparse.Namespace) -> None:
-    from highliner.repositories.dtm import fetch_dtm
-    minx, miny, maxx, maxy = (float(v) for v in args.bbox.split(","))
-    path = fetch_dtm((minx, miny, maxx, maxy), region=args.region,
-                     data_dir=Path(args.data_dir))
-    print(f"fetched DTM mosaic -> {path}")
-
-
-def _cmd_analyze(args: argparse.Namespace) -> None:
-    from highliner.models.raster import Raster
-    from highliner.services.terrain import extract_anchors
-    from highliner.repositories.anchors import save_anchors
-    rdir = Path(args.data_dir) / args.region
-    raster = Raster.open(rdir / "mosaic.tif")
-    anchors = extract_anchors(
-        raster, slope_min=config.SLOPE_MIN_DEG, radius=config.DROP_RADIUS_M,
-        n_azimuths=config.N_AZIMUTHS, min_sector_drop=config.MIN_SECTOR_DROP_M,
-        thin_dist=config.THIN_DIST_M)
-    out = rdir / "anchors.parquet"
-    save_anchors(anchors, out)
-    print(f"extracted {len(anchors)} anchors -> {out}")
-
-
 def _cmd_serve(args: argparse.Namespace) -> None:
     import uvicorn
     from highliner.app import create_app
@@ -87,15 +64,6 @@ def main(argv: list[str] | None = None) -> None:
 
     p = argparse.ArgumentParser(prog="highliner")
     sub = p.add_subparsers(dest="cmd", required=True)
-
-    pi = sub.add_parser("ingest", parents=[common])
-    pi.add_argument("--bbox", required=True, help="minx,miny,maxx,maxy EPSG:25831")
-    pi.add_argument("--region", required=True)
-    pi.set_defaults(func=_cmd_ingest)
-
-    pa = sub.add_parser("analyze", parents=[common])
-    pa.add_argument("--region", required=True)
-    pa.set_defaults(func=_cmd_analyze)
 
     ps = sub.add_parser("serve", parents=[common])
     ps.add_argument("--host", default="127.0.0.1")

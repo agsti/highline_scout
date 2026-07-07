@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from pathlib import Path
 import numpy as np
 from affine import Affine
 
@@ -29,18 +28,3 @@ class Raster:
         xs = np.linspace(x1, x2, n)
         ys = np.linspace(y1, y2, n)
         return np.array([self.value_at(float(x), float(y)) for x, y in zip(xs, ys)])
-
-    # ICGC encodes the sea surface with this sentinel, distinct from the ArcGrid
-    # NODATA (-9999) for out-of-coverage. Unmasked it reads as a real -8888 m
-    # elevation, turning every coastal cell into a spurious ~8888 m cliff.
-    SEA_SENTINEL = -8888.0
-
-    @classmethod
-    def open(cls, path: str | Path) -> "Raster":
-        import rasterio
-        with rasterio.open(path) as ds:
-            arr = ds.read(1).astype("float32")
-            if ds.nodata is not None:
-                arr[arr == ds.nodata] = np.nan
-            arr[arr == cls.SEA_SENTINEL] = np.nan
-            return cls(data=arr, transform=ds.transform, res=abs(ds.transform.a))

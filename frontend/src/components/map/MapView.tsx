@@ -14,12 +14,12 @@ interface MapViewProps {
 export function MapView({ regions, region, onViewportChange }: MapViewProps) {
   const elRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<L.Map | null>(null);
-  const usedUrlViewRef = useRef(false);
+  const skipInitialRegionFitRef = useRef(false);
 
   useEffect(() => {
     if (!elRef.current || mapRef.current) return;
     const urlView = initialViewFromSearch(window.location.search);
-    usedUrlViewRef.current = !!urlView;
+    skipInitialRegionFitRef.current = !!urlView;
     const view = urlView ?? DEFAULT_VIEW;
     const map = L.map(elRef.current).setView(view.center, view.zoom);
     L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
@@ -37,12 +37,13 @@ export function MapView({ regions, region, onViewportChange }: MapViewProps) {
 
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !region || usedUrlViewRef.current) {
-      usedUrlViewRef.current = false;
-      return;
-    }
+    if (!map || !region) return;
     const selected = regions.find((item) => item.name === region);
     if (!selected) return;
+    if (skipInitialRegionFitRef.current) {
+      skipInitialRegionFitRef.current = false;
+      return;
+    }
     const [w, s, e, n] = selected.bounds_lonlat;
     map.fitBounds([
       [s, w],

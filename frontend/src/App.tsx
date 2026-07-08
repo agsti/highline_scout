@@ -18,7 +18,7 @@ export function App() {
   const { t } = useI18n();
   const [regions, setRegions] = useState<Region[]>([]);
   const [region, setRegion] = useState("");
-  const [mapStatus, setMapStatus] = useState("");
+  const [mapErrorDetail, setMapErrorDetail] = useState("");
   const [viewportBbox, setViewportBbox] = useState("");
   const [maxLen, setMaxLen] = useState(150);
   const [minExposure, setMinExposure] = useState(30);
@@ -32,13 +32,13 @@ export function App() {
     fetchRegions(controller.signal)
       .then((items) => {
         setRegions(items);
-        if (!region && items[0]) setRegion(items[0].name);
+        setRegion((current) => current || items[0]?.name || "");
       })
       .catch((error) => {
-        if (error.name !== "AbortError") setMapStatus(t("error", { detail: error.detail ?? String(error) }));
+        if (error.name !== "AbortError") setMapErrorDetail(error.detail ?? String(error));
       });
     return () => controller.abort();
-  }, [region, t]);
+  }, []);
 
   const handleViewportChange = useCallback((map: L.Map) => {
     setViewportBbox(bboxLonLatParam(map.getBounds()));
@@ -62,7 +62,7 @@ export function App() {
 
   const statuses = (
     <div className="space-y-1">
-      <StatusLine>{mapStatus || (viewportBbox ? "" : t("searching"))}</StatusLine>
+      <StatusLine>{mapErrorDetail ? t("error", { detail: mapErrorDetail }) : (viewportBbox ? "" : t("searching"))}</StatusLine>
       <StatusLine>{t("zoomInToSee", { noun: t("nounZones") })}</StatusLine>
     </div>
   );

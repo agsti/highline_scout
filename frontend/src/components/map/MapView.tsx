@@ -8,9 +8,10 @@ import {
   DENSITY_TILE_MAX,
   DENSITY_TILE_MIN,
   DENSITY_ZOOM_OFFSET,
+  tealShade,
   zoneKey,
 } from "@/lib/map-style";
-import type { Region, ZoneFeatureCollection } from "@/types/highliner";
+import type { DensityFeatureCollection, Region, ZoneFeatureCollection } from "@/types/highliner";
 import { createDensityLayer, createZoneLayer } from "./leafletLayers";
 
 const DEFAULT_VIEW: MapViewState = { center: [41.6, 1.83], zoom: 13 };
@@ -25,16 +26,63 @@ interface MapViewProps {
 }
 
 export function MapView({ regions, region, maxLen, minExposure, onViewportChange, onMapStatus }: MapViewProps) {
-  const { t } = useI18n();
+  const { lang, t } = useI18n();
   const elRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<L.Map | null>(null);
   const skipInitialRegionFitRef = useRef(false);
   const zoneLayerRef = useRef<L.GeoJSON | null>(null);
   const densityLayerRef = useRef<L.GeoJSON | null>(null);
   const shownZoneKeysRef = useRef(new Set<string>());
+  const shownZoneFeaturesRef = useRef<ZoneFeatureCollection["features"]>([]);
+  const shownDensityRef = useRef<DensityFeatureCollection | null>(null);
   const densitySortedRef = useRef<number[]>([]);
   const requestIdRef = useRef(0);
+  const statusRef = useRef<{ kind: "idle" | "loading-zones" | "loading-density" | "zones" | "density" | "zoom" | "error"; count?: number; detail?: string; noun?: "nounZones" | "nounHotspots" }>({ kind: "idle" });
   const [viewportTick, setViewportTick] = useState(0);
+  const [showDensityLegend, setShowDensityLegend] = useState(false);
+
+  function renderStatus() {
+    switch (statusRef.current.kind) {
+      case "loading-density":
+        return t("loadingHotspots");
+      case "loading-zones":
+        return t("searching");
+      case "zones":
+        return t("zonesCount", { n: statusRef.current.count ?? 0 });
+      case "density":
+        return t("hotspotCells", { n: statusRef.current.count ?? 0 });
+      case "zoom":
+        return t("zoomInToSee", { noun: t(statusRef.current.noun ?? "nounZones") });
+      case "error":
+        return t("error", { detail: statusRef.current.detail ?? "" });
+      default:
+        return t("searching");
+    }
+  }
+
+  function pushStatus(next: typeof statusRef.current) {
+    statusRef.current = next;
+    onMapStatus(renderStatus());
+  }
+
+  function rebuildDynamicLayers(map: L.Map) {
+    if (zoneLayerRef.current) map.removeLayer(zoneLayerRef.current);
+    if (densityLayerRef.current) map.removeLayer(densityLayerRef.current);
+
+    zoneLayerRef.current = createZoneLayer(t).addTo(map);
+    densityLayerRef.current = createDensityLayer(t, () => densitySortedRef.current).addTo(map);
+
+    if (shownZoneFeaturesRef.current.length > 0) {
+      const collection: ZoneFeatureCollection = {
+        type: "FeatureCollection",
+        features: shownZoneFeaturesRef.current,
+      };
+      zoneLayerRef.current.addData(collection);
+    }
+    if (shownDensityRef.current) {
+      densityLayerRef.current.addData(shownDensityRef.current);
+    }
+  }
 
   useEffect(() => {
     if (!elRef.current || mapRef.current) return;
@@ -46,8 +94,7 @@ export function MapView({ regions, region, maxLen, minExposure, onViewportChange
       maxZoom: 19,
       attribution: "(c) OpenStreetMap",
     }).addTo(map);
-    zoneLayerRef.current = createZoneLayer(t).addTo(map);
-    densityLayerRef.current = createDensityLayer(t, () => densitySortedRef.current).addTo(map);
+    rebuildDynamicLayers(map);
     map.on("moveend", () => {
       onViewportChange(map);
       setViewportTick((value) => value + 1);
@@ -78,6 +125,13 @@ export function MapView({ regions, region, maxLen, minExposure, onViewportChange
 
   useEffect(() => {
     const map = mapRef.current;
+    if (!map) return;
+    rebuildDynamicLayers(map);
+    onMapStatus(renderStatus());
+  }, [lang, onMapStatus]);
+
+  useEffect(() => {
+    const map = mapRef.current;
     if (!map || !region) return;
     const activeMap = map;
     const requestId = (requestIdRef.current += 1);
@@ -86,11 +140,14 @@ export function MapView({ regions, region, maxLen, minExposure, onViewportChange
 
     async function load() {
       const zoom = activeMap.getZoom();
-      onMapStatus(zoom <= DENSITY_MAX_ZOOM ? t("loadingHotspots") : t("searching"));
+      const densityMode = zoom <= DENSITY_MAX_ZOOM;
+      setShowDensityLegend(densityMode);
+      pushStatus(densityMode ? { kind: "loading-density" } : { kind: "loading-zones" });
       try {
-        if (zoom <= DENSITY_MAX_ZOOM) {
+        if (densityMode) {
           zoneLayerRef.current?.clearLayers();
           shownZoneKeysRef.current.clear();
+          shownZoneFeaturesRef.current = [];
           const z = Math.min(
             Math.max(Math.round(zoom) + DENSITY_ZOOM_OFFSET, DENSITY_TILE_MIN),
             DENSITY_TILE_MAX,
@@ -101,12 +158,14 @@ export function MapView({ regions, region, maxLen, minExposure, onViewportChange
           densitySortedRef.current = fc.features
             .map((feature) => feature.properties.n_pairs)
             .sort((a, b) => a - b);
+          shownDensityRef.current = fc;
           densityLayerRef.current?.addData(fc);
-          onMapStatus(t("hotspotCells", { n: fc.features.length }));
+          pushStatus({ kind: "density", count: fc.features.length });
           return;
         }
 
         densityLayerRef.current?.clearLayers();
+        shownDensityRef.current = null;
         const fc = await fetchZones({ region, bboxLonLat, maxLen, minExposure }, controller.signal);
         if (requestId !== requestIdRef.current) return;
         const fresh = fc.features.filter((feature) => {
@@ -115,28 +174,28 @@ export function MapView({ regions, region, maxLen, minExposure, onViewportChange
           shownZoneKeysRef.current.add(key);
           return true;
         });
+        shownZoneFeaturesRef.current = shownZoneFeaturesRef.current.concat(fresh);
         const freshCollection: ZoneFeatureCollection = { type: "FeatureCollection", features: fresh };
         zoneLayerRef.current?.addData(freshCollection);
-        onMapStatus(t("zonesCount", { n: shownZoneKeysRef.current.size }));
+        pushStatus({ kind: "zones", count: shownZoneKeysRef.current.size });
       } catch (error) {
         if (controller.signal.aborted) return;
         if (error instanceof ApiError && error.status === 413) {
-          onMapStatus(
-            t("zoomInToSee", { noun: t(activeMap.getZoom() <= DENSITY_MAX_ZOOM ? "nounHotspots" : "nounZones") }),
-          );
+          pushStatus({ kind: "zoom", noun: activeMap.getZoom() <= DENSITY_MAX_ZOOM ? "nounHotspots" : "nounZones" });
         } else {
-          onMapStatus(t("error", { detail: error instanceof Error ? error.message : String(error) }));
+          pushStatus({ kind: "error", detail: error instanceof Error ? error.message : String(error) });
         }
       }
     }
 
     void load();
     return () => controller.abort();
-  }, [region, maxLen, minExposure, t, onMapStatus, viewportTick]);
+  }, [region, maxLen, minExposure, onMapStatus, viewportTick]);
 
   useEffect(() => {
     zoneLayerRef.current?.clearLayers();
     shownZoneKeysRef.current.clear();
+    shownZoneFeaturesRef.current = [];
   }, [region, maxLen, minExposure]);
 
   useEffect(() => {
@@ -144,5 +203,27 @@ export function MapView({ regions, region, maxLen, minExposure, onViewportChange
     return () => window.clearTimeout(timeout);
   });
 
-  return <div ref={elRef} className="h-full w-full" />;
+  return (
+    <div className="relative h-full w-full">
+      <div ref={elRef} className="h-full w-full" />
+      {showDensityLegend ? (
+        <div className="pointer-events-none absolute bottom-3 right-3 rounded-md border bg-background/95 px-3 py-2 text-xs shadow">
+          <div className="mb-1 font-medium">{t("lineDensity")}</div>
+          <div className="flex gap-px">
+            {[0, 0.25, 0.5, 0.75, 1].map((value) => (
+              <span
+                key={value}
+                className="block h-2 w-6"
+                style={{ backgroundColor: tealShade(value) }}
+              />
+            ))}
+          </div>
+          <div className="mt-1 flex justify-between text-[11px] text-muted-foreground">
+            <span>{t("sparse")}</span>
+            <span>{t("dense")}</span>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
 }

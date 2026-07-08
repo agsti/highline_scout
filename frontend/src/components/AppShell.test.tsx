@@ -8,6 +8,7 @@ import { Dialog, DialogContent } from "./ui/dialog";
 
 function setTestLanguage(lang: string) {
   const originalStorage = Object.getOwnPropertyDescriptor(window, "localStorage");
+  const originalLang = document.documentElement.lang;
   const store = new Map<string, string>([["lang", lang]]);
 
   Object.defineProperty(window, "localStorage", {
@@ -29,6 +30,11 @@ function setTestLanguage(lang: string) {
   return () => {
     if (originalStorage) {
       Object.defineProperty(window, "localStorage", originalStorage);
+    }
+    if (originalLang) {
+      document.documentElement.lang = originalLang;
+    } else {
+      document.documentElement.removeAttribute("lang");
     }
   };
 }

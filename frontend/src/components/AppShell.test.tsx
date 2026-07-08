@@ -36,26 +36,52 @@ describe("AppShell", () => {
 
   it("opens the mobile peek-card sheet and exposes the localized close label", async () => {
     const user = userEvent.setup();
+    const originalLanguages = navigator.languages;
+    const originalLocalStorage = window.localStorage;
 
-    render(
-      <I18nProvider>
-        <MobileControlSheet
-          region="Montserrat"
-          summary="Longitud maxima 150 m"
-          filters={<div>sheet filters</div>}
-          statuses={<div>sheet status</div>}
-          restrictions={<div>sheet restrictions</div>}
-          caveat="Zones to scout"
-          actions={<div>sheet actions</div>}
-        />
-      </I18nProvider>,
-    );
+    Object.defineProperty(window, "localStorage", {
+      configurable: true,
+      value: {
+        getItem: (key: string) => (key === "lang" ? "es" : null),
+        setItem: () => undefined,
+        removeItem: () => undefined,
+      },
+    });
+    Object.defineProperty(window.navigator, "languages", {
+      configurable: true,
+      value: ["es"],
+    });
 
-    await user.click(screen.getByRole("button", { name: /open controls|obre controls|abrir controles/i }));
+    try {
+      render(
+        <I18nProvider>
+          <MobileControlSheet
+            region="Montserrat"
+            summary="Longitud maxima 150 m"
+            filters={<div>sheet filters</div>}
+            statuses={<div>sheet status</div>}
+            restrictions={<div>sheet restrictions</div>}
+            caveat="Zones to scout"
+            actions={<div>sheet actions</div>}
+          />
+        </I18nProvider>,
+      );
 
-    expect(screen.getByRole("dialog")).toBeInTheDocument();
-    expect(screen.getByText("sheet filters")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /close controls|tanca controls|cerrar controles/i })).toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: "Abrir controles" }));
+
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+      expect(screen.getByText("sheet filters")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Cerrar controles" })).toBeInTheDocument();
+    } finally {
+      Object.defineProperty(window, "localStorage", {
+        configurable: true,
+        value: originalLocalStorage,
+      });
+      Object.defineProperty(window.navigator, "languages", {
+        configurable: true,
+        value: originalLanguages,
+      });
+    }
   });
 
   it("localizes the map placeholder through the app i18n catalog", async () => {

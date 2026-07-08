@@ -42,4 +42,12 @@
     @apply m-0 bg-background font-sans text-foreground antialiased;
     overscroll-behavior: none;
   }
+
+  .leaflet-container {
+    @apply h-full w-full bg-secondary;
+  }
+
+  .leaflet-control-attribution {
+    @apply text-xs;
+  }
 }

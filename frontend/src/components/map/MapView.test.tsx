@@ -4,19 +4,31 @@ import { I18nProvider, useI18n } from "@/lib/i18n";
 import { MapView } from "./MapView";
 
 const leafletMocks = vi.hoisted(() => ({
+  canvas: vi.fn(),
+  circleMarker: vi.fn(),
   clearLayers: vi.fn(),
+  createPane: vi.fn(),
   densityLayerAddData: vi.fn(),
+  geoJsonAddData: vi.fn(),
   fitBounds: vi.fn(),
   geoJSON: vi.fn(),
   invalidateSize: vi.fn(),
+  layerGroup: vi.fn(),
   map: vi.fn(),
+  openOn: vi.fn(),
+  polygon: vi.fn(),
+  popup: vi.fn(),
   remove: vi.fn(),
+  setContent: vi.fn(),
+  setLatLng: vi.fn(),
   on: vi.fn(),
   setView: vi.fn(),
   tileLayer: vi.fn(),
   zoneLayerAddData: vi.fn(),
   bindPopup: vi.fn(),
   bindTooltip: vi.fn(),
+  domCreate: vi.fn(),
+  domOn: vi.fn(),
   removeLayer: vi.fn(),
 }));
 
@@ -27,12 +39,17 @@ const leafletState = vi.hoisted(() => ({
     getEast: () => 3,
     getNorth: () => 4,
   },
+  center: { lat: 41.5, lng: 1.9 },
+  contextmenu: null as null | ((event: { latlng: { lat: number; lng: number } }) => void),
   moveend: null as null | (() => void),
+  pane: { style: { zIndex: "" } },
   zoom: 13,
 }));
 
 const apiMocks = vi.hoisted(() => ({
+  fetchAnchors: vi.fn(),
   fetchDensity: vi.fn(),
+  fetchRestrictions: vi.fn(),
   fetchZones: vi.fn(),
 }));
 
@@ -46,19 +63,25 @@ vi.mock("@/lib/api", () => ({
       this.name = "ApiError";
     }
   },
+  fetchAnchors: apiMocks.fetchAnchors,
   fetchDensity: apiMocks.fetchDensity,
+  fetchRestrictions: apiMocks.fetchRestrictions,
   fetchZones: apiMocks.fetchZones,
 }));
 
 vi.mock("leaflet", () => {
   const map = {
     setView: leafletMocks.setView.mockReturnThis(),
-    on: leafletMocks.on.mockImplementation((event: string, handler: () => void) => {
+    on: leafletMocks.on.mockImplementation((event: string, handler: (...args: never[]) => void) => {
       if (event === "moveend") leafletState.moveend = handler;
+      if (event === "contextmenu") leafletState.contextmenu = handler as unknown as typeof leafletState.contextmenu;
     }),
     fitBounds: leafletMocks.fitBounds,
     invalidateSize: leafletMocks.invalidateSize,
+    createPane: leafletMocks.createPane,
+    getPane: () => leafletState.pane,
     remove: leafletMocks.remove,
+    getCenter: () => leafletState.center,
     getBounds: () => leafletState.bounds,
     getZoom: () => leafletState.zoom,
   };
@@ -77,15 +100,44 @@ vi.mock("leaflet", () => {
     bindTooltip: leafletMocks.bindTooltip,
   };
 
+  const anchorLayer = {
+    addTo: vi.fn().mockReturnThis(),
+    clearLayers: leafletMocks.clearLayers,
+  };
+
+  const restrictionLayer = {
+    addTo: vi.fn().mockReturnThis(),
+    clearLayers: leafletMocks.clearLayers,
+    addData: leafletMocks.geoJsonAddData,
+  };
+
+  const popupApi = {
+    setLatLng: leafletMocks.setLatLng.mockReturnThis(),
+    setContent: leafletMocks.setContent.mockReturnThis(),
+    openOn: leafletMocks.openOn,
+  };
+
   return {
     default: {
+      DomEvent: {
+        on: leafletMocks.domOn,
+      },
+      DomUtil: {
+        create: leafletMocks.domCreate,
+      },
+      canvas: leafletMocks.canvas,
+      circleMarker: leafletMocks.circleMarker,
       map: leafletMocks.map.mockReturnValue(map),
+      layerGroup: leafletMocks.layerGroup.mockReturnValue(anchorLayer),
+      polygon: leafletMocks.polygon,
+      popup: leafletMocks.popup.mockReturnValue(popupApi),
       tileLayer: leafletMocks.tileLayer.mockReturnValue({
         addTo: vi.fn(),
       }),
       geoJSON: leafletMocks.geoJSON
         .mockReturnValueOnce(zoneLayer)
-        .mockReturnValueOnce(densityLayer),
+        .mockReturnValueOnce(densityLayer)
+        .mockReturnValueOnce(restrictionLayer),
     },
   };
 });
@@ -98,8 +150,14 @@ function renderMapView(props?: Partial<React.ComponentProps<typeof MapView>>) {
         region={props?.region ?? "alpha"}
         maxLen={props?.maxLen ?? 150}
         minExposure={props?.minExposure ?? 30}
+        showAnchors={props?.showAnchors ?? true}
+        enabledRestrictions={props?.enabledRestrictions ?? []}
+        restrictionLayers={props?.restrictionLayers ?? []}
         onViewportChange={props?.onViewportChange ?? vi.fn()}
         onMapStatus={props?.onMapStatus ?? vi.fn()}
+        onAnchorStatus={props?.onAnchorStatus ?? vi.fn()}
+        onRestrictionStatus={props?.onRestrictionStatus ?? vi.fn()}
+        onViewStateChange={props?.onViewStateChange ?? vi.fn()}
       />
     </I18nProvider>,
   );
@@ -123,8 +181,14 @@ function renderMapViewWithLanguageControl(props?: Partial<React.ComponentProps<t
         region={props?.region ?? "alpha"}
         maxLen={props?.maxLen ?? 150}
         minExposure={props?.minExposure ?? 30}
+        showAnchors={props?.showAnchors ?? true}
+        enabledRestrictions={props?.enabledRestrictions ?? []}
+        restrictionLayers={props?.restrictionLayers ?? []}
         onViewportChange={props?.onViewportChange ?? vi.fn()}
         onMapStatus={props?.onMapStatus ?? vi.fn()}
+        onAnchorStatus={props?.onAnchorStatus ?? vi.fn()}
+        onRestrictionStatus={props?.onRestrictionStatus ?? vi.fn()}
+        onViewStateChange={props?.onViewStateChange ?? vi.fn()}
       />
     </I18nProvider>,
   );
@@ -136,43 +200,91 @@ describe("MapView", () => {
 
   beforeEach(() => {
     apiMocks.fetchDensity.mockReset();
+    apiMocks.fetchAnchors.mockReset().mockResolvedValue({ type: "FeatureCollection", features: [] });
+    apiMocks.fetchRestrictions.mockReset().mockResolvedValue({ type: "FeatureCollection", features: [] });
     apiMocks.fetchZones.mockReset();
+    leafletMocks.canvas.mockReset().mockReturnValue({});
+    leafletMocks.circleMarker.mockReset().mockImplementation(() => ({
+      bindPopup: vi.fn().mockReturnThis(),
+      addTo: vi.fn().mockReturnThis(),
+    }));
     leafletMocks.bindPopup.mockReset();
     leafletMocks.bindTooltip.mockReset();
     leafletMocks.clearLayers.mockReset();
+    leafletMocks.createPane.mockReset();
+    leafletMocks.domCreate.mockReset();
+    leafletMocks.domOn.mockReset();
     leafletMocks.densityLayerAddData.mockReset();
     leafletMocks.fitBounds.mockReset();
+    leafletMocks.geoJsonAddData.mockReset();
     leafletMocks.geoJSON.mockReset();
     leafletMocks.invalidateSize.mockReset();
+    leafletMocks.layerGroup.mockReset();
     leafletMocks.map.mockReset();
+    leafletMocks.openOn.mockReset();
+    leafletMocks.polygon.mockReset().mockImplementation(() => ({ addTo: vi.fn().mockReturnThis() }));
+    leafletMocks.popup.mockReset();
     leafletMocks.remove.mockReset();
     leafletMocks.removeLayer.mockReset();
+    leafletMocks.setContent.mockReset().mockReturnThis();
+    leafletMocks.setLatLng.mockReset().mockReturnThis();
     leafletMocks.on.mockReset();
     leafletMocks.setView.mockReset().mockReturnThis();
     leafletMocks.tileLayer.mockReset();
     leafletMocks.zoneLayerAddData.mockReset();
+    leafletState.center = { lat: 41.5, lng: 1.9 };
+    leafletState.contextmenu = null;
     leafletState.moveend = null;
+    leafletState.pane = { style: { zIndex: "" } };
     leafletState.zoom = 13;
     let zoneOnEachFeature: ((feature: unknown, layer: { bindPopup: (html: string) => void }) => void) | null = null;
     let densityOnEachFeature: ((feature: unknown, layer: { bindTooltip: (html: string) => void }) => void) | null = null;
     leafletMocks.map.mockReturnValue({
       setView: leafletMocks.setView.mockReturnThis(),
-      on: leafletMocks.on.mockImplementation((event: string, handler: () => void) => {
+      on: leafletMocks.on.mockImplementation((event: string, handler: (...args: never[]) => void) => {
         if (event === "moveend") leafletState.moveend = handler;
+        if (event === "contextmenu") leafletState.contextmenu = handler as unknown as typeof leafletState.contextmenu;
       }),
       fitBounds: leafletMocks.fitBounds,
       invalidateSize: leafletMocks.invalidateSize,
+      createPane: leafletMocks.createPane,
+      getPane: () => leafletState.pane,
       removeLayer: leafletMocks.removeLayer,
       remove: leafletMocks.remove,
+      getCenter: () => leafletState.center,
       getBounds: () => leafletState.bounds,
       getZoom: () => leafletState.zoom,
     });
+    leafletMocks.layerGroup.mockReturnValue({
+      addTo: vi.fn().mockReturnThis(),
+      clearLayers: leafletMocks.clearLayers,
+    });
     leafletMocks.tileLayer.mockReturnValue({ addTo: vi.fn() });
+    leafletMocks.domCreate.mockImplementation((tagName: string, _className?: string, container?: HTMLElement) => {
+      const element =
+        tagName === "a"
+          ? document.createElement("a")
+          : tagName === "button"
+            ? document.createElement("button")
+            : document.createElement("div");
+      container?.appendChild(element);
+      return element;
+    });
+    leafletMocks.domOn.mockImplementation((element: HTMLElement, event: string, handler: EventListener) => {
+      element.addEventListener(event, handler);
+      return element;
+    });
+    leafletMocks.popup.mockReturnValue({
+      setLatLng: leafletMocks.setLatLng.mockReturnThis(),
+      setContent: leafletMocks.setContent.mockReturnThis(),
+      openOn: leafletMocks.openOn,
+    });
     let geoJsonCall = 0;
     leafletMocks.geoJSON.mockImplementation((_: unknown, options?: { onEachFeature?: ((feature: unknown, layer: unknown) => void) | null }) => {
-      const isZoneLayer = geoJsonCall % 2 === 0;
       geoJsonCall += 1;
-      if (isZoneLayer) {
+      const isRestrictionLayer = geoJsonCall === 3;
+      const isZoneLayer = geoJsonCall < 3 ? geoJsonCall === 1 : (geoJsonCall - 4) % 2 === 0;
+      if (isZoneLayer && !isRestrictionLayer) {
         zoneOnEachFeature = (options?.onEachFeature as typeof zoneOnEachFeature) ?? null;
         return {
           addTo: vi.fn().mockReturnThis(),
@@ -185,16 +297,23 @@ describe("MapView", () => {
           bindPopup: leafletMocks.bindPopup,
         };
       }
-      densityOnEachFeature = (options?.onEachFeature as typeof densityOnEachFeature) ?? null;
+      if (!isRestrictionLayer) {
+        densityOnEachFeature = (options?.onEachFeature as typeof densityOnEachFeature) ?? null;
+        return {
+          addTo: vi.fn().mockReturnThis(),
+          clearLayers: leafletMocks.clearLayers,
+          addData: leafletMocks.densityLayerAddData.mockImplementation((fc: { features?: unknown[] }) => {
+            for (const feature of fc.features ?? []) {
+              densityOnEachFeature?.(feature, { bindTooltip: leafletMocks.bindTooltip });
+            }
+          }),
+          bindTooltip: leafletMocks.bindTooltip,
+        };
+      }
       return {
         addTo: vi.fn().mockReturnThis(),
         clearLayers: leafletMocks.clearLayers,
-        addData: leafletMocks.densityLayerAddData.mockImplementation((fc: { features?: unknown[] }) => {
-          for (const feature of fc.features ?? []) {
-            densityOnEachFeature?.(feature, { bindTooltip: leafletMocks.bindTooltip });
-          }
-        }),
-        bindTooltip: leafletMocks.bindTooltip,
+        addData: leafletMocks.geoJsonAddData,
       };
     });
 
@@ -240,8 +359,13 @@ describe("MapView", () => {
           region="alpha"
           maxLen={150}
           minExposure={30}
+          showAnchors
+          enabledRestrictions={[]}
+          restrictionLayers={[]}
           onViewportChange={onViewportChange}
           onMapStatus={onMapStatus}
+          onAnchorStatus={vi.fn()}
+          onRestrictionStatus={vi.fn()}
         />
       </I18nProvider>,
     );
@@ -258,8 +382,13 @@ describe("MapView", () => {
           region="beta"
           maxLen={150}
           minExposure={30}
+          showAnchors
+          enabledRestrictions={[]}
+          restrictionLayers={[]}
           onViewportChange={onViewportChange}
           onMapStatus={onMapStatus}
+          onAnchorStatus={vi.fn()}
+          onRestrictionStatus={vi.fn()}
         />
       </I18nProvider>,
     );
@@ -355,8 +484,13 @@ describe("MapView", () => {
           region="alpha"
           maxLen={200}
           minExposure={30}
+          showAnchors
+          enabledRestrictions={[]}
+          restrictionLayers={[]}
           onViewportChange={onViewportChange}
           onMapStatus={onMapStatus}
+          onAnchorStatus={vi.fn()}
+          onRestrictionStatus={vi.fn()}
         />
       </I18nProvider>,
     );
@@ -434,5 +568,108 @@ describe("MapView", () => {
     });
 
     await waitFor(() => expect(screen.queryByText("Line chance")).not.toBeInTheDocument());
+  });
+
+  it("loads anchors above the zoom threshold and reports the anchor count", async () => {
+    apiMocks.fetchZones.mockResolvedValue({ type: "FeatureCollection", features: [] });
+    apiMocks.fetchAnchors.mockResolvedValue({
+      type: "FeatureCollection",
+      features: [
+        {
+          type: "Feature",
+          geometry: { type: "Point", coordinates: [1.1, 2.2] },
+          properties: { elev: 1200, sectors: [[10, 40, 35]] },
+        },
+      ],
+    });
+
+    const onAnchorStatus = vi.fn();
+    renderMapView({ onAnchorStatus });
+
+    await waitFor(() =>
+      expect(apiMocks.fetchAnchors).toHaveBeenCalledWith(
+        { region: "alpha", bboxLonLat: "1,2,3,4" },
+        expect.any(AbortSignal),
+      ),
+    );
+    expect(onAnchorStatus).toHaveBeenLastCalledWith("1 ancoratges");
+    expect(leafletMocks.polygon).toHaveBeenCalled();
+    expect(leafletMocks.circleMarker).toHaveBeenCalled();
+  });
+
+  it("shows the anchor zoom hint and skips fetching anchors below the threshold", async () => {
+    leafletState.zoom = 11;
+    apiMocks.fetchZones.mockResolvedValue({ type: "FeatureCollection", features: [] });
+
+    const onAnchorStatus = vi.fn();
+    renderMapView({ onAnchorStatus });
+
+    await waitFor(() => expect(onAnchorStatus).toHaveBeenLastCalledWith("amplia per veure ancoratges"));
+    expect(apiMocks.fetchAnchors).not.toHaveBeenCalled();
+  });
+
+  it("loads enabled restrictions and reports the protected-area count", async () => {
+    apiMocks.fetchZones.mockResolvedValue({ type: "FeatureCollection", features: [] });
+    apiMocks.fetchRestrictions.mockResolvedValue({
+      type: "FeatureCollection",
+      features: [
+        {
+          type: "Feature",
+          geometry: { type: "Polygon", coordinates: [[[1, 2], [1, 3], [2, 3], [1, 2]]] },
+          properties: { layer: "pein", name: "Montseny" },
+        },
+      ],
+    });
+
+    const onRestrictionStatus = vi.fn();
+    renderMapView({
+      enabledRestrictions: ["pein"],
+      restrictionLayers: [
+        { id: "pein", label: "PEIN", tooltip: "tooltip", highlight: "tooltip", color: "#0a0" },
+      ],
+      onRestrictionStatus,
+    });
+
+    await waitFor(() =>
+      expect(apiMocks.fetchRestrictions).toHaveBeenCalledWith(
+        { bboxLonLat: "1,2,3,4", layers: ["pein"] },
+        expect.any(AbortSignal),
+      ),
+    );
+    expect(leafletMocks.geoJsonAddData).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "FeatureCollection" }),
+    );
+    expect(onRestrictionStatus).toHaveBeenLastCalledWith("1 espais protegits");
+  });
+
+  it("opens a context menu with a Google Maps link and copy action", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+    apiMocks.fetchZones.mockResolvedValue({ type: "FeatureCollection", features: [] });
+
+    renderMapView();
+
+    expect(leafletState.contextmenu).toBeTypeOf("function");
+    act(() => {
+      leafletState.contextmenu?.({ latlng: { lat: 41.123456, lng: 2.234567 } });
+    });
+
+    const content = leafletMocks.setContent.mock.calls.at(-1)?.[0] as HTMLDivElement;
+    const link = content.querySelector("a");
+    const button = content.querySelector("button");
+
+    expect(link?.textContent).toBe("Veure a Google Maps");
+    expect(link?.href).toBe("https://www.google.com/maps?q=41.123456,2.234567");
+    expect(button?.textContent).toBe("Copia l'enllaç");
+
+    await act(async () => {
+      button?.click();
+    });
+
+    expect(writeText).toHaveBeenCalledWith("https://example.com/?lat=41.12346&lng=2.23457&z=13");
+    expect(leafletMocks.openOn).toHaveBeenCalled();
   });
 });

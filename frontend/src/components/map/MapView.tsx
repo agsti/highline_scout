@@ -1,9 +1,10 @@
 import L from "leaflet";
 import { useEffect, useRef, useState } from "react";
-import { ApiError, fetchDensity, fetchZones } from "@/lib/api";
+import { ApiError, fetchAnchors, fetchDensity, fetchRestrictions, fetchZones } from "@/lib/api";
 import { bboxLonLatParam, initialViewFromSearch, type MapViewState } from "@/lib/geo";
 import { useI18n } from "@/lib/i18n";
 import {
+  ANCHOR_MIN_ZOOM,
   DENSITY_MAX_ZOOM,
   DENSITY_TILE_MAX,
   DENSITY_TILE_MIN,
@@ -11,8 +12,8 @@ import {
   tealShade,
   zoneKey,
 } from "@/lib/map-style";
-import type { DensityFeatureCollection, Region, ZoneFeatureCollection } from "@/types/highliner";
-import { createDensityLayer, createZoneLayer } from "./leafletLayers";
+import type { DensityFeatureCollection, Region, RestrictionLayerMeta, ZoneFeatureCollection } from "@/types/highliner";
+import { createDensityLayer, createRestrictionLayer, createZoneLayer, renderAnchors } from "./leafletLayers";
 
 const DEFAULT_VIEW: MapViewState = { center: [41.6, 1.83], zoom: 13 };
 
@@ -21,22 +22,57 @@ interface MapViewProps {
   region: string;
   maxLen: number;
   minExposure: number;
+  showAnchors: boolean;
+  enabledRestrictions: string[];
+  restrictionLayers: RestrictionLayerMeta[];
   onViewportChange: (map: L.Map) => void;
   onMapStatus: (status: string) => void;
+  onAnchorStatus: (status: string) => void;
+  onRestrictionStatus: (status: string) => void;
+  onViewStateChange?: (view: MapViewState) => void;
 }
 
-export function MapView({ regions, region, maxLen, minExposure, onViewportChange, onMapStatus }: MapViewProps) {
+export async function copyViewportLink(lat: number, lng: number, zoom: number, t: T) {
+  const params = new URLSearchParams({ lat: lat.toFixed(5), lng: lng.toFixed(5), z: String(zoom) });
+  const url = `${window.location.origin}${window.location.pathname}?${params}`;
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(url);
+    return;
+  }
+  window.prompt(t("copyLink"), url);
+}
+
+type T = ReturnType<typeof useI18n>["t"];
+
+export function MapView({
+  regions,
+  region,
+  maxLen,
+  minExposure,
+  showAnchors,
+  enabledRestrictions,
+  restrictionLayers,
+  onViewportChange,
+  onMapStatus,
+  onAnchorStatus,
+  onRestrictionStatus,
+  onViewStateChange,
+}: MapViewProps) {
   const { lang, t } = useI18n();
   const elRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<L.Map | null>(null);
   const skipInitialRegionFitRef = useRef(false);
   const zoneLayerRef = useRef<L.GeoJSON | null>(null);
   const densityLayerRef = useRef<L.GeoJSON | null>(null);
+  const anchorLayerRef = useRef<L.LayerGroup | null>(null);
+  const restrictionLayerRef = useRef<L.GeoJSON | null>(null);
+  const restrictionMetaRef = useRef(new Map<string, RestrictionLayerMeta>());
   const shownZoneKeysRef = useRef(new Set<string>());
   const shownZoneFeaturesRef = useRef<ZoneFeatureCollection["features"]>([]);
   const shownDensityRef = useRef<DensityFeatureCollection | null>(null);
   const densitySortedRef = useRef<number[]>([]);
   const requestIdRef = useRef(0);
+  const tRef = useRef(t);
   const statusRef = useRef<{ kind: "idle" | "loading-zones" | "loading-density" | "zones" | "density" | "zoom" | "error"; count?: number; detail?: string; noun?: "nounZones" | "nounHotspots" }>({ kind: "idle" });
   const [viewportTick, setViewportTick] = useState(0);
   const [showDensityLegend, setShowDensityLegend] = useState(false);
@@ -65,6 +101,11 @@ export function MapView({ regions, region, maxLen, minExposure, onViewportChange
     onMapStatus(renderStatus());
   }
 
+  function publishViewState(map: L.Map) {
+    const center = map.getCenter();
+    onViewStateChange?.({ center: [center.lat, center.lng], zoom: map.getZoom() });
+  }
+
   function rebuildDynamicLayers(map: L.Map) {
     if (zoneLayerRef.current) map.removeLayer(zoneLayerRef.current);
     if (densityLayerRef.current) map.removeLayer(densityLayerRef.current);
@@ -85,6 +126,10 @@ export function MapView({ regions, region, maxLen, minExposure, onViewportChange
   }
 
   useEffect(() => {
+    tRef.current = t;
+  }, [t]);
+
+  useEffect(() => {
     if (!elRef.current || mapRef.current) return;
     const urlView = initialViewFromSearch(window.location.search);
     skipInitialRegionFitRef.current = !!urlView;
@@ -94,18 +139,42 @@ export function MapView({ regions, region, maxLen, minExposure, onViewportChange
       maxZoom: 19,
       attribution: "(c) OpenStreetMap",
     }).addTo(map);
+    map.createPane("restrictions");
+    const pane = map.getPane("restrictions");
+    if (pane) pane.style.zIndex = "350";
     rebuildDynamicLayers(map);
+    anchorLayerRef.current = L.layerGroup().addTo(map);
+    restrictionLayerRef.current = createRestrictionLayer(() => restrictionMetaRef.current).addTo(map);
     map.on("moveend", () => {
       onViewportChange(map);
+      publishViewState(map);
       setViewportTick((value) => value + 1);
+    });
+    map.on("contextmenu", (event) => {
+      const { lat, lng } = event.latlng;
+      const zoom = map.getZoom();
+      const container = L.DomUtil.create("div", "map-context-menu");
+      const gmaps = L.DomUtil.create("a", "", container);
+      gmaps.href = `https://www.google.com/maps?q=${lat},${lng}`;
+      gmaps.target = "_blank";
+      gmaps.rel = "noopener";
+      gmaps.textContent = tRef.current("viewInGoogleMaps");
+      const copy = L.DomUtil.create("button", "", container);
+      copy.type = "button";
+      copy.textContent = tRef.current("copyLink");
+      L.DomEvent.on(copy, "click", () => {
+        void copyViewportLink(lat, lng, zoom, tRef.current);
+      });
+      L.popup().setLatLng(event.latlng).setContent(container).openOn(map);
     });
     mapRef.current = map;
     onViewportChange(map);
+    publishViewState(map);
     return () => {
       map.remove();
       mapRef.current = null;
     };
-  }, [onViewportChange]);
+  }, [onViewportChange, onViewStateChange]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -129,6 +198,10 @@ export function MapView({ regions, region, maxLen, minExposure, onViewportChange
     rebuildDynamicLayers(map);
     onMapStatus(renderStatus());
   }, [lang, onMapStatus]);
+
+  useEffect(() => {
+    restrictionMetaRef.current = new Map(restrictionLayers.map((layer) => [layer.id, layer]));
+  }, [restrictionLayers]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -191,6 +264,65 @@ export function MapView({ regions, region, maxLen, minExposure, onViewportChange
     void load();
     return () => controller.abort();
   }, [region, maxLen, minExposure, onMapStatus, viewportTick]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    const layer = anchorLayerRef.current;
+    if (!map || !layer || !region) return;
+    if (!showAnchors) {
+      layer.clearLayers();
+      onAnchorStatus("");
+      return;
+    }
+    if (map.getZoom() < ANCHOR_MIN_ZOOM) {
+      layer.clearLayers();
+      onAnchorStatus(t("zoomInToSee", { noun: t("nounAnchors") }));
+      return;
+    }
+    const controller = new AbortController();
+    fetchAnchors({ region, bboxLonLat: bboxLonLatParam(map.getBounds()) }, controller.signal)
+      .then((fc) => {
+        renderAnchors(layer, fc, t);
+        onAnchorStatus(t("anchorsCount", { n: fc.features.length }));
+      })
+      .catch((error) => {
+        if (controller.signal.aborted) return;
+        layer.clearLayers();
+        onAnchorStatus(t("anchorError", { detail: error instanceof Error ? error.message : String(error) }));
+      });
+    return () => controller.abort();
+  }, [region, showAnchors, t, onAnchorStatus, viewportTick]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    const layer = restrictionLayerRef.current;
+    if (!map || !layer) return;
+    if (enabledRestrictions.length === 0) {
+      layer.clearLayers();
+      onRestrictionStatus("");
+      return;
+    }
+    const controller = new AbortController();
+    fetchRestrictions(
+      { bboxLonLat: bboxLonLatParam(map.getBounds()), layers: enabledRestrictions },
+      controller.signal,
+    )
+      .then((fc) => {
+        layer.clearLayers();
+        layer.addData(fc);
+        onRestrictionStatus(t("protectedAreasCount", { n: fc.features.length }));
+      })
+      .catch((error) => {
+        if (controller.signal.aborted) return;
+        layer.clearLayers();
+        if (error instanceof ApiError && error.status === 413) {
+          onRestrictionStatus(t("zoomInToSee", { noun: t("nounProtectedAreas") }));
+        } else {
+          onRestrictionStatus(t("error", { detail: error instanceof Error ? error.message : String(error) }));
+        }
+      });
+    return () => controller.abort();
+  }, [enabledRestrictions, t, onRestrictionStatus, viewportTick]);
 
   useEffect(() => {
     zoneLayerRef.current?.clearLayers();

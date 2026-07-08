@@ -1,7 +1,14 @@
 import L from "leaflet";
-import { densityRank, tealShade, ZONE_COLOR } from "@/lib/map-style";
-import type { DensityFeature, ZoneFeature } from "@/types/highliner";
-import { densityTooltipHtml, zonePopupHtml } from "./popups";
+import { wedge } from "@/lib/geo";
+import { ANCHOR_COLOR, ANCHOR_DETAIL_LIMIT, ANCHOR_WEDGE_RADIUS_M, densityRank, tealShade, ZONE_COLOR } from "@/lib/map-style";
+import type {
+  AnchorFeatureCollection,
+  DensityFeature,
+  RestrictionFeature,
+  RestrictionLayerMeta,
+  ZoneFeature,
+} from "@/types/highliner";
+import { anchorPopupHtml, densityTooltipHtml, zonePopupHtml } from "./popups";
 import type { StringKey } from "@/lib/i18n";
 
 type T = (key: StringKey, params?: Record<string, string | number>) => string;
@@ -35,6 +42,63 @@ export function createDensityLayer(t: T, sortedCounts: () => number[]): L.GeoJSO
     onEachFeature: (feature, layer) => {
       const density = feature as DensityFeature;
       layer.bindTooltip(densityTooltipHtml(density.properties, t));
+    },
+  });
+}
+
+export function renderAnchors(layer: L.LayerGroup, fc: AnchorFeatureCollection, t: T): void {
+  layer.clearLayers();
+  const detailed = fc.features.length <= ANCHOR_DETAIL_LIMIT;
+  const canvas = L.canvas({ padding: 0.5 });
+  for (const feature of fc.features) {
+    const [lon, lat] = feature.geometry.coordinates;
+    if (detailed) {
+      for (const sector of feature.properties.sectors) {
+        L.polygon(wedge(lat, lon, sector[0], sector[1], ANCHOR_WEDGE_RADIUS_M), {
+          color: ANCHOR_COLOR,
+          weight: 1,
+          fillOpacity: 0.25,
+        }).addTo(layer);
+      }
+      L.circleMarker([lat, lon], {
+        radius: 4,
+        color: ANCHOR_COLOR,
+        weight: 1,
+        fillOpacity: 1,
+      })
+        .bindPopup(anchorPopupHtml(feature.properties, t))
+        .addTo(layer);
+    } else {
+      L.circleMarker([lat, lon], {
+        renderer: canvas,
+        radius: 2,
+        color: ANCHOR_COLOR,
+        weight: 1,
+        fillOpacity: 0.8,
+      })
+        .bindPopup(anchorPopupHtml(feature.properties, t))
+        .addTo(layer);
+    }
+  }
+}
+
+export function createRestrictionLayer(metaById: () => Map<string, RestrictionLayerMeta>): L.GeoJSON {
+  return L.geoJSON(undefined, {
+    pane: "restrictions",
+    style: (feature) => {
+      const restriction = feature as RestrictionFeature;
+      return {
+        color: metaById().get(restriction.properties.layer)?.color ?? "#888",
+        weight: 1,
+        fillOpacity: 0.15,
+      };
+    },
+    onEachFeature: (feature, layer) => {
+      const restriction = feature as RestrictionFeature;
+      const meta = metaById().get(restriction.properties.layer);
+      layer.bindPopup(
+        `<b>${meta?.label ?? restriction.properties.layer}</b>${restriction.properties.name ? `<br>${restriction.properties.name}` : ""}`,
+      );
     },
   });
 }

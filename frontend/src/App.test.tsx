@@ -7,18 +7,39 @@ import { I18nProvider, useI18n } from "./lib/i18n";
 
 const apiMocks = vi.hoisted(() => ({
   fetchRegions: vi.fn(),
+  fetchRestrictionLayers: vi.fn(),
 }));
 
 vi.mock("./lib/api", () => ({
   fetchRegions: apiMocks.fetchRegions,
+  fetchRestrictionLayers: apiMocks.fetchRestrictionLayers,
 }));
 
 vi.mock("./components/map/MapView", () => ({
-  MapView: ({ region, onMapStatus }: { region: string; onMapStatus?: (status: string) => void }) => {
+  MapView: ({
+    region,
+    showAnchors,
+    enabledRestrictions,
+    restrictionLayers,
+    onMapStatus,
+  }: {
+    region: string;
+    showAnchors?: boolean;
+    enabledRestrictions?: string[];
+    restrictionLayers?: Array<{ id: string }>;
+    onMapStatus?: (status: string) => void;
+  }) => {
     useEffect(() => {
       onMapStatus?.("3 zones");
     }, [onMapStatus]);
-    return <div data-testid="map-view">{region}</div>;
+    return (
+      <div data-testid="map-view">
+        <div>{region}</div>
+        <div data-testid="show-anchors">{String(showAnchors)}</div>
+        <div data-testid="enabled-restrictions">{enabledRestrictions?.join(",") ?? ""}</div>
+        <div data-testid="restriction-layer-count">{restrictionLayers?.length ?? 0}</div>
+      </div>
+    );
   },
 }));
 
@@ -109,6 +130,15 @@ describe("App", () => {
       { name: "alpha", bounds_lonlat: [1, 2, 3, 4] },
       { name: "beta", bounds_lonlat: [5, 6, 7, 8] },
     ]);
+    apiMocks.fetchRestrictionLayers.mockReset().mockResolvedValue([
+      {
+        id: "pein",
+        label: "PEIN",
+        tooltip: "tooltip",
+        highlight: "tooltip",
+        color: "#0a0",
+      },
+    ]);
   });
 
   afterEach(() => {
@@ -136,5 +166,17 @@ describe("App", () => {
 
     await screen.findAllByText("3 zones");
     expect(screen.getAllByText("3 zones")).toHaveLength(2);
+  });
+
+  it("loads restriction layer metadata and passes it into the map", async () => {
+    const user = userEvent.setup();
+    renderApp();
+
+    await screen.findByTestId("restriction-layer-count");
+    expect(apiMocks.fetchRestrictionLayers).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId("restriction-layer-count")).toHaveTextContent("1");
+
+    await user.click(screen.getByRole("button", { name: "set english" }));
+    expect(apiMocks.fetchRestrictionLayers).toHaveBeenCalledTimes(1);
   });
 });

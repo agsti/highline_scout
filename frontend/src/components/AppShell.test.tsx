@@ -185,4 +185,22 @@ describe("AppShell", () => {
 
     expect(screen.getByRole("button", { name: "Cerrar controles" })).toBeInTheDocument();
   });
+
+  it("does not leave the document body non-interactive when the mobile sheet is closed", () => {
+    render(
+      <I18nProvider>
+        <MobileControlSheet
+          region="Montserrat"
+          summary="Longitud maxima 150 m"
+          filters={<div>sheet filters</div>}
+          statuses={<div>sheet status</div>}
+          restrictions={<div>sheet restrictions</div>}
+          caveat="Zones to scout"
+          actions={<div>sheet actions</div>}
+        />
+      </I18nProvider>,
+    );
+
+    expect(document.body.style.pointerEvents).toBe("");
+  });
 });

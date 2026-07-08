@@ -49,6 +49,7 @@ export const STRINGS = {
     closeControls: "Tanca controls",
     filters: "Filtres",
     mapActions: "Accions del mapa",
+    pointActions: "Accions d'aquest punt",
   },
   es: {
     language: "Idioma",
@@ -97,6 +98,7 @@ export const STRINGS = {
     closeControls: "Cerrar controles",
     filters: "Filtros",
     mapActions: "Acciones del mapa",
+    pointActions: "Acciones de este punto",
   },
   en: {
     language: "Language",
@@ -145,6 +147,7 @@ export const STRINGS = {
     closeControls: "Close controls",
     filters: "Filters",
     mapActions: "Map actions",
+    pointActions: "Actions for this point",
   },
 } as const;
 

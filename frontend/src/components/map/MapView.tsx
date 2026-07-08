@@ -1,4 +1,5 @@
 import L from "leaflet";
+import { CopyIcon, ExternalLink } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ApiError, fetchAnchors, fetchDensity, fetchRestrictions, fetchZones } from "@/lib/api";
@@ -17,6 +18,7 @@ import type { DensityFeatureCollection, Region, RestrictionLayerMeta, ZoneFeatur
 import { createDensityLayer, createRestrictionLayer, createZoneLayer, renderAnchors } from "./leafletLayers";
 
 const DEFAULT_VIEW: MapViewState = { center: [41.6, 1.83], zoom: 13 };
+const MOBILE_QUERY = "(max-width: 767px)";
 
 interface MapViewProps {
   regions: Region[];
@@ -83,6 +85,7 @@ export function MapView({
   const requestIdRef = useRef(0);
   const tRef = useRef(t);
   const contextMenuRootRef = useRef<HTMLDivElement | null>(null);
+  const keepContextMenuForMoveRef = useRef(false);
   const statusRef = useRef<{ kind: "idle" | "loading-zones" | "loading-density" | "zones" | "density" | "zoom" | "error"; count?: number; detail?: string; noun?: "nounZones" | "nounHotspots" }>({ kind: "idle" });
   const [viewportTick, setViewportTick] = useState(0);
   const [showDensityLegend, setShowDensityLegend] = useState(false);
@@ -136,6 +139,10 @@ export function MapView({
     }
   }
 
+  function isMobileViewport() {
+    return typeof window.matchMedia === "function" && window.matchMedia(MOBILE_QUERY).matches;
+  }
+
   useEffect(() => {
     tRef.current = t;
   }, [t]);
@@ -178,13 +185,18 @@ export function MapView({
     anchorLayerRef.current = L.layerGroup().addTo(map);
     restrictionLayerRef.current = createRestrictionLayer(() => restrictionMetaRef.current).addTo(map);
     map.on("moveend", () => {
-      setContextMenu(null);
+      if (keepContextMenuForMoveRef.current) {
+        keepContextMenuForMoveRef.current = false;
+      } else {
+        setContextMenu(null);
+      }
       onViewportChange(map);
       publishViewState(map);
       setViewportTick((value) => value + 1);
     });
     map.on("contextmenu", (event) => {
       const { lat, lng } = event.latlng;
+      const mobile = isMobileViewport();
       setContextMenu({
         lat,
         lng,
@@ -192,6 +204,10 @@ export function MapView({
         x: event.containerPoint.x,
         y: event.containerPoint.y,
       });
+      if (mobile) {
+        keepContextMenuForMoveRef.current = true;
+        map.panTo([lat, lng], { animate: true });
+      }
     });
     mapRef.current = map;
     onViewportChange(map);
@@ -377,6 +393,11 @@ export function MapView({
       {contextMenu ? (
         <div ref={contextMenuRootRef} className="pointer-events-none absolute inset-0 z-[1200]">
           <div
+            data-testid="mobile-context-point-marker"
+            className="pointer-events-none absolute left-1/2 top-1/2 h-10 w-10 -translate-x-1/2 -translate-y-1/2 rounded-full border-[3px] border-primary bg-primary/15 shadow-[0_0_0_4px_hsl(var(--background)),0_0_0_8px_hsl(var(--primary)/0.35),0_8px_24px_hsl(var(--foreground)/0.35)] after:absolute after:left-1/2 after:top-1/2 after:h-3 after:w-3 after:-translate-x-1/2 after:-translate-y-1/2 after:rounded-full after:bg-primary after:shadow-[0_0_0_2px_hsl(var(--background))] md:hidden"
+            aria-hidden="true"
+          />
+          <div
             data-testid="desktop-context-menu"
             className="pointer-events-auto absolute hidden min-w-56 overflow-hidden rounded-md border bg-background/98 p-1 text-sm shadow-xl backdrop-blur md:block"
             style={{ left: contextMenu.x, top: contextMenu.y }}
@@ -408,16 +429,21 @@ export function MapView({
               onClick={(event) => event.stopPropagation()}
             >
               <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-border" />
+              <h2 className="mb-3 px-1 text-sm font-semibold">{t("pointActions")}</h2>
               <div className="grid gap-2">
-                <a
-                  className="flex h-10 items-center rounded-md px-3 text-sm font-medium hover:bg-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                  href={contextGoogleMapsHref}
-                  target="_blank"
-                  rel="noopener"
+                <Button
+                  asChild
+                  type="button"
+                  variant="outline"
+                  className="h-11 w-full justify-start"
                 >
-                  {t("viewInGoogleMaps")}
-                </a>
-                <Button type="button" variant="outline" className="justify-start" onClick={() => void copyContextMenuLink()}>
+                  <a href={contextGoogleMapsHref} target="_blank" rel="noopener">
+                    <ExternalLink className="h-4 w-4" />
+                    {t("viewInGoogleMaps")}
+                  </a>
+                </Button>
+                <Button type="button" variant="outline" className="h-11 w-full justify-start" onClick={() => void copyContextMenuLink()}>
+                  <CopyIcon className="h-4 w-4" />
                   {t("copyLink")}
                 </Button>
               </div>

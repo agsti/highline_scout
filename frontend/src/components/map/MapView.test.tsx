@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { I18nProvider, useI18n } from "@/lib/i18n";
@@ -17,6 +17,7 @@ const leafletMocks = vi.hoisted(() => ({
   layerGroup: vi.fn(),
   map: vi.fn(),
   openOn: vi.fn(),
+  panTo: vi.fn(),
   polygon: vi.fn(),
   popup: vi.fn(),
   remove: vi.fn(),
@@ -78,6 +79,7 @@ vi.mock("leaflet", () => {
       if (event === "contextmenu") leafletState.contextmenu = handler as unknown as typeof leafletState.contextmenu;
     }),
     fitBounds: leafletMocks.fitBounds,
+    panTo: leafletMocks.panTo,
     invalidateSize: leafletMocks.invalidateSize,
     createPane: leafletMocks.createPane,
     getPane: () => leafletState.pane,
@@ -198,8 +200,26 @@ function renderMapViewWithLanguageControl(props?: Partial<React.ComponentProps<t
 describe("MapView", () => {
   const originalLocation = window.location;
   const originalLocalStorage = window.localStorage;
+  const originalMatchMedia = window.matchMedia;
+
+  function setMobileViewport(matches: boolean) {
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      value: vi.fn().mockImplementation((query: string) => ({
+        matches,
+        media: query,
+        onchange: null,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      })),
+    });
+  }
 
   beforeEach(() => {
+    setMobileViewport(false);
     apiMocks.fetchDensity.mockReset();
     apiMocks.fetchAnchors.mockReset().mockResolvedValue({ type: "FeatureCollection", features: [] });
     apiMocks.fetchRestrictions.mockReset().mockResolvedValue({ type: "FeatureCollection", features: [] });
@@ -223,6 +243,7 @@ describe("MapView", () => {
     leafletMocks.layerGroup.mockReset();
     leafletMocks.map.mockReset();
     leafletMocks.openOn.mockReset();
+    leafletMocks.panTo.mockReset();
     leafletMocks.polygon.mockReset().mockImplementation(() => ({ addTo: vi.fn().mockReturnThis() }));
     leafletMocks.popup.mockReset();
     leafletMocks.remove.mockReset();
@@ -247,6 +268,7 @@ describe("MapView", () => {
         if (event === "contextmenu") leafletState.contextmenu = handler as unknown as typeof leafletState.contextmenu;
       }),
       fitBounds: leafletMocks.fitBounds,
+      panTo: leafletMocks.panTo,
       invalidateSize: leafletMocks.invalidateSize,
       createPane: leafletMocks.createPane,
       getPane: () => leafletState.pane,
@@ -340,6 +362,10 @@ describe("MapView", () => {
     Object.defineProperty(window, "localStorage", {
       configurable: true,
       value: originalLocalStorage,
+    });
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      value: originalMatchMedia,
     });
   });
 
@@ -668,13 +694,40 @@ describe("MapView", () => {
     expect(desktopMenu).toHaveClass("hidden", "md:block");
     expect(desktopMenu).toHaveStyle({ left: "120px", top: "80px" });
     expect(mobileMenu).toHaveClass("md:hidden");
+    expect(within(mobileMenu).getByRole("heading", { name: "Accions d'aquest punt" })).toBeInTheDocument();
 
     const links = screen.getAllByRole("link", { name: "Veure a Google Maps" });
     expect(links[0]).toHaveAttribute("href", "https://www.google.com/maps?q=41.123456,2.234567");
+    expect(within(mobileMenu).getByRole("link", { name: "Veure a Google Maps" })).toHaveClass("h-11", "border");
+    expect(within(mobileMenu).getByRole("button", { name: "Copia l'enllaç" })).toHaveClass("h-11", "border");
 
     await user.click(screen.getAllByRole("button", { name: "Copia l'enllaç" })[0]);
     expect(writeText).toHaveBeenCalledWith("https://example.com/?lat=41.12346&lng=2.23457&z=13");
     expect(screen.queryByTestId("desktop-context-menu")).not.toBeInTheDocument();
     expect(leafletMocks.popup).not.toHaveBeenCalled();
+  });
+
+  it("centers and marks the selected context point on mobile", () => {
+    setMobileViewport(true);
+    apiMocks.fetchZones.mockResolvedValue({ type: "FeatureCollection", features: [] });
+
+    renderMapView();
+
+    act(() => {
+      leafletState.contextmenu?.({
+        latlng: { lat: 41.123456, lng: 2.234567 },
+        containerPoint: { x: 120, y: 80 },
+      });
+    });
+
+    expect(leafletMocks.panTo).toHaveBeenCalledWith([41.123456, 2.234567], { animate: true });
+    expect(screen.getByTestId("mobile-context-point-marker")).toHaveClass("md:hidden");
+
+    act(() => {
+      leafletState.moveend?.();
+    });
+
+    expect(screen.getByTestId("mobile-context-point-marker")).toBeInTheDocument();
+    expect(screen.getByTestId("mobile-context-menu")).toBeInTheDocument();
   });
 });

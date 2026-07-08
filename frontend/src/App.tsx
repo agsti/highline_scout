@@ -4,13 +4,12 @@ import { AppShell } from "./components/AppShell";
 import { DesktopSidebar } from "./components/DesktopSidebar";
 import { FilterControls } from "./components/FilterControls";
 import { MobileControlSheet } from "./components/MobileControlSheet";
-import { copyViewportLink, MapView } from "./components/map/MapView";
+import { MapView } from "./components/map/MapView";
 import { RestrictionLayerControls } from "./components/RestrictionLayerControls";
 import { SafetyDisclaimerDialog } from "./components/SafetyDisclaimerDialog";
 import { StatusLine } from "./components/StatusLine";
-import { Button } from "./components/ui/button";
 import { fetchRegions, fetchRestrictionLayers } from "./lib/api";
-import { bboxLonLatParam, type MapViewState } from "./lib/geo";
+import { bboxLonLatParam } from "./lib/geo";
 import { useI18n } from "./lib/i18n";
 import type { Region, RestrictionLayerMeta } from "./types/highliner";
 
@@ -28,8 +27,6 @@ export function App() {
   const [restrictionLayers, setRestrictionLayers] = useState<RestrictionLayerMeta[]>([]);
   const [restrictionStatus, setRestrictionStatus] = useState("");
   const [enabledRestrictions, setEnabledRestrictions] = useState<string[]>([]);
-  const [linkStatus, setLinkStatus] = useState("");
-  const [lastViewport, setLastViewport] = useState<MapViewState | null>(null);
   const [disclaimerOpen, setDisclaimerOpen] = useState(true);
 
   useEffect(() => {
@@ -59,17 +56,6 @@ export function App() {
     setViewportBbox(bboxLonLatParam(map.getBounds()));
   }, []);
 
-  const handleCopyViewport = useCallback(async () => {
-    if (!lastViewport) return;
-    await copyViewportLink(lastViewport.center[0], lastViewport.center[1], lastViewport.zoom, t);
-    setLinkStatus(t("linkCopied"));
-  }, [lastViewport, t]);
-
-  const viewportGoogleMapsHref = useMemo(() => {
-    if (!lastViewport) return null;
-    return `https://www.google.com/maps?q=${lastViewport.center[0]},${lastViewport.center[1]}`;
-  }, [lastViewport]);
-
   const filters = (
     <FilterControls
       regions={regions}
@@ -91,7 +77,6 @@ export function App() {
       <StatusLine>{mapErrorDetail ? t("error", { detail: mapErrorDetail }) : mapStatus}</StatusLine>
       {anchorStatus ? <StatusLine>{anchorStatus}</StatusLine> : null}
       {restrictionStatus ? <StatusLine>{restrictionStatus}</StatusLine> : null}
-      {linkStatus ? <StatusLine>{linkStatus}</StatusLine> : null}
     </div>
   );
 
@@ -127,29 +112,6 @@ export function App() {
             statuses={statuses}
             restrictions={restrictions}
             caveat={t("caveat")}
-            actions={
-              <div className="space-y-2">
-                <div className="text-sm font-medium">{t("mapActions")}</div>
-                <div className="flex flex-wrap gap-2">
-                  <Button variant="outline" type="button" onClick={() => void handleCopyViewport()} disabled={!lastViewport}>
-                    {t("copyLink")}
-                  </Button>
-                  <Button variant="outline" asChild>
-                    <a
-                      href={viewportGoogleMapsHref ?? "#"}
-                      target="_blank"
-                      rel="noopener"
-                      aria-disabled={!viewportGoogleMapsHref}
-                      onClick={(event) => {
-                        if (!viewportGoogleMapsHref) event.preventDefault();
-                      }}
-                    >
-                      {t("viewInGoogleMaps")}
-                    </a>
-                  </Button>
-                </div>
-              </div>
-            }
           />
         }
         map={
@@ -165,7 +127,6 @@ export function App() {
             onMapStatus={setMapStatus}
             onAnchorStatus={setAnchorStatus}
             onRestrictionStatus={setRestrictionStatus}
-            onViewStateChange={setLastViewport}
           />
         }
       />

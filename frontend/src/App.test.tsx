@@ -63,10 +63,11 @@ vi.mock("./components/DesktopSidebar", () => ({
 }));
 
 vi.mock("./components/MobileControlSheet", () => ({
-  MobileControlSheet: ({ filters, statuses }: { filters: ReactNode; statuses: ReactNode }) => (
+  MobileControlSheet: ({ filters, statuses, actions }: { filters: ReactNode; statuses: ReactNode; actions?: ReactNode }) => (
     <div>
       {filters}
       {statuses}
+      {actions ? <div data-testid="mobile-actions-slot">{actions}</div> : null}
     </div>
   ),
 }));
@@ -166,6 +167,13 @@ describe("App", () => {
 
     await screen.findAllByText("3 zones");
     expect(screen.getAllByText("3 zones")).toHaveLength(2);
+  });
+
+  it("does not show map actions in the mobile filter controls", async () => {
+    renderApp();
+
+    await screen.findAllByTestId("current-region");
+    expect(screen.queryByTestId("mobile-actions-slot")).not.toBeInTheDocument();
   });
 
   it("loads restriction layer metadata and passes it into the map", async () => {

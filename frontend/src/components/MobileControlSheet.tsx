@@ -12,7 +12,7 @@ interface MobileControlSheetProps {
   restrictions: ReactNode;
   statuses: ReactNode;
   caveat: string;
-  actions: ReactNode;
+  actions?: ReactNode;
 }
 
 export function MobileControlSheet(props: MobileControlSheetProps) {
@@ -45,7 +45,7 @@ export function MobileControlSheet(props: MobileControlSheetProps) {
         <div className="mt-4 space-y-5">
           {props.filters}
           {props.statuses}
-          {props.actions}
+          {props.actions ? props.actions : null}
           {props.restrictions}
           <p className="rounded-md border border-destructive/25 bg-destructive/5 p-3 text-xs leading-5 text-destructive">
             {props.caveat}

@@ -6,6 +6,33 @@ import { AppShell } from "./AppShell";
 import { MobileControlSheet } from "./MobileControlSheet";
 import { Dialog, DialogContent } from "./ui/dialog";
 
+function setTestLanguage(lang: string) {
+  const originalStorage = Object.getOwnPropertyDescriptor(window, "localStorage");
+  const store = new Map<string, string>([["lang", lang]]);
+
+  Object.defineProperty(window, "localStorage", {
+    configurable: true,
+    value: {
+      getItem: (key: string) => store.get(key) ?? null,
+      setItem: (key: string, value: string) => {
+        store.set(key, value);
+      },
+      removeItem: (key: string) => {
+        store.delete(key);
+      },
+      clear: () => {
+        store.clear();
+      },
+    },
+  });
+
+  return () => {
+    if (originalStorage) {
+      Object.defineProperty(window, "localStorage", originalStorage);
+    }
+  };
+}
+
 function renderShell() {
   return render(
     <I18nProvider>
@@ -36,21 +63,7 @@ describe("AppShell", () => {
 
   it("opens the mobile peek-card sheet and exposes the localized close label", async () => {
     const user = userEvent.setup();
-    const originalLanguages = navigator.languages;
-    const originalLocalStorage = window.localStorage;
-
-    Object.defineProperty(window, "localStorage", {
-      configurable: true,
-      value: {
-        getItem: (key: string) => (key === "lang" ? "es" : null),
-        setItem: () => undefined,
-        removeItem: () => undefined,
-      },
-    });
-    Object.defineProperty(window.navigator, "languages", {
-      configurable: true,
-      value: ["es"],
-    });
+    const restoreLang = setTestLanguage("es");
 
     try {
       render(
@@ -73,14 +86,7 @@ describe("AppShell", () => {
       expect(screen.getByText("sheet filters")).toBeInTheDocument();
       expect(screen.getByRole("button", { name: "Cerrar controles" })).toBeInTheDocument();
     } finally {
-      Object.defineProperty(window, "localStorage", {
-        configurable: true,
-        value: originalLocalStorage,
-      });
-      Object.defineProperty(window.navigator, "languages", {
-        configurable: true,
-        value: originalLanguages,
-      });
+      restoreLang();
     }
   });
 
@@ -117,17 +123,18 @@ describe("AppShell", () => {
       );
     }
 
-    Object.defineProperty(window.navigator, "languages", {
-      configurable: true,
-      value: ["es"],
-    });
+    const restoreLang = setTestLanguage("es");
 
-    render(
-      <I18nProvider>
-        <LocalizedDialog />
-      </I18nProvider>,
-    );
+    try {
+      render(
+        <I18nProvider>
+          <LocalizedDialog />
+        </I18nProvider>,
+      );
 
-    expect(screen.getByRole("button", { name: "Cerrar controles" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Cerrar controles" })).toBeInTheDocument();
+    } finally {
+      restoreLang();
+    }
   });
 });

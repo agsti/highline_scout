@@ -1,4 +1,5 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { I18nProvider, useI18n } from "@/lib/i18n";
 import { MapView } from "./MapView";
@@ -40,7 +41,7 @@ const leafletState = vi.hoisted(() => ({
     getNorth: () => 4,
   },
   center: { lat: 41.5, lng: 1.9 },
-  contextmenu: null as null | ((event: { latlng: { lat: number; lng: number } }) => void),
+  contextmenu: null as null | ((event: { latlng: { lat: number; lng: number }; containerPoint: { x: number; y: number } }) => void),
   moveend: null as null | (() => void),
   pane: { style: { zIndex: "" } },
   zoom: 13,
@@ -642,7 +643,8 @@ describe("MapView", () => {
     expect(onRestrictionStatus).toHaveBeenLastCalledWith("1 espais protegits");
   });
 
-  it("opens a context menu with a Google Maps link and copy action", async () => {
+  it("opens a React context menu with desktop and mobile presentations", async () => {
+    const user = userEvent.setup();
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, "clipboard", {
       configurable: true,
@@ -654,22 +656,25 @@ describe("MapView", () => {
 
     expect(leafletState.contextmenu).toBeTypeOf("function");
     act(() => {
-      leafletState.contextmenu?.({ latlng: { lat: 41.123456, lng: 2.234567 } });
+      leafletState.contextmenu?.({
+        latlng: { lat: 41.123456, lng: 2.234567 },
+        containerPoint: { x: 120, y: 80 },
+      });
     });
 
-    const content = leafletMocks.setContent.mock.calls.at(-1)?.[0] as HTMLDivElement;
-    const link = content.querySelector("a");
-    const button = content.querySelector("button");
+    const desktopMenu = screen.getByTestId("desktop-context-menu");
+    const mobileMenu = screen.getByTestId("mobile-context-menu");
 
-    expect(link?.textContent).toBe("Veure a Google Maps");
-    expect(link?.href).toBe("https://www.google.com/maps?q=41.123456,2.234567");
-    expect(button?.textContent).toBe("Copia l'enllaç");
+    expect(desktopMenu).toHaveClass("hidden", "md:block");
+    expect(desktopMenu).toHaveStyle({ left: "120px", top: "80px" });
+    expect(mobileMenu).toHaveClass("md:hidden");
 
-    await act(async () => {
-      button?.click();
-    });
+    const links = screen.getAllByRole("link", { name: "Veure a Google Maps" });
+    expect(links[0]).toHaveAttribute("href", "https://www.google.com/maps?q=41.123456,2.234567");
 
+    await user.click(screen.getAllByRole("button", { name: "Copia l'enllaç" })[0]);
     expect(writeText).toHaveBeenCalledWith("https://example.com/?lat=41.12346&lng=2.23457&z=13");
-    expect(leafletMocks.openOn).toHaveBeenCalled();
+    expect(screen.queryByTestId("desktop-context-menu")).not.toBeInTheDocument();
+    expect(leafletMocks.popup).not.toHaveBeenCalled();
   });
 });

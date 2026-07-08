@@ -120,6 +120,28 @@ describe("AppShell", () => {
     expect(screen.getByRole("button", { name: "Cerrar controles" })).toBeInTheDocument();
   });
 
+  it("renders the opened mobile sheet above the fixed mobile controls", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <I18nProvider>
+        <MobileControlSheet
+          region="Montserrat"
+          summary="Longitud maxima 150 m"
+          filters={<div>sheet filters</div>}
+          statuses={<div>sheet status</div>}
+          restrictions={<div>sheet restrictions</div>}
+          caveat="Zones to scout"
+          actions={<div>sheet actions</div>}
+        />
+      </I18nProvider>,
+    );
+
+    await user.click(screen.getByRole("button", { name: /obre controls|open controls|abrir controles/i }));
+
+    expect(screen.getByRole("dialog")).toHaveClass("z-[1200]");
+  });
+
   it("localizes the map placeholder through the app i18n catalog", async () => {
     function LocalizedMapShell() {
       const { t } = useI18n();

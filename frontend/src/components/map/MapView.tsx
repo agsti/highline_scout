@@ -1,5 +1,6 @@
 import L from "leaflet";
 import { useEffect, useRef, useState } from "react";
+import { Button } from "@/components/ui/button";
 import { ApiError, fetchAnchors, fetchDensity, fetchRestrictions, fetchZones } from "@/lib/api";
 import { bboxLonLatParam, initialViewFromSearch, type MapViewState } from "@/lib/geo";
 import { useI18n } from "@/lib/i18n";
@@ -44,6 +45,14 @@ export async function copyViewportLink(lat: number, lng: number, zoom: number, t
 
 type T = ReturnType<typeof useI18n>["t"];
 
+interface ContextMenuState {
+  lat: number;
+  lng: number;
+  zoom: number;
+  x: number;
+  y: number;
+}
+
 export function MapView({
   regions,
   region,
@@ -73,9 +82,11 @@ export function MapView({
   const densitySortedRef = useRef<number[]>([]);
   const requestIdRef = useRef(0);
   const tRef = useRef(t);
+  const contextMenuRootRef = useRef<HTMLDivElement | null>(null);
   const statusRef = useRef<{ kind: "idle" | "loading-zones" | "loading-density" | "zones" | "density" | "zoom" | "error"; count?: number; detail?: string; noun?: "nounZones" | "nounHotspots" }>({ kind: "idle" });
   const [viewportTick, setViewportTick] = useState(0);
   const [showDensityLegend, setShowDensityLegend] = useState(false);
+  const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
 
   function renderStatus() {
     switch (statusRef.current.kind) {
@@ -130,6 +141,27 @@ export function MapView({
   }, [t]);
 
   useEffect(() => {
+    if (!contextMenu) return;
+
+    function onPointerDown(event: PointerEvent) {
+      const target = event.target;
+      if (target instanceof Node && contextMenuRootRef.current?.contains(target)) return;
+      setContextMenu(null);
+    }
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setContextMenu(null);
+    }
+
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [contextMenu]);
+
+  useEffect(() => {
     if (!elRef.current || mapRef.current) return;
     const urlView = initialViewFromSearch(window.location.search);
     skipInitialRegionFitRef.current = !!urlView;
@@ -146,26 +178,20 @@ export function MapView({
     anchorLayerRef.current = L.layerGroup().addTo(map);
     restrictionLayerRef.current = createRestrictionLayer(() => restrictionMetaRef.current).addTo(map);
     map.on("moveend", () => {
+      setContextMenu(null);
       onViewportChange(map);
       publishViewState(map);
       setViewportTick((value) => value + 1);
     });
     map.on("contextmenu", (event) => {
       const { lat, lng } = event.latlng;
-      const zoom = map.getZoom();
-      const container = L.DomUtil.create("div", "map-context-menu");
-      const gmaps = L.DomUtil.create("a", "", container);
-      gmaps.href = `https://www.google.com/maps?q=${lat},${lng}`;
-      gmaps.target = "_blank";
-      gmaps.rel = "noopener";
-      gmaps.textContent = tRef.current("viewInGoogleMaps");
-      const copy = L.DomUtil.create("button", "", container);
-      copy.type = "button";
-      copy.textContent = tRef.current("copyLink");
-      L.DomEvent.on(copy, "click", () => {
-        void copyViewportLink(lat, lng, zoom, tRef.current);
+      setContextMenu({
+        lat,
+        lng,
+        zoom: map.getZoom(),
+        x: event.containerPoint.x,
+        y: event.containerPoint.y,
       });
-      L.popup().setLatLng(event.latlng).setContent(container).openOn(map);
     });
     mapRef.current = map;
     onViewportChange(map);
@@ -335,9 +361,70 @@ export function MapView({
     return () => window.clearTimeout(timeout);
   });
 
+  async function copyContextMenuLink() {
+    if (!contextMenu) return;
+    await copyViewportLink(contextMenu.lat, contextMenu.lng, contextMenu.zoom, t);
+    setContextMenu(null);
+  }
+
+  const contextGoogleMapsHref = contextMenu
+    ? `https://www.google.com/maps?q=${contextMenu.lat},${contextMenu.lng}`
+    : "#";
+
   return (
     <div className="relative h-full w-full">
       <div ref={elRef} className="h-full w-full" />
+      {contextMenu ? (
+        <div ref={contextMenuRootRef} className="pointer-events-none absolute inset-0 z-[1200]">
+          <div
+            data-testid="desktop-context-menu"
+            className="pointer-events-auto absolute hidden min-w-56 overflow-hidden rounded-md border bg-background/98 p-1 text-sm shadow-xl backdrop-blur md:block"
+            style={{ left: contextMenu.x, top: contextMenu.y }}
+          >
+            <a
+              className="block rounded-sm px-3 py-2 font-medium hover:bg-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              href={contextGoogleMapsHref}
+              target="_blank"
+              rel="noopener"
+            >
+              {t("viewInGoogleMaps")}
+            </a>
+            <button
+              type="button"
+              className="block w-full rounded-sm px-3 py-2 text-left font-medium hover:bg-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              onClick={() => void copyContextMenuLink()}
+            >
+              {t("copyLink")}
+            </button>
+          </div>
+
+          <div
+            data-testid="mobile-context-menu"
+            className="pointer-events-auto fixed inset-0 z-[1200] flex items-end bg-black/35 p-3 md:hidden"
+            onClick={() => setContextMenu(null)}
+          >
+            <div
+              className="w-full rounded-xl border bg-background p-3 shadow-xl"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-border" />
+              <div className="grid gap-2">
+                <a
+                  className="flex h-10 items-center rounded-md px-3 text-sm font-medium hover:bg-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  href={contextGoogleMapsHref}
+                  target="_blank"
+                  rel="noopener"
+                >
+                  {t("viewInGoogleMaps")}
+                </a>
+                <Button type="button" variant="outline" className="justify-start" onClick={() => void copyContextMenuLink()}>
+                  {t("copyLink")}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
       {showDensityLegend ? (
         <div className="pointer-events-none absolute bottom-3 right-3 rounded-md border bg-background/95 px-3 py-2 text-xs shadow">
           <div className="mb-1 font-medium">{t("lineDensity")}</div>

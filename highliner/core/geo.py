@@ -17,6 +17,14 @@ def to_utm(lon: float, lat: float) -> tuple[float, float]:
     return _transformer(config.WGS84_CRS, config.UTM_CRS).transform(lon, lat)
 
 
+def to_lonlat_crs(x: float, y: float, crs: str) -> tuple[float, float]:
+    return _transformer(crs, config.WGS84_CRS).transform(x, y)
+
+
+def from_lonlat_crs(lon: float, lat: float, crs: str) -> tuple[float, float]:
+    return _transformer(config.WGS84_CRS, crs).transform(lon, lat)
+
+
 def bearing(x1: float, y1: float, x2: float, y2: float) -> float:
     """Clockwise bearing from north, degrees in [0, 360)."""
     deg = math.degrees(math.atan2(x2 - x1, y2 - y1))

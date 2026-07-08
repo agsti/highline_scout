@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Callable, Iterator
 
 from highliner.core import config
+from highliner.core.regions import defaults_for_region
 from highliner.models.anchor import Anchor
 from highliner.models.candidate import Candidate
 from highliner.repositories import dtm
@@ -40,7 +41,9 @@ def _in_core(x: float, y: float, core: Bbox) -> bool:
 
 
 def process_chunk(cx: int, cy: int, core_bbox: Bbox, region_dir: Path,
-                  halo: float = config.CHUNK_HALO_M) -> int:
+                  halo: float = config.CHUNK_HALO_M,
+                  crs: str = config.UTM_CRS,
+                  dtm_source: str = "icgc") -> int:
     """Process one chunk into anchor + pair partitions. Returns the number of
     pairs kept. Idempotent: a chunk whose pair partition exists is skipped
     (returns -1)."""
@@ -50,11 +53,12 @@ def process_chunk(cx: int, cy: int, core_bbox: Bbox, region_dir: Path,
 
     minx, miny, maxx, maxy = core_bbox
     halo_bbox = (minx - halo, miny - halo, maxx + halo, maxy + halo)
-    tiles = dtm.fetch_tiles(halo_bbox, region_dir / "tiles")
+    tiles = dtm.fetch_tiles(halo_bbox, region_dir / "tiles",
+                            source=dtm_source, crs=crs)
 
     core_anchors: list[Anchor] = []
     owned_pairs: list[Candidate] = []
-    raster = dtm.raster_from_tiles(tiles)
+    raster = dtm.raster_from_tiles(tiles, bbox=halo_bbox)
     if raster is not None:
         anchors = extract_anchors(
             raster, slope_min=config.SLOPE_MIN_DEG, radius=config.DROP_RADIUS_M,
@@ -80,25 +84,33 @@ def process_chunk(cx: int, cy: int, core_bbox: Bbox, region_dir: Path,
     (region_dir / "pairs").mkdir(parents=True, exist_ok=True)
     save_anchors(core_anchors, region_dir / "anchors" / f"p_{cx}_{cy}.parquet")
     save_candidates(owned_pairs, qpath)
+    transient_dir = region_dir / "tiles"
     for t in tiles:
-        t.unlink(missing_ok=True)
+        if t.parent == transient_dir:
+            t.unlink(missing_ok=True)
     return len(owned_pairs)
 
 
 def precompute(region: str, bbox: Bbox, data_dir: Path, chunk_m: float = config.CHUNK_M,
-              report: Callable[[int, int], None] | None = None) -> int:
+              report: Callable[[int, int], None] | None = None,
+              crs: str | None = None,
+              dtm_source: str | None = None) -> int:
     """Precompute anchors + pairs for ``bbox`` under ``data_dir/<region>``.
     Writes grid.json, then processes every chunk (skipping finished ones).
     Returns the number of chunks."""
     region_dir = Path(data_dir) / region
+    defaults = defaults_for_region(region)
+    crs = crs or defaults.crs
+    dtm_source = dtm_source or defaults.dtm_source
     region_dir.mkdir(parents=True, exist_ok=True)
     (region_dir / "grid.json").write_text(json.dumps(
-        {"bbox": list(bbox), "chunk_m": chunk_m}))
+        {"bbox": list(bbox), "chunk_m": chunk_m,
+         "crs": crs, "dtm_source": dtm_source}))
 
     chunks = list(chunk_grid(bbox, chunk_m))
     total = len(chunks)
     for i, (cx, cy, core) in enumerate(chunks, start=1):
-        process_chunk(cx, cy, core, region_dir)
+        process_chunk(cx, cy, core, region_dir, crs=crs, dtm_source=dtm_source)
         if report is not None:
             report(i, total)
     return total

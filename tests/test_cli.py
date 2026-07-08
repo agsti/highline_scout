@@ -9,10 +9,14 @@ def test_precompute_command(monkeypatch: pytest.MonkeyPatch) -> None:
 
     def fake(region: str, bbox: tuple[float, ...], data_dir: Path,
              chunk_m: float = 10000.0,
-             report: Callable[[int, int], None] | None = None) -> int:
+             report: Callable[[int, int], None] | None = None,
+             crs: str | None = None,
+             dtm_source: str | None = None) -> int:
         calls["region"] = region
         calls["bbox"] = bbox
         calls["chunk_m"] = chunk_m
+        calls["crs"] = crs
+        calls["dtm_source"] = dtm_source
         if report:
             report(1, 1)
         return 1
@@ -22,6 +26,8 @@ def test_precompute_command(monkeypatch: pytest.MonkeyPatch) -> None:
     assert calls["region"] == "catalonia"
     assert calls["bbox"] == (0.0, 0.0, 10000.0, 10000.0)
     assert calls["chunk_m"] == 10000.0
+    assert calls["crs"] == "EPSG:25831"
+    assert calls["dtm_source"] == "icgc"
 
 
 def test_precompute_density_command(monkeypatch: pytest.MonkeyPatch) -> None:

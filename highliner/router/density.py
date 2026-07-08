@@ -10,6 +10,8 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException
 
 from highliner.core import config, tiles
+from highliner.core.regions import defaults_for_region
+from highliner.repositories import chunked_store
 from highliner.router.deps import get_data_dir, parse_bbox_lonlat
 
 router = APIRouter()
@@ -39,7 +41,11 @@ def density(
     path = data_dir / region / "density" / f"z{zc}.json"
     if not (data_dir / region / "density").is_dir():
         raise HTTPException(404, f"no density layer for region '{region}'")
-    view = parse_bbox_lonlat(bbox, bbox_lonlat)
+    try:
+        crs = chunked_store.read_grid(data_dir / region).crs
+    except FileNotFoundError:
+        crs = defaults_for_region(region).crs
+    view = parse_bbox_lonlat(bbox, bbox_lonlat, crs)
     cells = json.loads(path.read_text()) if path.exists() else []
 
     features: list[dict[str, Any]] = []

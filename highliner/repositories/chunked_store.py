@@ -1,7 +1,7 @@
 """Viewport-windowed reads over the chunked region layout.
 
 Layout under ``data/<region>/``:
-    grid.json                    {"bbox": [minx,miny,maxx,maxy], "chunk_m": N}
+    grid.json                    {"bbox": [...], "chunk_m": N, "crs": "..."}
     anchors/p_{cx}_{cy}.parquet  anchors per chunk
     pairs/q_{cx}_{cy}.parquet    candidate pairs per chunk
 """
@@ -25,12 +25,19 @@ Bbox = tuple[float, float, float, float]
 class Grid:
     bbox: Bbox
     chunk_m: float
+    crs: str
+    dtm_source: str
 
 
 def read_grid(region_dir: Path) -> Grid:
     data = json.loads((Path(region_dir) / "grid.json").read_text())
     b = [float(v) for v in data["bbox"]]
-    return Grid(bbox=(b[0], b[1], b[2], b[3]), chunk_m=float(data["chunk_m"]))
+    return Grid(
+        bbox=(b[0], b[1], b[2], b[3]),
+        chunk_m=float(data["chunk_m"]),
+        crs=str(data.get("crs", config.UTM_CRS)),
+        dtm_source=str(data.get("dtm_source", "icgc")),
+    )
 
 
 def chunk_indices_for_bbox(grid: Grid, bbox: Bbox) -> list[tuple[int, int]]:

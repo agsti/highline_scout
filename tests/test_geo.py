@@ -30,3 +30,11 @@ def test_roundtrip_crs() -> None:
     lon2, lat2 = geo.to_lonlat(x, y)
     assert math.isclose(lon, lon2, abs_tol=1e-6)
     assert math.isclose(lat, lat2, abs_tol=1e-6)
+
+
+def test_roundtrip_explicit_crs() -> None:
+    lon, lat = -16.25, 28.45
+    x, y = geo.from_lonlat_crs(lon, lat, "EPSG:4083")
+    lon2, lat2 = geo.to_lonlat_crs(x, y, "EPSG:4083")
+    assert math.isclose(lon, lon2, abs_tol=1e-6)
+    assert math.isclose(lat, lat2, abs_tol=1e-6)

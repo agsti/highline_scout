@@ -13,7 +13,8 @@ router = APIRouter()
 def _bounds_from_grid(region_dir: Path) -> list[float]:
     grid = chunked_store.read_grid(region_dir)
     minx, miny, maxx, maxy = grid.bbox
-    corners = [geo.to_lonlat(x, y) for x in (minx, maxx) for y in (miny, maxy)]
+    corners = [geo.to_lonlat_crs(x, y, grid.crs)
+               for x in (minx, maxx) for y in (miny, maxy)]
     lons = [c[0] for c in corners]
     lats = [c[1] for c in corners]
     return [min(lons), min(lats), max(lons), max(lats)]

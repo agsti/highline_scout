@@ -14,12 +14,16 @@ from highliner.core import config
 def _write_region(data_dir: Path, region: str,
                   bbox: tuple[float, float, float, float],
                   anchors: list[Anchor], candidates: list[Candidate],
-                  chunk_m: float = 10000.0) -> None:
+                  chunk_m: float = 10000.0,
+                  crs: str | None = None) -> None:
     """Write a minimal one-chunk region in the layout the API expects."""
     rdir = data_dir / region
     (rdir / "anchors").mkdir(parents=True)
     (rdir / "pairs").mkdir(parents=True)
-    (rdir / "grid.json").write_text(json.dumps({"bbox": list(bbox), "chunk_m": chunk_m}))
+    grid = {"bbox": list(bbox), "chunk_m": chunk_m}
+    if crs is not None:
+        grid["crs"] = crs
+    (rdir / "grid.json").write_text(json.dumps(grid))
     save_anchors(anchors, rdir / "anchors" / "p_0_0.parquet")
     save_candidates(candidates, rdir / "pairs" / "q_0_0.parquet")
 
@@ -94,6 +98,25 @@ def test_zones_bbox_lonlat(tmp_path: Path) -> None:
     w, s, e_, n = entry["bounds_lonlat"]
     assert w < e_ and s < n
     assert w <= 1.83 <= e_ and s <= 41.59 <= n  # the region's own extent
+
+
+def test_zones_bbox_lonlat_region_crs(tmp_path: Path) -> None:
+    from highliner.core import geo
+    cx, cy = geo.from_lonlat_crs(-16.25, 28.45, "EPSG:4083")
+    a = Anchor(x=cx - 40, y=cy, elev=100.0, sectors=((80.0, 100.0, 60.0),))
+    b = Anchor(x=cx + 40, y=cy, elev=100.0, sectors=((260.0, 280.0, 60.0),))
+    c = Candidate(a=a, b=b, length=80.0, exposure=80.0, height_diff=0.0)
+    _write_region(tmp_path, "canarias", (cx - 200.0, cy - 200.0,
+                  cx + 200.0, cy + 200.0), [a, b], [c], crs="EPSG:4083")
+
+    client = TestClient(create_app(data_dir=tmp_path))
+    r = client.get("/zones", params={
+        "region": "canarias",
+        "bbox_lonlat": "-16.26,28.44,-16.24,28.46",
+        "max_len": 120, "min_exposure": 50, "max_dh": 5,
+    })
+    assert r.status_code == 200
+    assert len(r.json()["features"]) == 1
 
 
 def test_anchors_endpoint(tmp_path: Path) -> None:

@@ -51,6 +51,31 @@ def test_fetch_tiles_skips_failures(tmp_path: Path, monkeypatch: pytest.MonkeyPa
     assert all(p.exists() for p in paths)
 
 
+def test_fetch_tiles_idee_uses_tif_tiles_and_region_crs(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    calls = []
+
+    def fake_download(
+        bbox: tuple[float, float, float, float],
+        width: int,
+        height: int,
+        dest: Path,
+        crs: str,
+    ) -> Path:
+        calls.append((bbox, width, height, dest.suffix, crs))
+        dest.write_bytes(b"II fake tif")
+        return dest
+
+    monkeypatch.setattr(ingest, "_download_idee_tile", fake_download)
+
+    paths = ingest.fetch_tiles((188000, 3060000, 188500, 3060500),
+                               tmp_path / "tiles", source="idee",
+                               crs="EPSG:4083")
+    assert paths
+    assert all(p.suffix == ".tif" for p in paths)
+    assert {c[4] for c in calls} == {"EPSG:4083"}
+
+
 def test_raster_from_tiles_merges(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(ingest, "_download_tile", _fake_asc)
     paths = ingest.fetch_tiles((484000, 4646000, 486000, 4647500),
@@ -81,4 +106,3 @@ def test_raster_from_tiles_masks_sea_sentinel(tmp_path: Path) -> None:
     assert np.isnan(r.data).any()               # sea half masked
     assert not (r.data == ingest.SEA_SENTINEL).any()
     assert (r.data == 100.0).any()              # land half kept
-

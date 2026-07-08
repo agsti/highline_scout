@@ -41,3 +41,7 @@ precompute *args:
 # Build the zoomed-out density pyramid from precomputed pairs.
 precompute-density *args:
     uv run highliner precompute-density {{args}}
+
+# Precompute all non-Catalonia Spain regions, resuming completed chunks.
+precompute-spain *args:
+    uv run python scripts/precompute_spain.py {{args}}

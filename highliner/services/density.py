@@ -9,14 +9,16 @@ from pathlib import Path
 from typing import Callable, Iterable
 
 from highliner.core import config, geo, tiles
+from highliner.core.regions import defaults_for_region
+from highliner.repositories import chunked_store
 from highliner.models.candidate import Candidate
 from highliner.repositories.candidates import load_candidates
 
 
-def _midpoint_lonlat(c: Candidate) -> tuple[float, float]:
+def _midpoint_lonlat(c: Candidate, crs: str) -> tuple[float, float]:
     mx = (c.a.x + c.b.x) / 2.0
     my = (c.a.y + c.b.y) / 2.0
-    return geo.to_lonlat(mx, my)
+    return geo.to_lonlat_crs(mx, my, crs)
 
 
 def build_density(region_dir: Path,
@@ -25,6 +27,10 @@ def build_density(region_dir: Path,
     """Build ``region_dir/density/z{z}.json`` for each zoom. Returns the total
     number of cells written across all zoom levels."""
     region_dir = Path(region_dir)
+    try:
+        crs = chunked_store.read_grid(region_dir).crs
+    except FileNotFoundError:
+        crs = defaults_for_region(region_dir.name).crs
     zooms = list(zoom_levels)
     pair_files = sorted((region_dir / "pairs").glob("q_*.parquet"))
 
@@ -33,7 +39,7 @@ def build_density(region_dir: Path,
     total = len(pair_files)
     for done, path in enumerate(pair_files, start=1):
         for c in load_candidates(path):
-            lon, lat = _midpoint_lonlat(c)
+            lon, lat = _midpoint_lonlat(c, crs)
             for z in zooms:
                 tx, ty = tiles.lonlat_to_tile(lon, lat, z)
                 key = (z, tx, ty)

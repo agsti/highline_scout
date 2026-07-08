@@ -2,6 +2,7 @@ import argparse
 import time
 from pathlib import Path
 from highliner.core import config
+from highliner.core.regions import defaults_for_region
 
 
 def _fmt_hms(seconds: float) -> str:
@@ -22,6 +23,9 @@ def _cmd_precompute(args: argparse.Namespace) -> None:
     minx, miny, maxx, maxy = (float(v) for v in args.bbox.split(","))
     bbox = (minx, miny, maxx, maxy)
     chunk_m = args.chunk_km * 1000.0
+    defaults = defaults_for_region(args.region)
+    crs = args.crs or defaults.crs
+    dtm_source = args.dtm_source or defaults.dtm_source
 
     start = time.monotonic()
 
@@ -33,7 +37,8 @@ def _cmd_precompute(args: argparse.Namespace) -> None:
               f"elapsed {_fmt_hms(elapsed)}  eta {_fmt_hms(eta)}",
               end="", flush=True)
     n = precompute_service.precompute(args.region, bbox, Path(args.data_dir),
-                                      chunk_m=chunk_m, report=report)
+                                      chunk_m=chunk_m, report=report,
+                                      crs=crs, dtm_source=dtm_source)
     print(f"\nprocessed {n} chunks -> {Path(args.data_dir) / args.region}")
 
 
@@ -75,6 +80,9 @@ def main(argv: list[str] | None = None) -> None:
     pc.add_argument("--bbox", required=True,
                     help="minx,miny,maxx,maxy in the region's CRS")
     pc.add_argument("--chunk-km", type=float, default=10.0)
+    pc.add_argument("--crs", help="projected CRS for bbox and stored data")
+    pc.add_argument("--dtm-source", choices=["icgc", "idee", "cnig"],
+                    help="terrain source; defaults from the region name")
     pc.set_defaults(func=_cmd_precompute)
 
     pd = sub.add_parser("precompute-density", parents=[common])

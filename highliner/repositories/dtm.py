@@ -1,4 +1,4 @@
-"""Fetch ICGC Digital Terrain Model elevation rasters.
+"""Fetch Digital Terrain Model elevation rasters.
 
 ICGC serves the DTM through a WCS 1.0.0 endpoint as ESRI ArcGrid (ASCII):
 
@@ -7,14 +7,25 @@ ICGC serves the DTM through a WCS 1.0.0 endpoint as ESRI ArcGrid (ASCII):
 
 Each GetCoverage response is capped at ~140 KB (~35,800 pixels), so precompute
 fetches each chunk as a grid of small tiles and merges them in memory.
+
+IGN/IDEE serves the national MDT05 through OGC API Coverages. The code here
+requests small COG subsets from the EPSG-specific 5 m collections.
 """
 from pathlib import Path
 from typing import TYPE_CHECKING
+import fcntl
+import json
 import math
+import os
+import re
+import time
 import numpy as np
 import requests
 import rasterio
 from rasterio.merge import merge
+from pyproj import Transformer
+from shapely.geometry import box, shape, mapping
+from shapely.ops import transform as shapely_transform
 if TYPE_CHECKING:
     from highliner.models.raster import Raster
 
@@ -22,6 +33,14 @@ Bbox = tuple[float, float, float, float]
 
 ICGC_WCS = "https://geoserveis.icgc.cat/icc_mdt/wcs/service"
 COVERAGE_ID = "icc:met"
+IDEE_COVERAGE_API = "https://api-coverages.idee.es/collections"
+IDEE_COLLECTIONS = {
+    "EPSG:25830": "EL.ElevationGridCoverage_25830_5_PB",
+    "EPSG:4083": "EL.ElevationGridCoverage_4083_5_C",
+}
+CNIG_BASE = "https://centrodedescargas.cnig.es/CentroDescargas"
+CNIG_SERIES_PATH = "modelo-digital-terreno-mdt05-primera-cobertura"
+CNIG_HEADERS = {"User-Agent": "Mozilla/5.0 highliner-finder/0.1"}
 NATIVE_RES = 5.0       # meters — finest DTM resolution on this WCS
 MAX_TILE_PX = 175      # per side; 175*175 < 35,800 px request cap
 NODATA = -9999.0
@@ -52,6 +71,252 @@ def _download_tile(bbox: Bbox, width: int, height: int, dest: Path) -> Path:
             f"ICGC WCS did not return ArcGrid data: {r.content[:200]!r}")
     dest.write_bytes(r.content)
     return dest
+
+
+def _epsg_code(crs: str) -> str:
+    return crs.rsplit(":", 1)[-1]
+
+
+def _download_idee_tile(bbox: Bbox, width: int, height: int, dest: Path,
+                        crs: str) -> Path:
+    collection = IDEE_COLLECTIONS.get(crs)
+    if collection is None:
+        raise RuntimeError(f"no IDEE MDT05 collection configured for {crs}")
+    minx, miny, maxx, maxy = bbox
+    params = {
+        "f": "COG",
+        "bbox": f"{minx},{miny},{maxx},{maxy}",
+        "bbox-crs": f"http://www.opengis.net/def/crs/EPSG/0/{_epsg_code(crs)}",
+    }
+    url = f"{IDEE_COVERAGE_API}/{collection}/coverage"
+    r = requests.get(url, params=params, timeout=180)
+    r.raise_for_status()
+    if not (r.content[:2] in (b"II", b"MM")
+            or "tiff" in r.headers.get("content-type", "").lower()):
+        raise RuntimeError(
+            f"IDEE coverage did not return GeoTIFF data: {r.content[:200]!r}")
+    dest.write_bytes(r.content)
+    return dest
+
+
+def _cnig_session() -> requests.Session:
+    s = requests.Session()
+    s.headers.update(CNIG_HEADERS)
+    return s
+
+
+def _cnig_catalog_page(session: requests.Session, page: int) -> str:
+    params = {
+        "codAgr": "MOMDT",
+        "codSerie": "MDT05",
+        "numPagina": str(page),
+        "codTipoArchivo": "",
+        "codComAutonoma": "",
+        "codProvincia": "",
+        "codIne": "",
+        "coordenadas": "",
+        "huso": "",
+        "x": "",
+        "y": "",
+        "lon": "",
+        "lat": "",
+        "formato": "COG",
+    }
+    r = session.get(f"{CNIG_BASE}/archivosSerie", params=params, timeout=60)
+    r.raise_for_status()
+    return r.text
+
+
+def _cnig_sheet_geom(session: requests.Session, sec: str):
+    for attempt in range(6):
+        r = session.get(f"{CNIG_BASE}/localizarCoordsSec",
+                        params={"secuencial": sec}, timeout=60)
+        if r.status_code != 429:
+            r.raise_for_status()
+            coords = json.loads(r.json()["coordsJson"])
+            return shape(coords["features"][0]["geometry"])
+        retry_after = int(r.headers.get("Retry-After", "0") or "0")
+        time.sleep(max(retry_after, 10 * (attempt + 1)))
+    r.raise_for_status()
+    raise RuntimeError("unreachable")
+
+
+def _cnig_index(index_path: Path) -> list[dict[str, object]]:
+    if index_path.exists():
+        rows = json.loads(index_path.read_text())
+        for row in rows:
+            row["geometry"] = shape(row["geometry"])
+        return rows
+
+    index_path.parent.mkdir(parents=True, exist_ok=True)
+    partial_path = index_path.with_suffix(".partial.json")
+    partial: dict[str, dict[str, object]] = {}
+    if partial_path.exists():
+        for row in json.loads(partial_path.read_text()):
+            partial[str(row["secuencial"])] = row
+
+    session = _cnig_session()
+    session.get(f"{CNIG_BASE}/{CNIG_SERIES_PATH}", timeout=60)
+    catalog: list[tuple[str, str]] = []
+    seen: set[str] = set()
+    page = 1
+    while True:
+        html = _cnig_catalog_page(session, page)
+        secs = re.findall(r"detalleArchivo\?sec=(\d+)", html)
+        names = re.findall(r"PNOA[-_]MDT05[^<\s]+", html)
+        for sec, name in zip(secs, names):
+            if sec in seen:
+                continue
+            seen.add(sec)
+            catalog.append((sec, name.replace("_", "-")))
+        if not secs:
+            break
+        page += 1
+
+    for i, (sec, name) in enumerate(catalog, start=1):
+        if sec not in partial:
+            partial[sec] = {
+                "secuencial": sec,
+                "filename": name,
+                "geometry": mapping(_cnig_sheet_geom(session, sec)),
+            }
+            if i % 10 == 0:
+                partial_path.write_text(json.dumps(list(partial.values())))
+            time.sleep(1.0)
+
+    partial_path.write_text(json.dumps(list(partial.values())))
+    rows: list[dict[str, object]] = []
+    for row in partial.values():
+        rows.append({
+            "secuencial": row["secuencial"],
+            "filename": row["filename"],
+            "geometry": shape(row["geometry"]),
+        })
+    serializable = [
+        {"secuencial": r["secuencial"], "filename": r["filename"],
+         "geometry": mapping(r["geometry"])}
+        for r in rows
+    ]
+    index_path.write_text(json.dumps(serializable))
+    partial_path.unlink(missing_ok=True)
+    return rows
+
+
+def _bbox_geom_lonlat(bbox: Bbox, crs: str):
+    geom = box(*bbox)
+    transformer = Transformer.from_crs(crs, "EPSG:4326", always_xy=True)
+    return shapely_transform(transformer.transform, geom)
+
+
+def _preferred_huso(crs: str) -> str | None:
+    code = _epsg_code(crs)
+    if code in {"25828", "4083"}:
+        return "HU28"
+    if code == "25829":
+        return "HU29"
+    if code == "25830":
+        return "HU30"
+    if code == "25831":
+        return "HU31"
+    return None
+
+
+def _cnig_query_sheets(session: requests.Session, bbox: Bbox,
+                       crs: str) -> list[tuple[str, str]]:
+    geom = _bbox_geom_lonlat(bbox, crs)
+    coords = json.dumps({
+        "type": "FeatureCollection",
+        "features": [{"type": "Feature", "geometry": mapping(geom)}],
+    })
+    out: list[tuple[str, str]] = []
+    seen: set[str] = set()
+    page = 1
+    while True:
+        params = {
+            "codAgr": "MOMDT",
+            "codSerie": "MDT05",
+            "numPagina": str(page),
+            "codTipoArchivo": "",
+            "codComAutonoma": "",
+            "codProvincia": "",
+            "codIne": "",
+            "coordenadas": coords,
+            "huso": "",
+            "x": "",
+            "y": "",
+            "lon": "",
+            "lat": "",
+            "formato": "COG",
+        }
+        r = session.get(f"{CNIG_BASE}/archivosSerie", params=params, timeout=60)
+        r.raise_for_status()
+        secs = re.findall(r"detalleArchivo\?sec=(\d+)", r.text)
+        names = re.findall(r"PNOA[-_]MDT05[^<\s]+", r.text)
+        added = 0
+        for sec, name in zip(secs, names):
+            if sec in seen:
+                continue
+            seen.add(sec)
+            out.append((sec, name.replace("_", "-")))
+            added += 1
+        if added == 0:
+            break
+        page += 1
+
+    huso = _preferred_huso(crs)
+    if huso and any(huso in name for _sec, name in out):
+        out = [(sec, name) for sec, name in out if huso in name]
+    return out
+
+
+def _download_cnig_sheet(session: requests.Session, sec: str, filename: str,
+                         dest: Path) -> Path:
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    if dest.exists() and dest.stat().st_size > 0:
+        return dest
+    lock_path = dest.with_suffix(dest.suffix + ".lock")
+    with lock_path.open("w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        if dest.exists() and dest.stat().st_size > 0:
+            return dest
+        session.get(f"{CNIG_BASE}/detalleArchivo", params={"sec": sec}, timeout=60)
+        r = session.get(f"{CNIG_BASE}/initDescargaDir",
+                        params={"secuencial": sec}, timeout=60)
+        r.raise_for_status()
+        sec_download = str(r.json()["secuencialDescDir"])
+        data = {
+            "secuencial": sec,
+            "secDescDirLA": sec_download,
+            "codSerie": "MDT05",
+            "urlCart": "",
+            "id_productor": "",
+            "codNumMD": "",
+            "avisoLimiteFiles": "",
+        }
+        tmp = dest.with_suffix(dest.suffix + f".{os.getpid()}.part")
+        with session.post(f"{CNIG_BASE}/descargaDir", data=data, stream=True,
+                          timeout=300) as resp:
+            resp.raise_for_status()
+            if "tiff" not in resp.headers.get("content-type", "").lower():
+                head = resp.raw.read(200, decode_content=True)
+                raise RuntimeError(f"CNIG did not return GeoTIFF data: {head!r}")
+            with tmp.open("wb") as fh:
+                for chunk in resp.iter_content(1024 * 1024):
+                    if chunk:
+                        fh.write(chunk)
+        tmp.replace(dest)
+    return dest
+
+
+def _fetch_cnig_tiles(bbox: Bbox, tiles_dir: Path, crs: str) -> list[Path]:
+    data_dir = tiles_dir.parent.parent
+    session = _cnig_session()
+    out: list[Path] = []
+    cache_dir = data_dir / "mdt05_tiles"
+    for sec, filename in _cnig_query_sheets(session, bbox, crs):
+        dest = cache_dir / filename
+        out.append(_download_cnig_sheet(session, sec, filename, dest))
+    return out
 
 
 def estimate_tiles(bbox: Bbox, res: float = NATIVE_RES,
@@ -95,32 +360,44 @@ def tile_specs(bbox: Bbox, res: float = NATIVE_RES, tile_px: int = MAX_TILE_PX
 
 
 def fetch_tiles(bbox: Bbox, tiles_dir: Path, res: float = NATIVE_RES,
-                tile_px: int = MAX_TILE_PX) -> list[Path]:
+                tile_px: int = MAX_TILE_PX, source: str = "icgc",
+                crs: str = "EPSG:25831") -> list[Path]:
     """Download tiles covering ``bbox`` into ``tiles_dir``; reuse cached tiles;
     skip tiles whose WCS response errors or is not ArcGrid (out of coverage).
     Returns the paths that exist on disk."""
     tiles_dir = Path(tiles_dir)
     tiles_dir.mkdir(parents=True, exist_ok=True)
+    if source == "cnig":
+        return _fetch_cnig_tiles(bbox, tiles_dir, crs)
     paths: list[Path] = []
     for tb, w, h in tile_specs(bbox, res, tile_px):
-        dest = tiles_dir / f"t_{int(tb[0])}_{int(tb[1])}.asc"
+        ext = "tif" if source == "idee" else "asc"
+        dest = tiles_dir / f"t_{int(tb[0])}_{int(tb[1])}.{ext}"
         if not dest.exists():
             try:
-                _download_tile(tb, w, h, dest)
+                if source == "icgc":
+                    _download_tile(tb, w, h, dest)
+                elif source == "idee":
+                    _download_idee_tile(tb, w, h, dest, crs)
+                elif source == "cnig":
+                    raise RuntimeError("cnig source is handled before tiling")
+                else:
+                    raise RuntimeError(f"unknown DTM source '{source}'")
             except (requests.RequestException, RuntimeError):
                 continue
         paths.append(dest)
     return paths
 
 
-def raster_from_tiles(paths: list[Path], res: float = NATIVE_RES) -> "Raster | None":
+def raster_from_tiles(paths: list[Path], res: float = NATIVE_RES,
+                      bbox: Bbox | None = None) -> "Raster | None":
     """Merge tile rasters into one in-memory ``Raster`` (NaN nodata), or None."""
     from highliner.models.raster import Raster
     if not paths:
         return None
     srcs = [rasterio.open(p) for p in paths]
     try:
-        arr, transform = merge(srcs, nodata=NODATA)
+        arr, transform = merge(srcs, nodata=NODATA, bounds=bbox)
     finally:
         for s in srcs:
             s.close()

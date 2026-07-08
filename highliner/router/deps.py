@@ -30,13 +30,17 @@ def get_data_dir(request: Request) -> Path:
     return data_dir
 
 
-def parse_bbox_utm(bbox: str | None, bbox_lonlat: str | None) -> Bbox:
-    """Return (minx, miny, maxx, maxy) in UTM from either a UTM bbox string
+def parse_bbox_utm(
+    bbox: str | None,
+    bbox_lonlat: str | None,
+    crs: str = config.UTM_CRS,
+) -> Bbox:
+    """Return (minx, miny, maxx, maxy) in ``crs`` from either a projected bbox string
     or a lon/lat bbox string. Raises HTTPException(400) if neither given."""
     if bbox_lonlat:
         w, s, e, n = (float(v) for v in bbox_lonlat.split(","))
-        minx, miny = geo.to_utm(w, s)
-        maxx, maxy = geo.to_utm(e, n)
+        minx, miny = geo.from_lonlat_crs(w, s, crs)
+        maxx, maxy = geo.from_lonlat_crs(e, n, crs)
         return minx, miny, maxx, maxy
     if bbox:
         minx, miny, maxx, maxy = (float(v) for v in bbox.split(","))
@@ -44,7 +48,11 @@ def parse_bbox_utm(bbox: str | None, bbox_lonlat: str | None) -> Bbox:
     raise HTTPException(400, "provide bbox or bbox_lonlat")
 
 
-def parse_bbox_lonlat(bbox: str | None, bbox_lonlat: str | None) -> Bbox:
+def parse_bbox_lonlat(
+    bbox: str | None,
+    bbox_lonlat: str | None,
+    crs: str = config.UTM_CRS,
+) -> Bbox:
     """Return (w, s, e, n) in lon/lat from a lon/lat bbox string, or by
     converting a UTM bbox string's corners. Raises 400 if neither given."""
     if bbox_lonlat:
@@ -52,7 +60,7 @@ def parse_bbox_lonlat(bbox: str | None, bbox_lonlat: str | None) -> Bbox:
         return w, s, e, n
     if bbox:
         minx, miny, maxx, maxy = (float(v) for v in bbox.split(","))
-        w, s = geo.to_lonlat(minx, miny)
-        e, n = geo.to_lonlat(maxx, maxy)
+        w, s = geo.to_lonlat_crs(minx, miny, crs)
+        e, n = geo.to_lonlat_crs(maxx, maxy, crs)
         return w, s, e, n
     raise HTTPException(400, "provide bbox or bbox_lonlat")

@@ -1,6 +1,6 @@
 """GeoJSON serialization of domain objects for the web boundary.
 
-Conversion from internal UTM (EPSG:25831) to WGS84 lon/lat happens here, the
+Conversion from internal projected coordinates to WGS84 lon/lat happens here, the
 only place anchors and zones are turned into the FeatureCollections the
 frontend consumes.
 """
@@ -11,10 +11,10 @@ from highliner.models.anchor import Anchor
 from highliner.models.zone import Zone
 
 
-def anchors_to_geojson(anchors: list[Anchor]) -> dict[str, Any]:
+def anchors_to_geojson(anchors: list[Anchor], crs: str | None = None) -> dict[str, Any]:
     features = []
     for a in anchors:
-        lon, lat = geo.to_lonlat(a.x, a.y)
+        lon, lat = geo.to_lonlat_crs(a.x, a.y, crs) if crs else geo.to_lonlat(a.x, a.y)
         features.append({
             "type": "Feature",
             "geometry": {"type": "Point", "coordinates": [lon, lat]},
@@ -26,10 +26,10 @@ def anchors_to_geojson(anchors: list[Anchor]) -> dict[str, Any]:
     return {"type": "FeatureCollection", "features": features}
 
 
-def zones_to_geojson(zones: list[Zone]) -> dict[str, Any]:
+def zones_to_geojson(zones: list[Zone], crs: str | None = None) -> dict[str, Any]:
     features = []
     for z in zones:
-        ring = [list(geo.to_lonlat(x, y))
+        ring = [list(geo.to_lonlat_crs(x, y, crs) if crs else geo.to_lonlat(x, y))
                 for x, y in z.polygon.exterior.coords]
         features.append({
             "type": "Feature",

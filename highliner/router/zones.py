@@ -24,9 +24,11 @@ def zones(
     max_dh: float = config.DEFAULT_MAX_DH_M,
     cluster_dist: float = config.CLUSTER_DIST_M,
 ) -> dict[str, Any]:
-    box = parse_bbox_utm(bbox, bbox_lonlat)
     data_dir = request.app.state.data_dir
-    pairs = chunked_store.load_pairs_in_bbox(data_dir / region, box)
+    region_dir = data_dir / region
+    grid = chunked_store.read_grid(region_dir)
+    box = parse_bbox_utm(bbox, bbox_lonlat, grid.crs)
+    pairs = chunked_store.load_pairs_in_bbox(region_dir, box)
     cands = filter_candidates(pairs, max_len, min_len, min_exposure, max_dh)
     return serializers.zones_to_geojson(
-        zones_service.build_zones(cands, cluster_dist))
+        zones_service.build_zones(cands, cluster_dist), grid.crs)

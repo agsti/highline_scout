@@ -109,6 +109,34 @@ def test_precompute_writes_grid_and_all_chunks(
     assert n == 2
 
 
+def test_precompute_writes_region_crs_and_source_defaults(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from highliner.repositories import dtm as _dtm
+
+    seen: list[tuple[tuple[float, float, float, float], str, str]] = []
+
+    def fake_fetch(
+        bbox: tuple[float, float, float, float],
+        tiles_dir: Path,
+        res: float = _dtm.NATIVE_RES,
+        tile_px: int = _dtm.MAX_TILE_PX,
+        source: str = "icgc",
+        crs: str = config.UTM_CRS,
+    ) -> list[Path]:
+        seen.append((bbox, source, crs))
+        return []
+
+    monkeypatch.setattr(_dtm, "fetch_tiles", fake_fetch)
+    bbox = (188000.0, 3060000.0, 198000.0, 3070000.0)
+    precompute.precompute("canarias", bbox, tmp_path, chunk_m=10000.0)
+
+    import json
+    grid = json.loads((tmp_path / "canarias" / "grid.json").read_text())
+    assert grid["crs"] == "EPSG:4083"
+    assert grid["dtm_source"] == "cnig"
+    assert seen and seen[0][1:] == ("cnig", "EPSG:4083")
+
+
 def _patch_seam_gap_download(monkeypatch: pytest.MonkeyPatch) -> None:
     """Terrain: plateau 100 m except a 40 m-wide N-S trench (elev 20) centred on
     x=495000 — the seam between chunk (0,0) and chunk (1,0)."""

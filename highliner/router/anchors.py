@@ -16,7 +16,9 @@ def anchors(
     bbox: str | None = None,
     bbox_lonlat: str | None = None,
 ) -> dict[str, Any]:
-    box = parse_bbox_utm(bbox, bbox_lonlat)
     data_dir = request.app.state.data_dir
-    anchor_list = chunked_store.load_anchors_in_bbox(data_dir / region, box)
-    return serializers.anchors_to_geojson(anchors_in_view(anchor_list, box))
+    region_dir = data_dir / region
+    grid = chunked_store.read_grid(region_dir)
+    box = parse_bbox_utm(bbox, bbox_lonlat, grid.crs)
+    anchor_list = chunked_store.load_anchors_in_bbox(region_dir, box)
+    return serializers.anchors_to_geojson(anchors_in_view(anchor_list, box), grid.crs)

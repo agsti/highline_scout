@@ -40,5 +40,6 @@
 
   body {
     @apply m-0 bg-background font-sans text-foreground antialiased;
+    overscroll-behavior: none;
   }
 }

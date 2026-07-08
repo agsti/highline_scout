@@ -18,18 +18,21 @@ describe("catalog parity", () => {
   it("preserves representative source strings from web/i18n.js", () => {
     expect(STRINGS.ca.region).toBe("Regió");
     expect(STRINGS.ca.searching).toBe("cercant…");
+    expect(STRINGS.ca.mapLoading).toBe("Carregant mapa");
     expect(STRINGS.ca.zonePopup).toBe(
       "alçada {min}–{max} m<br>longitud {lmin}–{lmax} m<br>{na} ancoratges · {np} línies",
     );
     expect(STRINGS.ca.anchorSector).toBe("caiguda {a}–{b}° ({drop} m)");
 
     expect(STRINGS.es.region).toBe("Región");
+    expect(STRINGS.es.mapLoading).toBe("Cargando mapa");
     expect(STRINGS.es.hotspotCells).toBe("{n} celdas de puntos de interés (amplía para ver zonas)");
     expect(STRINGS.es.anchorPopup).toBe("anclaje • elev {elev} m<br>{sectors}");
 
     expect(STRINGS.en.caveat).toBe(
       "Zones to scout — not confirmed-riggable. No bolts, trees, loose rock, access or permissions are verified.",
     );
+    expect(STRINGS.en.mapLoading).toBe("Map loading");
     expect(STRINGS.en.densityTooltip).toBe("{n} candidate lines · up to {max} m{lenHint}");
   });
 });

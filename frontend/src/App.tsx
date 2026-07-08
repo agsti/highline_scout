@@ -80,7 +80,7 @@ export function App() {
         }
         map={
           <div className="flex h-full items-center justify-center bg-secondary text-sm text-muted-foreground">
-            Map loading
+            {t("mapLoading")}
           </div>
         }
       />

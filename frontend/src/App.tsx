@@ -18,6 +18,7 @@ export function App() {
   const { t } = useI18n();
   const [regions, setRegions] = useState<Region[]>([]);
   const [region, setRegion] = useState("");
+  const [mapStatus, setMapStatus] = useState(() => t("searching"));
   const [mapErrorDetail, setMapErrorDetail] = useState("");
   const [viewportBbox, setViewportBbox] = useState("");
   const [maxLen, setMaxLen] = useState(150);
@@ -62,7 +63,7 @@ export function App() {
 
   const statuses = (
     <div className="space-y-1">
-      <StatusLine>{mapErrorDetail ? t("error", { detail: mapErrorDetail }) : (viewportBbox ? "" : t("searching"))}</StatusLine>
+      <StatusLine>{mapErrorDetail ? t("error", { detail: mapErrorDetail }) : mapStatus}</StatusLine>
       <StatusLine>{t("zoomInToSee", { noun: t("nounZones") })}</StatusLine>
     </div>
   );
@@ -103,7 +104,14 @@ export function App() {
           />
         }
         map={
-          <MapView regions={regions} region={region} onViewportChange={handleViewportChange} />
+          <MapView
+            regions={regions}
+            region={region}
+            maxLen={maxLen}
+            minExposure={minExposure}
+            onViewportChange={handleViewportChange}
+            onMapStatus={setMapStatus}
+          />
         }
       />
       <SafetyDisclaimerDialog open={disclaimerOpen} onAccept={() => setDisclaimerOpen(false)} />

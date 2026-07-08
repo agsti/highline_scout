@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -14,7 +14,12 @@ vi.mock("./lib/api", () => ({
 }));
 
 vi.mock("./components/map/MapView", () => ({
-  MapView: ({ region }: { region: string }) => <div data-testid="map-view">{region}</div>,
+  MapView: ({ region, onMapStatus }: { region: string; onMapStatus?: (status: string) => void }) => {
+    useEffect(() => {
+      onMapStatus?.("3 zones");
+    }, [onMapStatus]);
+    return <div data-testid="map-view">{region}</div>;
+  },
 }));
 
 vi.mock("./components/AppShell", () => ({
@@ -28,11 +33,21 @@ vi.mock("./components/AppShell", () => ({
 }));
 
 vi.mock("./components/DesktopSidebar", () => ({
-  DesktopSidebar: ({ filters }: { filters: ReactNode }) => <div>{filters}</div>,
+  DesktopSidebar: ({ filters, statuses }: { filters: ReactNode; statuses: ReactNode }) => (
+    <div>
+      {filters}
+      {statuses}
+    </div>
+  ),
 }));
 
 vi.mock("./components/MobileControlSheet", () => ({
-  MobileControlSheet: ({ filters }: { filters: ReactNode }) => <div>{filters}</div>,
+  MobileControlSheet: ({ filters, statuses }: { filters: ReactNode; statuses: ReactNode }) => (
+    <div>
+      {filters}
+      {statuses}
+    </div>
+  ),
 }));
 
 vi.mock("./components/RestrictionLayerControls", () => ({
@@ -114,5 +129,12 @@ describe("App", () => {
 
     await user.click(screen.getByRole("button", { name: "set english" }));
     expect(apiMocks.fetchRegions).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows the map status in both desktop and mobile status areas", async () => {
+    renderApp();
+
+    await screen.findAllByText("3 zones");
+    expect(screen.getAllByText("3 zones")).toHaveLength(2);
   });
 });

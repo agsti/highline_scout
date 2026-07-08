@@ -1,7 +1,7 @@
 import { renderHook, act } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { describe, expect, it } from "vitest";
-import { I18nProvider, LANGS, STRINGS, restrictionText, useI18n } from "./index";
+import { I18nProvider, LANGS, RESTRICTION_STRINGS, STRINGS, restrictionText, useI18n } from "./index";
 
 function wrapper({ children }: { children: ReactNode }) {
   return <I18nProvider>{children}</I18nProvider>;
@@ -55,6 +55,15 @@ describe("restrictionText", () => {
     tooltip: "Text en catala",
     highlight: "catala",
   };
+
+  it("keeps every translated restriction highlight as a tooltip substring", () => {
+    for (const [lang, entries] of Object.entries(RESTRICTION_STRINGS)) {
+      for (const [id, text] of Object.entries(entries ?? {})) {
+        expect(text.tooltip).toContain(text.highlight);
+        expect(restrictionText(id, lang as (typeof LANGS)[number], fallback)).toEqual(text);
+      }
+    }
+  });
 
   it("uses Catalan backend fallback for ca", () => {
     expect(restrictionText("pein", "ca", fallback)).toEqual(fallback);

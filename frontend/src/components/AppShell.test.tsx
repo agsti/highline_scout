@@ -16,12 +16,19 @@ type StorageShim = {
 };
 
 let storageShim: StorageShim | null = null;
+let originalDocumentLangState: { hadLang: boolean; langValue: string | null } | null = null;
 
 function setTestLanguage(lang: string) {
   window.localStorage.setItem("lang", lang);
 }
 
 beforeEach(() => {
+  const documentElement = document.documentElement;
+  originalDocumentLangState = {
+    hadLang: documentElement.hasAttribute("lang"),
+    langValue: documentElement.getAttribute("lang"),
+  };
+
   const store = new Map<string, string>([["lang", "ca"]]);
   storageShim = {
     getItem: (key: string) => store.get(key) ?? null,
@@ -40,7 +47,6 @@ beforeEach(() => {
     configurable: true,
     value: storageShim,
   });
-  document.documentElement.removeAttribute("lang");
 });
 
 afterEach(() => {
@@ -49,7 +55,16 @@ afterEach(() => {
     Object.defineProperty(window, "localStorage", originalLocalStorageDescriptor);
   }
   storageShim = null;
-  document.documentElement.removeAttribute("lang");
+
+  if (originalDocumentLangState) {
+    if (originalDocumentLangState.hadLang) {
+      document.documentElement.setAttribute("lang", originalDocumentLangState.langValue ?? "");
+    } else {
+      document.documentElement.removeAttribute("lang");
+    }
+  }
+
+  originalDocumentLangState = null;
 });
 
 function renderShell() {

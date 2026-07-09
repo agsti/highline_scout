@@ -7,6 +7,9 @@ the raw downloads. RAM is bounded to one chunk; no DTM persists.
 """
 import json
 import math
+import concurrent.futures
+import os
+import shutil
 from pathlib import Path
 from typing import Callable, Iterator
 
@@ -40,6 +43,13 @@ def _in_core(x: float, y: float, core: Bbox) -> bool:
     return core[0] <= x < core[2] and core[1] <= y < core[3]
 
 
+def _cleanup_transient_tiles(tiles: list[Path], tiles_dir: Path) -> None:
+    for t in tiles:
+        if t.parent == tiles_dir:
+            t.unlink(missing_ok=True)
+    shutil.rmtree(tiles_dir, ignore_errors=True)
+
+
 def process_chunk(cx: int, cy: int, core_bbox: Bbox, region_dir: Path,
                   halo: float = config.CHUNK_HALO_M,
                   crs: str = config.UTM_CRS,
@@ -53,51 +63,67 @@ def process_chunk(cx: int, cy: int, core_bbox: Bbox, region_dir: Path,
 
     minx, miny, maxx, maxy = core_bbox
     halo_bbox = (minx - halo, miny - halo, maxx + halo, maxy + halo)
-    tiles = dtm.fetch_tiles(halo_bbox, region_dir / "tiles",
+    tiles_dir = region_dir / "tiles" / f"chunk_{cx}_{cy}_{os.getpid()}"
+    tiles_dir.mkdir(parents=True, exist_ok=True)
+    tiles = dtm.fetch_tiles(halo_bbox, tiles_dir,
                             source=dtm_source, crs=crs)
 
-    core_anchors: list[Anchor] = []
-    owned_pairs: list[Candidate] = []
-    raster = dtm.raster_from_tiles(tiles, bbox=halo_bbox)
-    if raster is not None:
-        anchors = extract_anchors(
-            raster, slope_min=config.SLOPE_MIN_DEG, radius=config.DROP_RADIUS_M,
-            n_azimuths=config.N_AZIMUTHS, min_sector_drop=config.MIN_SECTOR_DROP_M,
-            thin_dist=config.THIN_DIST_M)
-        core_anchors = [a for a in anchors if _in_core(a.x, a.y, core_bbox)]
-        cands = find_candidates(
-            anchors, raster, max_len=config.MAX_PAIR_LEN,
-            min_len=config.PRECOMPUTE_MIN_LEN_M,
-            min_exposure=config.PRECOMPUTE_MIN_EXPOSURE_M,
-            max_dh=config.PRECOMPUTE_MAX_DH_M)
-        for c in cands:
-            # Own a cross-chunk pair via its canonical endpoint. Round the
-            # tie-break coords so sub-meter drift between a pair re-extracted in
-            # adjacent chunks can't flip which endpoint is "canonical" (which
-            # could drop or duplicate a seam-crossing line).
-            kx, ky = min((float(round(c.a.x)), float(round(c.a.y)), c.a.x, c.a.y),
-                         (float(round(c.b.x)), float(round(c.b.y)), c.b.x, c.b.y))[2:]
-            if _in_core(kx, ky, core_bbox):
-                owned_pairs.append(c)
+    try:
+        core_anchors: list[Anchor] = []
+        owned_pairs: list[Candidate] = []
+        raster = dtm.raster_from_tiles(tiles, bbox=halo_bbox)
+        if raster is not None:
+            anchors = extract_anchors(
+                raster, slope_min=config.SLOPE_MIN_DEG, radius=config.DROP_RADIUS_M,
+                n_azimuths=config.N_AZIMUTHS, min_sector_drop=config.MIN_SECTOR_DROP_M,
+                thin_dist=config.THIN_DIST_M)
+            core_anchors = [a for a in anchors if _in_core(a.x, a.y, core_bbox)]
+            cands = find_candidates(
+                anchors, raster, max_len=config.MAX_PAIR_LEN,
+                min_len=config.PRECOMPUTE_MIN_LEN_M,
+                min_exposure=config.PRECOMPUTE_MIN_EXPOSURE_M,
+                max_dh=config.PRECOMPUTE_MAX_DH_M)
+            for c in cands:
+                # Own a cross-chunk pair via its canonical endpoint. Round the
+                # tie-break coords so sub-meter drift between a pair re-extracted in
+                # adjacent chunks can't flip which endpoint is "canonical" (which
+                # could drop or duplicate a seam-crossing line).
+                kx, ky = min((float(round(c.a.x)), float(round(c.a.y)), c.a.x, c.a.y),
+                             (float(round(c.b.x)), float(round(c.b.y)), c.b.x, c.b.y))[2:]
+                if _in_core(kx, ky, core_bbox):
+                    owned_pairs.append(c)
 
-    (region_dir / "anchors").mkdir(parents=True, exist_ok=True)
-    (region_dir / "pairs").mkdir(parents=True, exist_ok=True)
-    save_anchors(core_anchors, region_dir / "anchors" / f"p_{cx}_{cy}.parquet")
-    save_candidates(owned_pairs, qpath)
-    transient_dir = region_dir / "tiles"
-    for t in tiles:
-        if t.parent == transient_dir:
-            t.unlink(missing_ok=True)
+        (region_dir / "anchors").mkdir(parents=True, exist_ok=True)
+        (region_dir / "pairs").mkdir(parents=True, exist_ok=True)
+        apath = region_dir / "anchors" / f"p_{cx}_{cy}.parquet"
+        tmp_id = f"tmp-{os.getpid()}-{cx}-{cy}"
+        atmp = apath.with_name(f"{apath.name}.{tmp_id}")
+        qtmp = qpath.with_name(f"{qpath.name}.{tmp_id}")
+        try:
+            save_anchors(core_anchors, atmp)
+            save_candidates(owned_pairs, qtmp)
+            atmp.replace(apath)
+            qtmp.replace(qpath)
+        except Exception:
+            atmp.unlink(missing_ok=True)
+            qtmp.unlink(missing_ok=True)
+            raise
+    finally:
+        _cleanup_transient_tiles(tiles, tiles_dir)
     return len(owned_pairs)
 
 
 def precompute(region: str, bbox: Bbox, data_dir: Path, chunk_m: float = config.CHUNK_M,
               report: Callable[[int, int], None] | None = None,
               crs: str | None = None,
-              dtm_source: str | None = None) -> int:
+              dtm_source: str | None = None,
+              workers: int = 1) -> int:
     """Precompute anchors + pairs for ``bbox`` under ``data_dir/<region>``.
     Writes grid.json, then processes every chunk (skipping finished ones).
     Returns the number of chunks."""
+    if workers < 1:
+        raise ValueError("workers must be >= 1")
+
     region_dir = Path(data_dir) / region
     defaults = defaults_for_region(region)
     crs = crs or defaults.crs
@@ -109,8 +135,23 @@ def precompute(region: str, bbox: Bbox, data_dir: Path, chunk_m: float = config.
 
     chunks = list(chunk_grid(bbox, chunk_m))
     total = len(chunks)
-    for i, (cx, cy, core) in enumerate(chunks, start=1):
-        process_chunk(cx, cy, core, region_dir, crs=crs, dtm_source=dtm_source)
-        if report is not None:
-            report(i, total)
+    if workers == 1:
+        for i, (cx, cy, core) in enumerate(chunks, start=1):
+            process_chunk(cx, cy, core, region_dir, crs=crs, dtm_source=dtm_source)
+            if report is not None:
+                report(i, total)
+        return total
+
+    done = 0
+    with concurrent.futures.ProcessPoolExecutor(max_workers=workers) as pool:
+        futures = [
+            pool.submit(process_chunk, cx, cy, core, region_dir,
+                        crs=crs, dtm_source=dtm_source)
+            for cx, cy, core in chunks
+        ]
+        for future in concurrent.futures.as_completed(futures):
+            future.result()
+            done += 1
+            if report is not None:
+                report(done, total)
     return total

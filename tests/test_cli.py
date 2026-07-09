@@ -11,23 +11,27 @@ def test_precompute_command(monkeypatch: pytest.MonkeyPatch) -> None:
              chunk_m: float = 10000.0,
              report: Callable[[int, int], None] | None = None,
              crs: str | None = None,
-             dtm_source: str | None = None) -> int:
+             dtm_source: str | None = None,
+             workers: int = 1) -> int:
         calls["region"] = region
         calls["bbox"] = bbox
         calls["chunk_m"] = chunk_m
         calls["crs"] = crs
         calls["dtm_source"] = dtm_source
+        calls["workers"] = workers
         if report:
             report(1, 1)
         return 1
     monkeypatch.setattr("highliner.services.precompute.precompute", fake)
     cli.main(["precompute", "--region", "catalonia", "--data-dir", "/tmp/x",
-              "--bbox", "0,0,10000,10000", "--chunk-km", "10"])
+              "--bbox", "0,0,10000,10000", "--chunk-km", "10",
+              "--workers", "4"])
     assert calls["region"] == "catalonia"
     assert calls["bbox"] == (0.0, 0.0, 10000.0, 10000.0)
     assert calls["chunk_m"] == 10000.0
     assert calls["crs"] == "EPSG:25831"
     assert calls["dtm_source"] == "icgc"
+    assert calls["workers"] == 4
 
 
 def test_precompute_density_command(monkeypatch: pytest.MonkeyPatch) -> None:

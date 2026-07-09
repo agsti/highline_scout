@@ -38,7 +38,8 @@ def _cmd_precompute(args: argparse.Namespace) -> None:
               end="", flush=True)
     n = precompute_service.precompute(args.region, bbox, Path(args.data_dir),
                                       chunk_m=chunk_m, report=report,
-                                      crs=crs, dtm_source=dtm_source)
+                                      crs=crs, dtm_source=dtm_source,
+                                      workers=args.workers)
     print(f"\nprocessed {n} chunks -> {Path(args.data_dir) / args.region}")
 
 
@@ -83,6 +84,8 @@ def main(argv: list[str] | None = None) -> None:
     pc.add_argument("--crs", help="projected CRS for bbox and stored data")
     pc.add_argument("--dtm-source", choices=["icgc", "idee", "cnig"],
                     help="terrain source; defaults from the region name")
+    pc.add_argument("--workers", type=int, default=1,
+                    help="number of chunks to precompute concurrently")
     pc.set_defaults(func=_cmd_precompute)
 
     pd = sub.add_parser("precompute-density", parents=[common])

@@ -1,4 +1,5 @@
 from pathlib import Path
+import concurrent.futures
 import pytest
 from highliner.services import precompute
 from highliner.core import config
@@ -89,6 +90,61 @@ def test_process_chunk_empty_marks_done(tmp_path: Path, monkeypatch: pytest.Monk
     assert load_candidates(region_dir / "pairs" / "q_0_0.parquet") == []
 
 
+def test_process_chunk_uses_chunk_scoped_transient_tiles(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from highliner.repositories import dtm as _dtm
+
+    seen: list[Path] = []
+
+    def fake_fetch(
+        bbox: tuple[float, float, float, float],
+        tiles_dir: Path,
+        res: float = _dtm.NATIVE_RES,
+        tile_px: int = _dtm.MAX_TILE_PX,
+        source: str = "icgc",
+        crs: str = config.UTM_CRS,
+    ) -> list[Path]:
+        seen.append(tiles_dir)
+        return []
+
+    monkeypatch.setattr(_dtm, "fetch_tiles", fake_fetch)
+    region_dir = tmp_path / "catalonia"
+    core = (485000.0, 4646000.0, 495000.0, 4656000.0)
+
+    precompute.process_chunk(2, 3, core, region_dir)
+
+    assert seen
+    assert seen[0].parent == region_dir / "tiles"
+    assert "2_3" in seen[0].name
+
+
+def test_process_chunk_does_not_mark_done_when_candidate_write_fails(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from highliner.repositories import dtm as _dtm
+
+    monkeypatch.setattr(_dtm, "fetch_tiles", lambda *a, **k: [])
+
+    def fake_save_anchors(anchors: object, path: str | Path) -> None:
+        Path(path).write_text("anchors")
+
+    def fake_save_candidates(candidates: object, path: str | Path) -> None:
+        Path(path).write_text("partial")
+        raise RuntimeError("write failed")
+
+    monkeypatch.setattr(precompute, "save_anchors", fake_save_anchors)
+    monkeypatch.setattr(precompute, "save_candidates", fake_save_candidates)
+
+    region_dir = tmp_path / "catalonia"
+    core = (485000.0, 4646000.0, 495000.0, 4656000.0)
+
+    with pytest.raises(RuntimeError, match="write failed"):
+        precompute.process_chunk(0, 0, core, region_dir)
+
+    assert not (region_dir / "anchors" / "p_0_0.parquet").exists()
+    assert not (region_dir / "pairs" / "q_0_0.parquet").exists()
+    assert not list(region_dir.rglob("*.tmp-*"))
+
+
 def test_precompute_writes_grid_and_all_chunks(
         tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     _patch_gap_download(monkeypatch)
@@ -107,6 +163,86 @@ def test_precompute_writes_grid_and_all_chunks(
     assert (region_dir / "pairs" / "q_1_0.parquet").exists()
     assert seen[-1] == (2, 2)
     assert n == 2
+
+
+def test_precompute_rejects_invalid_worker_count(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="workers"):
+        precompute.precompute(
+            "catalonia", (0.0, 0.0, 10000.0, 10000.0), tmp_path,
+            chunk_m=10000.0, workers=0)
+
+
+def test_precompute_submits_chunks_to_parallel_pool(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[tuple[int, int]] = []
+
+    class FakeProcessPool:
+        def __init__(self, max_workers: int) -> None:
+            assert max_workers == 3
+
+        def __enter__(self) -> "FakeProcessPool":
+            return self
+
+        def __exit__(self, exc_type: object, exc: object, tb: object) -> None:
+            return None
+
+        def submit(
+            self,
+            fn: object,
+            cx: int,
+            cy: int,
+            core_bbox: tuple[float, float, float, float],
+            region_dir: Path,
+            **kwargs: object,
+        ) -> concurrent.futures.Future[int]:
+            assert fn is precompute.process_chunk
+            calls.append((cx, cy))
+            future: concurrent.futures.Future[int] = concurrent.futures.Future()
+            future.set_result(0)
+            return future
+
+    monkeypatch.setattr(precompute.concurrent.futures, "ProcessPoolExecutor", FakeProcessPool)
+    monkeypatch.setattr(precompute.concurrent.futures, "as_completed", lambda futures: futures)
+
+    seen: list[tuple[int, int]] = []
+    n = precompute.precompute(
+        "catalonia", (0.0, 0.0, 30000.0, 10000.0), tmp_path,
+        chunk_m=10000.0, workers=3,
+        report=lambda done, total: seen.append((done, total)))
+
+    assert n == 3
+    assert calls == [(0, 0), (1, 0), (2, 0)]
+    assert seen[-1] == (3, 3)
+
+
+def test_precompute_uses_process_pool_for_parallel_workers(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    seen: dict[str, object] = {"max_workers": None, "submitted": 0}
+    done_future: concurrent.futures.Future[int] = concurrent.futures.Future()
+    done_future.set_result(0)
+
+    class FakeProcessPool:
+        def __init__(self, max_workers: int) -> None:
+            seen["max_workers"] = max_workers
+
+        def __enter__(self) -> "FakeProcessPool":
+            return self
+
+        def __exit__(self, exc_type: object, exc: object, tb: object) -> None:
+            return None
+
+        def submit(self, *args: object, **kwargs: object) -> concurrent.futures.Future[int]:
+            seen["submitted"] = int(seen["submitted"]) + 1
+            return done_future
+
+    monkeypatch.setattr(precompute.concurrent.futures, "ProcessPoolExecutor", FakeProcessPool)
+    monkeypatch.setattr(precompute.concurrent.futures, "as_completed", lambda futures: futures)
+
+    precompute.precompute(
+        "catalonia", (0.0, 0.0, 20000.0, 10000.0), tmp_path,
+        chunk_m=10000.0, workers=2)
+
+    assert seen == {"max_workers": 2, "submitted": 2}
 
 
 def test_precompute_writes_region_crs_and_source_defaults(

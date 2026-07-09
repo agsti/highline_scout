@@ -45,3 +45,7 @@ precompute-density *args:
 # Precompute all non-Catalonia Spain regions, resuming completed chunks.
 precompute-spain *args:
     uv run python scripts/precompute_spain.py {{args}}
+
+# Precompute Spain one region at a time, with 8 chunks in parallel per region.
+precompute-spain-8 *args:
+    uv run python scripts/precompute_spain.py --jobs 1 --chunk-workers 8 {{args}}

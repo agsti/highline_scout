@@ -40,6 +40,7 @@ REGIONS = [
     Region("castilla_la_mancha", "294000,4208000,682000,4576000"),
     Region("castilla_y_leon", "165000,4439000,602000,4790000"),
     Region("andalucia", "100000,3977000,622000,4289000"),
+    Region("catalonia2", "399134,4603853,403346,4607126"),
 ]
 
 
@@ -48,9 +49,11 @@ def run(cmd: list[str]) -> None:
     subprocess.run(cmd, check=True)
 
 
-def run_region(region: Region, highliner: str, data_dir: str) -> None:
+def run_region(region: Region, highliner: str, data_dir: str,
+               chunk_workers: int) -> None:
     run([highliner, "precompute", "--data-dir", data_dir,
-         "--region", region.name, "--bbox", region.bbox])
+         "--region", region.name, "--bbox", region.bbox,
+         "--workers", str(chunk_workers)])
     run([highliner, "precompute-density", "--data-dir", data_dir,
          "--region", region.name])
 
@@ -62,6 +65,8 @@ def main() -> None:
     parser.add_argument("--only", action="append", help="run only this region id")
     parser.add_argument("--jobs", type=int, default=1,
                         help="number of regions to precompute concurrently")
+    parser.add_argument("--chunk-workers", type=int, default=1,
+                        help="number of chunks to precompute concurrently per region")
     args = parser.parse_args()
 
     regions = REGIONS
@@ -77,15 +82,19 @@ def main() -> None:
     highliner = str(Path(".venv/bin/highliner"))
     if args.jobs < 1:
         raise SystemExit("--jobs must be >= 1")
+    if args.chunk_workers < 1:
+        raise SystemExit("--chunk-workers must be >= 1")
     if args.jobs == 1:
         for region in regions:
-            run_region(region, highliner, args.data_dir)
+            run_region(region, highliner, args.data_dir, args.chunk_workers)
         return
 
-    print(f"running {len(regions)} regions with {args.jobs} jobs", flush=True)
+    print(f"running {len(regions)} regions with {args.jobs} jobs "
+          f"and {args.chunk_workers} chunk workers each", flush=True)
     with concurrent.futures.ThreadPoolExecutor(max_workers=args.jobs) as pool:
         futures = {
-            pool.submit(run_region, region, highliner, args.data_dir): region
+            pool.submit(run_region, region, highliner, args.data_dir,
+                        args.chunk_workers): region
             for region in regions
         }
         for future in concurrent.futures.as_completed(futures):

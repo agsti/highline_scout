@@ -13,6 +13,17 @@ def _http_error(status: int, retry_after: str | None = None) -> requests.HTTPErr
     return requests.HTTPError(response=resp)
 
 
+def _response(status: int, retry_after: str | None = None, text: str = "") -> requests.Response:
+    resp = requests.Response()
+    resp.status_code = status
+    resp._content = text.encode()
+    resp._content_consumed = True      # makes resp.close() a no-op (no live socket)
+    resp.encoding = "utf-8"
+    if retry_after is not None:
+        resp.headers["Retry-After"] = retry_after
+    return resp
+
+
 def _fake_asc(bbox: tuple[float, float, float, float], width: int, height: int, dest: Path) -> Path:
     """Write a minimal valid ESRI ArcGrid tile of constant elevation 100."""
     minx, miny, maxx, maxy = bbox
@@ -29,6 +40,33 @@ def _fake_asc(bbox: tuple[float, float, float, float], width: int, height: int, 
                      for _ in range(height))
     dest.write_text("\n".join(header) + "\n" + body + "\n")
     return dest
+
+
+def test_cnig_request_retries_throttle_then_succeeds(
+        monkeypatch: pytest.MonkeyPatch) -> None:
+    sleeps: list[float] = []
+    monkeypatch.setattr(ingest.time, "sleep", lambda s: sleeps.append(s))
+    responses = [_response(429, retry_after="9"), _response(200)]
+
+    class FakeSession:
+        def request(self, method: str, url: str, **kwargs: object) -> requests.Response:
+            return responses.pop(0)
+
+    resp = ingest._cnig_request(FakeSession(), "GET", "http://x")
+    assert resp.status_code == 200
+    assert sleeps == [9.0]                 # Retry-After honored, slept once
+
+
+def test_cnig_request_returns_last_response_when_throttle_persists(
+        monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(ingest.time, "sleep", lambda s: None)
+
+    class FakeSession:
+        def request(self, method: str, url: str, **kwargs: object) -> requests.Response:
+            return _response(429)
+
+    resp = ingest._cnig_request(FakeSession(), "GET", "http://x")
+    assert resp.status_code == 429         # caller then raises via raise_for_status
 
 
 def test_estimate_tiles_matches_grid() -> None:

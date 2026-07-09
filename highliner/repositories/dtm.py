@@ -55,13 +55,13 @@ NODATA = -9999.0
 SEA_SENTINEL = -8888.0
 
 
-def _retry_delay(exc: requests.RequestException, attempt: int) -> float:
+def _retry_delay(attempt: int,
+                 response: "requests.Response | None" = None) -> float:
     """Exponential backoff, bumped up to the server's Retry-After if larger."""
     retry_after = 0.0
-    resp = getattr(exc, "response", None)
-    if resp is not None:
+    if response is not None:
         try:
-            retry_after = float(resp.headers.get("Retry-After", 0) or 0)
+            retry_after = float(response.headers.get("Retry-After", 0) or 0)
         except ValueError:                 # HTTP-date form; use the backoff
             retry_after = 0.0
     return max(retry_after, TILE_RETRY_BASE_S * 2 ** attempt)
@@ -77,7 +77,33 @@ def _download_with_retries(download: "Callable[[], Path]") -> Path:
         except requests.RequestException as exc:
             if attempt == TILE_RETRY_ATTEMPTS - 1:
                 raise
-            time.sleep(_retry_delay(exc, attempt))
+            time.sleep(_retry_delay(attempt, exc.response))
+    raise RuntimeError("unreachable")
+
+
+_CNIG_RETRY_STATUS = frozenset({429, 500, 502, 503, 504})
+
+
+def _cnig_request(session: requests.Session, method: str, url: str,
+                  **kwargs: object) -> requests.Response:
+    """Issue a CNIG request, retrying throttles/5xx/timeouts with backoff.
+    Returns the final response; the caller still checks the status (e.g. via
+    raise_for_status). A response that will be retried is closed first so a
+    streamed body does not leak its connection."""
+    for attempt in range(TILE_RETRY_ATTEMPTS):
+        last = attempt == TILE_RETRY_ATTEMPTS - 1
+        try:
+            resp = session.request(method, url, **kwargs)
+        except requests.RequestException as exc:
+            if last:
+                raise
+            time.sleep(_retry_delay(attempt, exc.response))
+            continue
+        if resp.status_code in _CNIG_RETRY_STATUS and not last:
+            resp.close()
+            time.sleep(_retry_delay(attempt, resp))
+            continue
+        return resp
     raise RuntimeError("unreachable")
 
 

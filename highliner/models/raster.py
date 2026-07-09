@@ -20,11 +20,23 @@ class Raster:
             return float(self.data[row, col])
         return float("nan")
 
+    def values_at(self, xs: np.ndarray, ys: np.ndarray) -> np.ndarray:
+        """Vectorized ``value_at``: float64 elevations for arrays of UTM
+        coordinates (any shape), NaN outside the raster."""
+        inv = ~self.transform
+        xs = np.asarray(xs, dtype="float64")
+        ys = np.asarray(ys, dtype="float64")
+        cols = np.floor(inv.a * xs + inv.b * ys + inv.c).astype(np.int64)
+        rows = np.floor(inv.d * xs + inv.e * ys + inv.f).astype(np.int64)
+        h, w = self.data.shape
+        inside = (rows >= 0) & (rows < h) & (cols >= 0) & (cols < w)
+        out = np.full(xs.shape, np.nan)
+        out[inside] = self.data[rows[inside], cols[inside]].astype("float64")
+        return out
+
     def sample_line(self, x1: float, y1: float, x2: float, y2: float,
                     step: float | None = None) -> np.ndarray:
         step = step or self.res
         length = float(np.hypot(x2 - x1, y2 - y1))
         n = max(2, int(length / step) + 1)
-        xs = np.linspace(x1, x2, n)
-        ys = np.linspace(y1, y2, n)
-        return np.array([self.value_at(float(x), float(y)) for x, y in zip(xs, ys)])
+        return self.values_at(np.linspace(x1, x2, n), np.linspace(y1, y2, n))

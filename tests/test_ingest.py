@@ -1,7 +1,16 @@
 from pathlib import Path
 import numpy as np
 import pytest
+import requests
 from highliner.repositories import dtm as ingest
+
+
+def _http_error(status: int, retry_after: str | None = None) -> requests.HTTPError:
+    resp = requests.Response()
+    resp.status_code = status
+    if retry_after is not None:
+        resp.headers["Retry-After"] = retry_after
+    return requests.HTTPError(response=resp)
 
 
 def _fake_asc(bbox: tuple[float, float, float, float], width: int, height: int, dest: Path) -> Path:
@@ -74,6 +83,100 @@ def test_fetch_tiles_idee_uses_tif_tiles_and_region_crs(
     assert paths
     assert all(p.suffix == ".tif" for p in paths)
     assert {c[4] for c in calls} == {"EPSG:4083"}
+
+
+def test_fetch_tiles_cnig_uses_data_root_cache_for_chunk_dirs(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    seen: list[Path] = []
+
+    monkeypatch.setattr(ingest, "_cnig_query_sheets",
+                        lambda *a, **k: [("sec", "sheet.tif")])
+
+    def fake_download(session: object, sec: str, filename: str, dest: Path) -> Path:
+        seen.append(dest)
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_bytes(b"fake")
+        return dest
+
+    monkeypatch.setattr(ingest, "_download_cnig_sheet", fake_download)
+
+    paths = ingest.fetch_tiles(
+        (188000, 3060000, 198000, 3070000),
+        tmp_path / "data" / "canarias" / "tiles" / "chunk_0_0_123",
+        source="cnig",
+        crs="EPSG:4083",
+    )
+
+    assert paths == [tmp_path / "data" / "mdt05_tiles" / "sheet.tif"]
+    assert seen == paths
+
+
+def test_fetch_tiles_retries_rate_limited_tiles_honoring_retry_after(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    sleeps: list[float] = []
+    monkeypatch.setattr(ingest.time, "sleep", lambda s: sleeps.append(s))
+    attempts: dict[tuple[float, float, float, float], int] = {}
+
+    def fake_download(bbox: tuple[float, float, float, float], width: int,
+                      height: int, dest: Path) -> Path:
+        n = attempts.get(bbox, 0) + 1
+        attempts[bbox] = n
+        if int(bbox[0]) == 484000 and n <= 2:     # first column throttled twice
+            raise _http_error(429, retry_after="7")
+        return _fake_asc(bbox, width, height, dest)
+
+    monkeypatch.setattr(ingest, "_download_tile", fake_download)
+    paths = ingest.fetch_tiles((484000, 4646000, 486000, 4647500),
+                               tmp_path / "tiles", res=5.0, tile_px=175)
+
+    assert len(paths) == 6                        # no tile silently dropped
+    assert all(p.exists() for p in paths)
+    assert max(attempts.values()) == 3            # 2 throttled tries + success
+    assert sleeps.count(7.0) == 4                 # Retry-After honored (2 tiles x 2)
+
+
+def test_fetch_tiles_raises_when_rate_limit_persists(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(ingest.time, "sleep", lambda s: None)
+
+    def fake_download(bbox: tuple[float, float, float, float], width: int,
+                      height: int, dest: Path) -> Path:
+        raise _http_error(429)
+
+    monkeypatch.setattr(ingest, "_download_tile", fake_download)
+    with pytest.raises(requests.HTTPError):
+        ingest.fetch_tiles((484000, 4646000, 486000, 4647500),
+                           tmp_path / "tiles", res=5.0, tile_px=175)
+
+
+def test_fetch_tiles_downloads_concurrently_in_spec_order(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import threading
+    import time
+
+    active = 0
+    peak = 0
+    lock = threading.Lock()
+
+    def fake_download(bbox: tuple[float, float, float, float], width: int,
+                      height: int, dest: Path) -> Path:
+        nonlocal active, peak
+        with lock:
+            active += 1
+            peak = max(peak, active)
+        time.sleep(0.05)
+        with lock:
+            active -= 1
+        return _fake_asc(bbox, width, height, dest)
+
+    monkeypatch.setattr(ingest, "_download_tile", fake_download)
+    bbox = (484000, 4646000, 486000, 4647500)
+    paths = ingest.fetch_tiles(bbox, tmp_path / "tiles", res=5.0, tile_px=175)
+
+    expected = [tmp_path / "tiles" / f"t_{int(tb[0])}_{int(tb[1])}.asc"
+                for tb, _w, _h in ingest.tile_specs(bbox, res=5.0, tile_px=175)]
+    assert paths == expected                  # deterministic spec order
+    assert peak >= 2, "tile downloads must overlap"
 
 
 def test_raster_from_tiles_merges(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

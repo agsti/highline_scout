@@ -65,8 +65,14 @@ def process_chunk(cx: int, cy: int, core_bbox: Bbox, region_dir: Path,
     halo_bbox = (minx - halo, miny - halo, maxx + halo, maxy + halo)
     tiles_dir = region_dir / "tiles" / f"chunk_{cx}_{cy}_{os.getpid()}"
     tiles_dir.mkdir(parents=True, exist_ok=True)
-    tiles = dtm.fetch_tiles(halo_bbox, tiles_dir,
-                            source=dtm_source, crs=crs)
+    try:
+        tiles = dtm.fetch_tiles(halo_bbox, tiles_dir,
+                                source=dtm_source, crs=crs)
+    except Exception:
+        # Failed download (e.g. exhausted rate-limit retries): drop the
+        # partial tiles and re-raise so the chunk stays unfinished/retriable.
+        _cleanup_transient_tiles([], tiles_dir)
+        raise
 
     try:
         core_anchors: list[Anchor] = []

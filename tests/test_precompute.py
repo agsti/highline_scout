@@ -90,6 +90,36 @@ def test_process_chunk_empty_marks_done(tmp_path: Path, monkeypatch: pytest.Monk
     assert load_candidates(region_dir / "pairs" / "q_0_0.parquet") == []
 
 
+def test_process_chunk_stays_retriable_after_persistent_rate_limit(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A rate-limited chunk must fail loudly (no partitions, no leftover
+    tiles) so a later run retries it, instead of writing terrain holes."""
+    import requests
+    from highliner.repositories import dtm as _dtm
+
+    monkeypatch.setattr(_dtm.time, "sleep", lambda s: None)
+    resp = requests.Response()
+    resp.status_code = 429
+
+    def limited(*a: object, **k: object) -> Path:
+        raise requests.HTTPError(response=resp)
+
+    monkeypatch.setattr(_dtm, "_download_tile", limited)
+    region_dir = tmp_path / "catalonia"
+    core = (485000.0, 4646000.0, 495000.0, 4656000.0)
+
+    with pytest.raises(requests.HTTPError):
+        precompute.process_chunk(0, 0, core, region_dir)
+
+    assert not (region_dir / "anchors" / "p_0_0.parquet").exists()
+    assert not (region_dir / "pairs" / "q_0_0.parquet").exists()
+    assert not list((region_dir / "tiles").iterdir())   # partial tiles cleaned
+
+    _patch_gap_download(monkeypatch)                    # server recovers
+    assert precompute.process_chunk(0, 0, core, region_dir) > 0
+    assert (region_dir / "pairs" / "q_0_0.parquet").exists()
+
+
 def test_process_chunk_uses_chunk_scoped_transient_tiles(
         tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     from highliner.repositories import dtm as _dtm

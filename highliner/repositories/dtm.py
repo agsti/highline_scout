@@ -12,7 +12,8 @@ IGN/IDEE serves the national MDT05 through OGC API Coverages. The code here
 requests small COG subsets from the EPSG-specific 5 m collections.
 """
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable
+import concurrent.futures
 import fcntl
 import json
 import math
@@ -43,12 +44,41 @@ CNIG_SERIES_PATH = "modelo-digital-terreno-mdt05-primera-cobertura"
 CNIG_HEADERS = {"User-Agent": "Mozilla/5.0 highliner-finder/0.1"}
 NATIVE_RES = 5.0       # meters — finest DTM resolution on this WCS
 MAX_TILE_PX = 175      # per side; 175*175 < 35,800 px request cap
+TILE_WORKERS = 8       # concurrent tile downloads per fetch_tiles call
+TILE_RETRY_ATTEMPTS = 4    # tries per tile before the transient failure is raised
+TILE_RETRY_BASE_S = 2.0    # exponential backoff base; Retry-After wins if larger
 NODATA = -9999.0
 # ICGC encodes the sea surface with its own sentinel, distinct from the ArcGrid
 # NODATA_VALUE (-9999) used for out-of-coverage. If left unmasked it reads as a
 # real -8888 m elevation, so every coastal cell looks like an ~8888 m cliff and
 # becomes a spurious anchor/zone. Treat it as nodata.
 SEA_SENTINEL = -8888.0
+
+
+def _retry_delay(exc: requests.RequestException, attempt: int) -> float:
+    """Exponential backoff, bumped up to the server's Retry-After if larger."""
+    retry_after = 0.0
+    resp = getattr(exc, "response", None)
+    if resp is not None:
+        try:
+            retry_after = float(resp.headers.get("Retry-After", 0) or 0)
+        except ValueError:                 # HTTP-date form; use the backoff
+            retry_after = 0.0
+    return max(retry_after, TILE_RETRY_BASE_S * 2 ** attempt)
+
+
+def _download_with_retries(download: "Callable[[], Path]") -> Path:
+    """Run ``download``, retrying transient HTTP failures (429/5xx/timeouts).
+    Raises the last error once attempts are exhausted; RuntimeError (an
+    out-of-coverage/bad-body response) is not retried."""
+    for attempt in range(TILE_RETRY_ATTEMPTS):
+        try:
+            return download()
+        except requests.RequestException as exc:
+            if attempt == TILE_RETRY_ATTEMPTS - 1:
+                raise
+            time.sleep(_retry_delay(exc, attempt))
+    raise RuntimeError("unreachable")
 
 
 def _download_tile(bbox: Bbox, width: int, height: int, dest: Path) -> Path:
@@ -308,8 +338,15 @@ def _download_cnig_sheet(session: requests.Session, sec: str, filename: str,
     return dest
 
 
+def _cnig_cache_root(tiles_dir: Path) -> Path:
+    tiles_dir = Path(tiles_dir)
+    if tiles_dir.parent.name == "tiles":
+        return tiles_dir.parent.parent.parent
+    return tiles_dir.parent.parent
+
+
 def _fetch_cnig_tiles(bbox: Bbox, tiles_dir: Path, crs: str) -> list[Path]:
-    data_dir = tiles_dir.parent.parent
+    data_dir = _cnig_cache_root(tiles_dir)
     session = _cnig_session()
     out: list[Path] = []
     cache_dir = data_dir / "mdt05_tiles"
@@ -363,30 +400,40 @@ def fetch_tiles(bbox: Bbox, tiles_dir: Path, res: float = NATIVE_RES,
                 tile_px: int = MAX_TILE_PX, source: str = "icgc",
                 crs: str = "EPSG:25831") -> list[Path]:
     """Download tiles covering ``bbox`` into ``tiles_dir``; reuse cached tiles;
-    skip tiles whose WCS response errors or is not ArcGrid (out of coverage).
+    skip tiles whose response body is not raster data (out of coverage).
+    Transient HTTP failures (rate limits, 5xx, timeouts) are retried with
+    backoff and raised once ``TILE_RETRY_ATTEMPTS`` is exhausted, so a
+    throttled run fails loudly instead of writing holes into the terrain.
     Returns the paths that exist on disk."""
     tiles_dir = Path(tiles_dir)
     tiles_dir.mkdir(parents=True, exist_ok=True)
     if source == "cnig":
         return _fetch_cnig_tiles(bbox, tiles_dir, crs)
-    paths: list[Path] = []
-    for tb, w, h in tile_specs(bbox, res, tile_px):
+    if source not in ("icgc", "idee"):
+        raise RuntimeError(f"unknown DTM source '{source}'")
+
+    def fetch_one(spec: tuple[Bbox, int, int]) -> Path | None:
+        tb, w, h = spec
         ext = "tif" if source == "idee" else "asc"
         dest = tiles_dir / f"t_{int(tb[0])}_{int(tb[1])}.{ext}"
         if not dest.exists():
             try:
                 if source == "icgc":
-                    _download_tile(tb, w, h, dest)
-                elif source == "idee":
-                    _download_idee_tile(tb, w, h, dest, crs)
-                elif source == "cnig":
-                    raise RuntimeError("cnig source is handled before tiling")
+                    _download_with_retries(lambda: _download_tile(tb, w, h, dest))
                 else:
-                    raise RuntimeError(f"unknown DTM source '{source}'")
-            except (requests.RequestException, RuntimeError):
-                continue
-        paths.append(dest)
-    return paths
+                    _download_with_retries(
+                        lambda: _download_idee_tile(tb, w, h, dest, crs))
+            except RuntimeError:
+                return None       # out of coverage / non-raster body: expected
+        return dest
+
+    specs = tile_specs(bbox, res, tile_px)
+    if not specs:
+        return []
+    with concurrent.futures.ThreadPoolExecutor(
+            max_workers=min(TILE_WORKERS, len(specs))) as pool:
+        results = list(pool.map(fetch_one, specs))   # map preserves spec order
+    return [p for p in results if p is not None]
 
 
 def raster_from_tiles(paths: list[Path], res: float = NATIVE_RES,

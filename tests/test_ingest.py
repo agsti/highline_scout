@@ -69,6 +69,27 @@ def test_cnig_request_returns_last_response_when_throttle_persists(
     assert resp.status_code == 429         # caller then raises via raise_for_status
 
 
+def test_cnig_query_sheets_retries_throttled_page(
+        monkeypatch: pytest.MonkeyPatch) -> None:
+    sleeps: list[float] = []
+    monkeypatch.setattr(ingest.time, "sleep", lambda s: sleeps.append(s))
+    page1 = '<a href="detalleArchivo?sec=42">PNOA-MDT05-H30-0500-COG.tif</a>'
+    responses = [
+        _response(429, retry_after="3"),   # page 1 throttled once
+        _response(200, text=page1),        # page 1 retried, one sheet
+        _response(200, text=""),           # page 2 empty -> stop paginating
+    ]
+
+    class FakeSession:
+        def request(self, method: str, url: str, **kwargs: object) -> requests.Response:
+            return responses.pop(0)
+
+    out = ingest._cnig_query_sheets(
+        FakeSession(), (400000.0, 4600000.0, 410000.0, 4610000.0), "EPSG:25830")
+    assert out == [("42", "PNOA-MDT05-H30-0500-COG.tif")]
+    assert sleeps == [3.0]
+
+
 def test_estimate_tiles_matches_grid() -> None:
     # 2000 x 1500 m at 5 m, 175 px tiles (875 m) -> 3 x 2 = 6
     n = ingest.estimate_tiles((484000, 4646000, 486000, 4647500),

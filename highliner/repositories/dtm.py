@@ -304,7 +304,8 @@ def _cnig_query_sheets(session: requests.Session, bbox: Bbox,
             "lat": "",
             "formato": "COG",
         }
-        r = session.get(f"{CNIG_BASE}/archivosSerie", params=params, timeout=60)
+        r = _cnig_request(session, "GET", f"{CNIG_BASE}/archivosSerie",
+                          params=params, timeout=60)
         r.raise_for_status()
         secs = re.findall(r"detalleArchivo\?sec=(\d+)", r.text)
         names = re.findall(r"PNOA[-_]MDT05[^<\s]+", r.text)
@@ -335,9 +336,10 @@ def _download_cnig_sheet(session: requests.Session, sec: str, filename: str,
         fcntl.flock(lock, fcntl.LOCK_EX)
         if dest.exists() and dest.stat().st_size > 0:
             return dest
-        session.get(f"{CNIG_BASE}/detalleArchivo", params={"sec": sec}, timeout=60)
-        r = session.get(f"{CNIG_BASE}/initDescargaDir",
-                        params={"secuencial": sec}, timeout=60)
+        _cnig_request(session, "GET", f"{CNIG_BASE}/detalleArchivo",
+                      params={"sec": sec}, timeout=60)
+        r = _cnig_request(session, "GET", f"{CNIG_BASE}/initDescargaDir",
+                          params={"secuencial": sec}, timeout=60)
         r.raise_for_status()
         sec_download = str(r.json()["secuencialDescDir"])
         data = {
@@ -350,8 +352,9 @@ def _download_cnig_sheet(session: requests.Session, sec: str, filename: str,
             "avisoLimiteFiles": "",
         }
         tmp = dest.with_suffix(dest.suffix + f".{os.getpid()}.part")
-        with session.post(f"{CNIG_BASE}/descargaDir", data=data, stream=True,
-                          timeout=300) as resp:
+        resp = _cnig_request(session, "POST", f"{CNIG_BASE}/descargaDir",
+                             data=data, stream=True, timeout=300)
+        with resp:
             resp.raise_for_status()
             if "tiff" not in resp.headers.get("content-type", "").lower():
                 head = resp.raw.read(200, decode_content=True)

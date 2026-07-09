@@ -8,9 +8,11 @@ implementation; do not update them without confirming the behavior change is
 intentional.
 """
 import numpy as np
+import pytest
 from affine import Affine
 from scipy.ndimage import gaussian_filter
 
+from highliner.models.anchor import Anchor
 from highliner.models.raster import Raster
 from highliner.services.pairing import find_candidates
 from highliner.services.terrain import extract_anchors
@@ -34,12 +36,12 @@ def terraced_raster() -> Raster:
                   res=5.0)
 
 
-def _extract() -> list:
+def _extract() -> list[Anchor]:
     return extract_anchors(terraced_raster(), slope_min=55.0, radius=25.0,
                            n_azimuths=24, min_sector_drop=15.0, thin_dist=15.0)
 
 
-def _anchor_key(a) -> tuple:
+def _anchor_key(a: Anchor) -> tuple[float, float]:
     return (a.x, a.y)
 
 
@@ -75,7 +77,8 @@ def test_pairing_is_pinned() -> None:
     assert round(sum(r[4] for r in rows), 1) == EXPECTED_PAIR_DH_SUM
 
 
-def test_batch_blocking_does_not_change_results(monkeypatch) -> None:
+def test_batch_blocking_does_not_change_results(
+        monkeypatch: pytest.MonkeyPatch) -> None:
     """The blocked batch sweeps must be exact: forcing pathologically small
     blocks (many boundary crossings) yields identical anchors and pairs."""
     from highliner.services import pairing, terrain

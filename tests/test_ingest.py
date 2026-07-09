@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import cast
 import numpy as np
 import pytest
 import requests
@@ -17,7 +18,7 @@ def _response(status: int, retry_after: str | None = None, text: str = "") -> re
     resp = requests.Response()
     resp.status_code = status
     resp._content = text.encode()
-    resp._content_consumed = True      # makes resp.close() a no-op (no live socket)
+    resp._content_consumed = True      # type: ignore[attr-defined]  # resp.close() no-op (no live socket)
     resp.encoding = "utf-8"
     if retry_after is not None:
         resp.headers["Retry-After"] = retry_after
@@ -45,34 +46,34 @@ def _fake_asc(bbox: tuple[float, float, float, float], width: int, height: int, 
 def test_cnig_request_retries_throttle_then_succeeds(
         monkeypatch: pytest.MonkeyPatch) -> None:
     sleeps: list[float] = []
-    monkeypatch.setattr(ingest.time, "sleep", lambda s: sleeps.append(s))
+    monkeypatch.setattr("highliner.repositories.dtm.time.sleep", lambda s: sleeps.append(s))
     responses = [_response(429, retry_after="9"), _response(200)]
 
     class FakeSession:
         def request(self, method: str, url: str, **kwargs: object) -> requests.Response:
             return responses.pop(0)
 
-    resp = ingest._cnig_request(FakeSession(), "GET", "http://x")
+    resp = ingest._cnig_request(cast(requests.Session, FakeSession()), "GET", "http://x")
     assert resp.status_code == 200
     assert sleeps == [9.0]                 # Retry-After honored, slept once
 
 
 def test_cnig_request_returns_last_response_when_throttle_persists(
         monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(ingest.time, "sleep", lambda s: None)
+    monkeypatch.setattr("highliner.repositories.dtm.time.sleep", lambda s: None)
 
     class FakeSession:
         def request(self, method: str, url: str, **kwargs: object) -> requests.Response:
             return _response(429)
 
-    resp = ingest._cnig_request(FakeSession(), "GET", "http://x")
+    resp = ingest._cnig_request(cast(requests.Session, FakeSession()), "GET", "http://x")
     assert resp.status_code == 429         # caller then raises via raise_for_status
 
 
 def test_cnig_query_sheets_retries_throttled_page(
         monkeypatch: pytest.MonkeyPatch) -> None:
     sleeps: list[float] = []
-    monkeypatch.setattr(ingest.time, "sleep", lambda s: sleeps.append(s))
+    monkeypatch.setattr("highliner.repositories.dtm.time.sleep", lambda s: sleeps.append(s))
     page1 = '<a href="detalleArchivo?sec=42">PNOA-MDT05-H30-0500-COG.tif</a>'
     responses = [
         _response(429, retry_after="3"),   # page 1 throttled once
@@ -85,7 +86,8 @@ def test_cnig_query_sheets_retries_throttled_page(
             return responses.pop(0)
 
     out = ingest._cnig_query_sheets(
-        FakeSession(), (400000.0, 4600000.0, 410000.0, 4610000.0), "EPSG:25830")
+        cast(requests.Session, FakeSession()),
+        (400000.0, 4600000.0, 410000.0, 4610000.0), "EPSG:25830")
     assert out == [("42", "PNOA-MDT05-H30-0500-COG.tif")]
     assert sleeps == [3.0]
 
@@ -170,10 +172,61 @@ def test_fetch_tiles_cnig_uses_data_root_cache_for_chunk_dirs(
     assert seen == paths
 
 
+def test_fetch_cnig_tiles_retries_broken_stream_then_succeeds(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # A CNIG download whose body stream drops mid-transfer (IncompleteRead ->
+    # ChunkedEncodingError) must be retried, not abort the whole run.
+    monkeypatch.setattr("highliner.repositories.dtm.time.sleep", lambda s: None)
+    monkeypatch.setattr(ingest, "_cnig_query_sheets",
+                        lambda *a, **k: [("sec", "sheet.tif")])
+    attempts = {"n": 0}
+
+    def fake_download(session: object, sec: str, filename: str, dest: Path) -> Path:
+        attempts["n"] += 1
+        if attempts["n"] == 1:
+            raise requests.exceptions.ChunkedEncodingError(
+                "Connection broken: IncompleteRead(7328 bytes read, 856 more expected)")
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_bytes(b"fake")
+        return dest
+
+    monkeypatch.setattr(ingest, "_download_cnig_sheet", fake_download)
+
+    paths = ingest.fetch_tiles(
+        (188000, 3060000, 198000, 3070000),
+        tmp_path / "data" / "canarias" / "tiles" / "chunk_0_0_123",
+        source="cnig",
+        crs="EPSG:4083",
+    )
+
+    assert attempts["n"] == 2                     # retried once after the broken stream
+    assert paths == [tmp_path / "data" / "mdt05_tiles" / "sheet.tif"]
+
+
+def test_fetch_cnig_tiles_raises_when_broken_stream_persists(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("highliner.repositories.dtm.time.sleep", lambda s: None)
+    monkeypatch.setattr(ingest, "_cnig_query_sheets",
+                        lambda *a, **k: [("sec", "sheet.tif")])
+
+    def fake_download(session: object, sec: str, filename: str, dest: Path) -> Path:
+        raise requests.exceptions.ChunkedEncodingError("Connection broken")
+
+    monkeypatch.setattr(ingest, "_download_cnig_sheet", fake_download)
+
+    with pytest.raises(requests.exceptions.ChunkedEncodingError):
+        ingest.fetch_tiles(
+            (188000, 3060000, 198000, 3070000),
+            tmp_path / "data" / "canarias" / "tiles" / "chunk_0_0_123",
+            source="cnig",
+            crs="EPSG:4083",
+        )
+
+
 def test_fetch_tiles_retries_rate_limited_tiles_honoring_retry_after(
         tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     sleeps: list[float] = []
-    monkeypatch.setattr(ingest.time, "sleep", lambda s: sleeps.append(s))
+    monkeypatch.setattr("highliner.repositories.dtm.time.sleep", lambda s: sleeps.append(s))
     attempts: dict[tuple[float, float, float, float], int] = {}
 
     def fake_download(bbox: tuple[float, float, float, float], width: int,
@@ -196,7 +249,7 @@ def test_fetch_tiles_retries_rate_limited_tiles_honoring_retry_after(
 
 def test_fetch_tiles_raises_when_rate_limit_persists(
         tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(ingest.time, "sleep", lambda s: None)
+    monkeypatch.setattr("highliner.repositories.dtm.time.sleep", lambda s: None)
 
     def fake_download(bbox: tuple[float, float, float, float], width: int,
                       height: int, dest: Path) -> Path:
@@ -272,9 +325,9 @@ def test_raster_from_tiles_masks_sea_sentinel(tmp_path: Path) -> None:
 
 def test_cached_query_sheets_caches_result(
         tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    calls: list[tuple] = []
+    calls: list[tuple[tuple[float, ...], str]] = []
 
-    def fake_query(session: object, bbox: tuple, crs: str) -> list[tuple[str, str]]:
+    def fake_query(session: object, bbox: tuple[float, ...], crs: str) -> list[tuple[str, str]]:
         calls.append((bbox, crs))
         return [("42", "sheet.tif")]
 
@@ -282,8 +335,8 @@ def test_cached_query_sheets_caches_result(
     cache_dir = tmp_path / "idx"
     bbox = (400000.0, 4600000.0, 410000.0, 4610000.0)
 
-    a = ingest._cached_query_sheets(None, bbox, "EPSG:25830", cache_dir)
-    b = ingest._cached_query_sheets(None, bbox, "EPSG:25830", cache_dir)
+    a = ingest._cached_query_sheets(cast(requests.Session, None), bbox, "EPSG:25830", cache_dir)
+    b = ingest._cached_query_sheets(cast(requests.Session, None), bbox, "EPSG:25830", cache_dir)
 
     assert a == b == [("42", "sheet.tif")]
     assert len(calls) == 1                       # second call served from disk
@@ -294,7 +347,7 @@ def test_cached_query_sheets_caches_empty_result(
         tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     calls: list[int] = []
 
-    def fake_query(session: object, bbox: tuple, crs: str) -> list[tuple[str, str]]:
+    def fake_query(session: object, bbox: tuple[float, ...], crs: str) -> list[tuple[str, str]]:
         calls.append(1)
         return []
 
@@ -302,6 +355,6 @@ def test_cached_query_sheets_caches_empty_result(
     cache_dir = tmp_path / "idx"
     bbox = (0.0, 0.0, 10.0, 10.0)
 
-    assert ingest._cached_query_sheets(None, bbox, "EPSG:25830", cache_dir) == []
-    assert ingest._cached_query_sheets(None, bbox, "EPSG:25830", cache_dir) == []
+    assert ingest._cached_query_sheets(cast(requests.Session, None), bbox, "EPSG:25830", cache_dir) == []
+    assert ingest._cached_query_sheets(cast(requests.Session, None), bbox, "EPSG:25830", cache_dir) == []
     assert len(calls) == 1                       # empty result cached too

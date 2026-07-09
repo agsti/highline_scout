@@ -12,9 +12,10 @@ IGN/IDEE serves the national MDT05 through OGC API Coverages. The code here
 requests small COG subsets from the EPSG-specific 5 m collections.
 """
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING, Any, Callable
 import concurrent.futures
 import fcntl
+import functools
 import hashlib
 import json
 import math
@@ -27,6 +28,7 @@ import rasterio
 from rasterio.merge import merge
 from pyproj import Transformer
 from shapely.geometry import box, shape, mapping
+from shapely.geometry.base import BaseGeometry
 from shapely.ops import transform as shapely_transform
 if TYPE_CHECKING:
     from highliner.models.raster import Raster
@@ -65,7 +67,7 @@ def _retry_delay(attempt: int,
             retry_after = float(response.headers.get("Retry-After", 0) or 0)
         except ValueError:                 # HTTP-date form; use the backoff
             retry_after = 0.0
-    return max(retry_after, TILE_RETRY_BASE_S * 2 ** attempt)
+    return max(retry_after, TILE_RETRY_BASE_S * 2.0 ** attempt)
 
 
 def _download_with_retries(download: "Callable[[], Path]") -> Path:
@@ -86,7 +88,7 @@ _CNIG_RETRY_STATUS = frozenset({429, 500, 502, 503, 504})
 
 
 def _cnig_request(session: requests.Session, method: str, url: str,
-                  **kwargs: object) -> requests.Response:
+                  **kwargs: Any) -> requests.Response:
     """Issue a CNIG request, retrying throttles/5xx/timeouts with backoff.
     Returns the final response; the caller still checks the status (e.g. via
     raise_for_status). A response that will be retried is closed first so a
@@ -184,7 +186,7 @@ def _cnig_catalog_page(session: requests.Session, page: int) -> str:
     return r.text
 
 
-def _cnig_sheet_geom(session: requests.Session, sec: str):
+def _cnig_sheet_geom(session: requests.Session, sec: str) -> BaseGeometry:
     for attempt in range(6):
         r = session.get(f"{CNIG_BASE}/localizarCoordsSec",
                         params={"secuencial": sec}, timeout=60)
@@ -200,7 +202,7 @@ def _cnig_sheet_geom(session: requests.Session, sec: str):
 
 def _cnig_index(index_path: Path) -> list[dict[str, object]]:
     if index_path.exists():
-        rows = json.loads(index_path.read_text())
+        rows: list[dict[str, object]] = json.loads(index_path.read_text())
         for row in rows:
             row["geometry"] = shape(row["geometry"])
         return rows
@@ -242,7 +244,7 @@ def _cnig_index(index_path: Path) -> list[dict[str, object]]:
             time.sleep(1.0)
 
     partial_path.write_text(json.dumps(list(partial.values())))
-    rows: list[dict[str, object]] = []
+    rows = []
     for row in partial.values():
         rows.append({
             "secuencial": row["secuencial"],
@@ -259,7 +261,7 @@ def _cnig_index(index_path: Path) -> list[dict[str, object]]:
     return rows
 
 
-def _bbox_geom_lonlat(bbox: Bbox, crs: str):
+def _bbox_geom_lonlat(bbox: Bbox, crs: str) -> BaseGeometry:
     geom = box(*bbox)
     transformer = Transformer.from_crs(crs, "EPSG:4326", always_xy=True)
     return shapely_transform(transformer.transform, geom)
@@ -407,7 +409,14 @@ def _fetch_cnig_tiles(bbox: Bbox, tiles_dir: Path, crs: str) -> list[Path]:
     index_dir = data_dir / "mdt05_sheet_index"
     for sec, filename in _cached_query_sheets(session, bbox, crs, index_dir):
         dest = cache_dir / filename
-        out.append(_download_cnig_sheet(session, sec, filename, dest))
+        # Retry the whole sheet download: the response body is streamed
+        # (stream=True), so a mid-transfer connection drop (IncompleteRead ->
+        # ChunkedEncodingError) surfaces here, outside _cnig_request's
+        # request-phase retry. Without this a single broken stream aborts the
+        # entire precompute run. _download_cnig_sheet writes to a .part file and
+        # skips a completed dest, so re-running it is safe.
+        out.append(_download_with_retries(
+            functools.partial(_download_cnig_sheet, session, sec, filename, dest)))
     return out
 
 

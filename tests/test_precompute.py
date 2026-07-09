@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import cast
 import concurrent.futures
 import pytest
 from highliner.services import precompute
@@ -97,7 +98,7 @@ def test_process_chunk_stays_retriable_after_persistent_rate_limit(
     import requests
     from highliner.repositories import dtm as _dtm
 
-    monkeypatch.setattr(_dtm.time, "sleep", lambda s: None)
+    monkeypatch.setattr("highliner.repositories.dtm.time.sleep", lambda s: None)
     resp = requests.Response()
     resp.status_code = 429
 
@@ -231,8 +232,8 @@ def test_precompute_submits_chunks_to_parallel_pool(
             future.set_result(0)
             return future
 
-    monkeypatch.setattr(precompute.concurrent.futures, "ProcessPoolExecutor", FakeProcessPool)
-    monkeypatch.setattr(precompute.concurrent.futures, "as_completed", lambda futures: futures)
+    monkeypatch.setattr("concurrent.futures.ProcessPoolExecutor", FakeProcessPool)
+    monkeypatch.setattr("concurrent.futures.as_completed", lambda futures: futures)
 
     seen: list[tuple[int, int]] = []
     n = precompute.precompute(
@@ -262,11 +263,11 @@ def test_precompute_uses_process_pool_for_parallel_workers(
             return None
 
         def submit(self, *args: object, **kwargs: object) -> concurrent.futures.Future[int]:
-            seen["submitted"] = int(seen["submitted"]) + 1
+            seen["submitted"] = cast(int, seen["submitted"]) + 1
             return done_future
 
-    monkeypatch.setattr(precompute.concurrent.futures, "ProcessPoolExecutor", FakeProcessPool)
-    monkeypatch.setattr(precompute.concurrent.futures, "as_completed", lambda futures: futures)
+    monkeypatch.setattr("concurrent.futures.ProcessPoolExecutor", FakeProcessPool)
+    monkeypatch.setattr("concurrent.futures.as_completed", lambda futures: futures)
 
     precompute.precompute(
         "catalonia", (0.0, 0.0, 20000.0, 10000.0), tmp_path,

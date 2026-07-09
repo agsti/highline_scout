@@ -11,14 +11,15 @@ from highliner.router import (anchors, density, regions, restrictions, zones)
 
 
 class _NoCacheStaticFiles(StaticFiles):
-    """Serve the web/ assets with forced revalidation.
+    """Serve the frontend build with forced revalidation.
 
-    There's no build step, so assets keep stable unversioned names (app.js,
-    i18n.js, ...). With the default heuristic browser cache a returning visitor
-    can pair a stale cached app.js with a freshly deployed index.html and throw
-    (e.g. `restrictionText is not defined`). `Cache-Control: no-cache` lets the
-    browser cache but revalidate via ETag on every load — a cheap 304 when a
-    file is unchanged, fresh bytes the moment a deploy changes it.
+    The Vite build content-hashes its JS/CSS (index-<hash>.js), so those assets
+    are safe to cache indefinitely — but the entry `index.html` keeps a stable
+    name and points at whichever hashes the latest deploy produced. With the
+    default heuristic browser cache a returning visitor can pair a stale cached
+    index.html with asset URLs that no longer exist. `Cache-Control: no-cache`
+    lets the browser cache but revalidate via ETag on every load — a cheap 304
+    when a file is unchanged, fresh bytes the moment a deploy changes it.
     """
 
     async def get_response(self, path: str, scope: Scope) -> Response:
@@ -39,9 +40,10 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
     for module in (regions, zones, anchors, density, restrictions):
         app.include_router(module.router)
 
-    web_dir = Path(__file__).resolve().parent.parent / "web"
-    if web_dir.exists():
-        app.mount("/", _NoCacheStaticFiles(directory=web_dir, html=True), name="web")
+    frontend_dir = Path(__file__).resolve().parent.parent / "frontend" / "dist"
+    if frontend_dir.exists():
+        app.mount("/", _NoCacheStaticFiles(directory=frontend_dir, html=True),
+                  name="frontend")
 
     return app
 

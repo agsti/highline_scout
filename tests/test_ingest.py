@@ -268,3 +268,40 @@ def test_raster_from_tiles_masks_sea_sentinel(tmp_path: Path) -> None:
     assert np.isnan(r.data).any()               # sea half masked
     assert not (r.data == ingest.SEA_SENTINEL).any()
     assert (r.data == 100.0).any()              # land half kept
+
+
+def test_cached_query_sheets_caches_result(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[tuple] = []
+
+    def fake_query(session: object, bbox: tuple, crs: str) -> list[tuple[str, str]]:
+        calls.append((bbox, crs))
+        return [("42", "sheet.tif")]
+
+    monkeypatch.setattr(ingest, "_cnig_query_sheets", fake_query)
+    cache_dir = tmp_path / "idx"
+    bbox = (400000.0, 4600000.0, 410000.0, 4610000.0)
+
+    a = ingest._cached_query_sheets(None, bbox, "EPSG:25830", cache_dir)
+    b = ingest._cached_query_sheets(None, bbox, "EPSG:25830", cache_dir)
+
+    assert a == b == [("42", "sheet.tif")]
+    assert len(calls) == 1                       # second call served from disk
+    assert list(cache_dir.glob("*.json"))        # cache file written
+
+
+def test_cached_query_sheets_caches_empty_result(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[int] = []
+
+    def fake_query(session: object, bbox: tuple, crs: str) -> list[tuple[str, str]]:
+        calls.append(1)
+        return []
+
+    monkeypatch.setattr(ingest, "_cnig_query_sheets", fake_query)
+    cache_dir = tmp_path / "idx"
+    bbox = (0.0, 0.0, 10.0, 10.0)
+
+    assert ingest._cached_query_sheets(None, bbox, "EPSG:25830", cache_dir) == []
+    assert ingest._cached_query_sheets(None, bbox, "EPSG:25830", cache_dir) == []
+    assert len(calls) == 1                       # empty result cached too

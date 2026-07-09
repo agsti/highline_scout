@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Callable
 import concurrent.futures
 import fcntl
+import hashlib
 import json
 import math
 import os
@@ -326,6 +327,24 @@ def _cnig_query_sheets(session: requests.Session, bbox: Bbox,
     return out
 
 
+def _cached_query_sheets(session: requests.Session, bbox: Bbox, crs: str,
+                         cache_dir: Path) -> list[tuple[str, str]]:
+    """Resolve intersecting MDT05 sheets for ``(bbox, crs)``, caching the CNIG
+    catalog query to disk. The chunk grid is deterministic, so re-runs and
+    adjacent chunks reuse the cached resolution instead of re-querying CNIG.
+    Concurrency-safe: one file per key, written atomically (tmp + replace)."""
+    key = hashlib.sha1(json.dumps([crs, list(bbox)]).encode()).hexdigest()
+    path = cache_dir / f"{key}.json"
+    if path.exists():
+        return [tuple(row) for row in json.loads(path.read_text())]
+    sheets = _cnig_query_sheets(session, bbox, crs)
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(f".json.{os.getpid()}.tmp")
+    tmp.write_text(json.dumps(sheets))
+    tmp.replace(path)
+    return sheets
+
+
 def _download_cnig_sheet(session: requests.Session, sec: str, filename: str,
                          dest: Path) -> Path:
     dest.parent.mkdir(parents=True, exist_ok=True)
@@ -379,7 +398,8 @@ def _fetch_cnig_tiles(bbox: Bbox, tiles_dir: Path, crs: str) -> list[Path]:
     session = _cnig_session()
     out: list[Path] = []
     cache_dir = data_dir / "mdt05_tiles"
-    for sec, filename in _cnig_query_sheets(session, bbox, crs):
+    index_dir = data_dir / "mdt05_sheet_index"
+    for sec, filename in _cached_query_sheets(session, bbox, crs, index_dir):
         dest = cache_dir / filename
         out.append(_download_cnig_sheet(session, sec, filename, dest))
     return out

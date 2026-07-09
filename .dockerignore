@@ -9,3 +9,5 @@ data/
 *.egg-info/
 tests/
 README.md
+frontend/node_modules/
+frontend/dist/

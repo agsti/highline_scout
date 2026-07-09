@@ -1,3 +1,16 @@
+# Frontend build stage: compile the Vite/React app into static assets.
+FROM node:20-bookworm-slim AS frontend
+
+WORKDIR /app/frontend
+
+# Install deps against the lockfile first so a source-only change doesn't
+# re-resolve the whole tree.
+COPY frontend/package.json frontend/package-lock.json ./
+RUN --mount=type=cache,target=/root/.npm npm ci
+
+COPY frontend/ ./
+RUN npm run build
+
 # Build stage: resolve dependencies into a venv using uv + the locked versions.
 FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim AS builder
 
@@ -26,10 +39,11 @@ RUN apt-get update \
 
 COPY --from=builder /app/.venv /app/.venv
 COPY highliner ./highliner
-COPY web ./web
+COPY --from=frontend /app/frontend/dist ./frontend/dist
 
-# Run from source so highliner.app.create_app() finds web/ at /app/web
-# (it resolves it relative to the package: parent.parent of highliner/app.py).
+# Run from source so highliner.app.create_app() finds the frontend build at
+# /app/frontend/dist (resolved relative to the package: parent.parent of
+# highliner/app.py, then frontend/dist).
 ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONPATH=/app \
     PYTHONUNBUFFERED=1

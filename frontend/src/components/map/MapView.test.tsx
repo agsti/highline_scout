@@ -465,6 +465,49 @@ describe("MapView", () => {
     expect(screen.getByText("alta")).toBeInTheDocument();
   });
 
+  it("renders the density legend above the Leaflet panes", async () => {
+    leafletState.zoom = 12;
+    apiMocks.fetchDensity.mockResolvedValue({
+      type: "FeatureCollection",
+      features: [
+        {
+          type: "Feature",
+          geometry: { type: "Polygon", coordinates: [[[1, 2], [1, 3], [2, 3], [1, 2]]] },
+          properties: { n_pairs: 4, max_exposure: 55, length_min: 80, length_max: 120 },
+        },
+      ],
+    });
+
+    renderMapView();
+
+    const legend = (await screen.findByText("Probabilitat de línies")).closest("div.absolute");
+    expect(legend).not.toBeNull();
+    // Without an explicit stacking index the card renders behind Leaflet's
+    // positive-z panes (tile pane z-200 … control container z-1000).
+    expect(legend).toHaveClass("z-[1100]");
+  });
+
+  it("shows a loading spinner over the map while a request is in flight, then hides it", async () => {
+    let resolveZones: (value: { type: "FeatureCollection"; features: unknown[] }) => void = () => {};
+    apiMocks.fetchZones.mockReturnValue(
+      new Promise((resolve) => {
+        resolveZones = resolve;
+      }),
+    );
+
+    renderMapView();
+
+    const spinner = await screen.findByTestId("map-spinner");
+    expect(spinner).toBeInTheDocument();
+    expect(spinner).toHaveClass("z-[1100]");
+
+    await act(async () => {
+      resolveZones({ type: "FeatureCollection", features: [] });
+    });
+
+    await waitFor(() => expect(screen.queryByTestId("map-spinner")).not.toBeInTheDocument());
+  });
+
   it("loads zones at high zoom, accumulates across pans, and resets on filter changes", async () => {
     const zoneA = {
       type: "Feature" as const,

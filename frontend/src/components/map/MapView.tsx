@@ -1,5 +1,5 @@
 import L from "leaflet";
-import { CopyIcon, ExternalLink } from "lucide-react";
+import { CopyIcon, ExternalLink, Loader2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ApiError, fetchAnchors, fetchDensity, fetchRestrictions, fetchZones } from "@/lib/api";
@@ -89,6 +89,7 @@ export function MapView({
   const statusRef = useRef<{ kind: "idle" | "loading-zones" | "loading-density" | "zones" | "density" | "zoom" | "error"; count?: number; detail?: string; noun?: "nounZones" | "nounHotspots" }>({ kind: "idle" });
   const [viewportTick, setViewportTick] = useState(0);
   const [showDensityLegend, setShowDensityLegend] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
 
   function renderStatus() {
@@ -258,6 +259,7 @@ export function MapView({
       const densityMode = zoom <= DENSITY_MAX_ZOOM;
       setShowDensityLegend(densityMode);
       pushStatus(densityMode ? { kind: "loading-density" } : { kind: "loading-zones" });
+      setIsLoading(true);
       try {
         if (densityMode) {
           zoneLayerRef.current?.clearLayers();
@@ -300,6 +302,10 @@ export function MapView({
         } else {
           pushStatus({ kind: "error", detail: error instanceof Error ? error.message : String(error) });
         }
+      } finally {
+        // Only the newest request owns the spinner; a superseded one that lost
+        // the requestId race must not clear a spinner the current load re-armed.
+        if (requestId === requestIdRef.current) setIsLoading(false);
       }
     }
 
@@ -390,6 +396,19 @@ export function MapView({
   return (
     <div className="relative h-full w-full">
       <div ref={elRef} className="h-full w-full" />
+      {isLoading ? (
+        <div
+          data-testid="map-spinner"
+          role="status"
+          aria-live="polite"
+          className="pointer-events-none absolute inset-0 z-[1100] flex items-center justify-center"
+        >
+          <div className="rounded-full bg-background/85 p-3 shadow-lg backdrop-blur">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" aria-hidden="true" />
+            <span className="sr-only">{t("searching")}</span>
+          </div>
+        </div>
+      ) : null}
       {contextMenu ? (
         <div ref={contextMenuRootRef} className="pointer-events-none absolute inset-0 z-[1200]">
           <div
@@ -452,7 +471,7 @@ export function MapView({
         </div>
       ) : null}
       {showDensityLegend ? (
-        <div className="pointer-events-none absolute bottom-3 right-3 rounded-md border bg-background/95 px-3 py-2 text-xs shadow">
+        <div className="pointer-events-none absolute bottom-3 right-3 z-[1100] rounded-md border bg-background/95 px-3 py-2 text-xs shadow">
           <div className="mb-1 font-medium">{t("lineDensity")}</div>
           <div className="flex gap-px">
             {[0, 0.25, 0.5, 0.75, 1].map((value) => (

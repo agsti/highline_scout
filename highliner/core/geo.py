@@ -45,6 +45,11 @@ def bearing_in_sectors(angle: float,
                        sectors: tuple[tuple[float, float, float], ...],
                        tol: float = 0.0) -> bool:
     for start, end, _drop in sectors:
+        # Widening a near-full-circle sector by tol would wrap the arc past
+        # 360 and normalize into a tiny sliver, inverting the test. If the
+        # widened span covers the whole circle, accept every bearing instead.
+        if (end - start) % 360.0 + 2 * tol >= 360.0:
+            return True
         if _angular_contains(start - tol, end + tol, angle):
             return True
     return False

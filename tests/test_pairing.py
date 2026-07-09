@@ -31,6 +31,18 @@ def test_facing_pair_across_gap_is_found() -> None:
     assert c.exposure >= 50
 
 
+def test_pinnacle_to_rim_pair_is_found() -> None:
+    # A free-standing tower drops in every direction, so drop_sectors emits the
+    # full-circle sector (0, 345). Widening it by sector_tol must not invert it
+    # into a sliver, or the pinnacle-anchored line is silently dropped.
+    r = gap_raster()
+    pinnacle = Anchor(x=70.0, y=50.0, elev=100.0, sectors=((0.0, 345.0, 60.0),))
+    west_rim = Anchor(x=30.0, y=50.0, elev=100.0, sectors=((80.0, 100.0, 60.0),))
+    res = pairing.find_candidates([west_rim, pinnacle], r, max_len=60,
+                                  min_len=10, min_exposure=50, max_dh=5)
+    assert len(res) == 1
+
+
 def test_rejected_when_too_long() -> None:
     r = gap_raster()
     a, b = facing_pair()

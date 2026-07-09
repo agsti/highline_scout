@@ -23,6 +23,17 @@ def test_bearing_in_sector_wraps_north() -> None:
     assert not geo.bearing_in_sectors(180, sectors, tol=0)
 
 
+def test_bearing_in_full_circle_sector_with_tol() -> None:
+    # pinnacle: every azimuth drops, emitting one full-circle sector.
+    # Widening by tol must not invert the span into a tiny sliver.
+    sectors = ((0.0, 345.0, 30.0),)
+    for az in range(0, 360, 15):
+        assert geo.bearing_in_sectors(float(az), sectors, tol=10)
+    # bearings between the 15-degree azimuth samples must also be accepted
+    assert geo.bearing_in_sectors(7.0, sectors, tol=10)
+    assert geo.bearing_in_sectors(352.0, sectors, tol=10)
+
+
 def test_roundtrip_crs() -> None:
     # A point near Montserrat, Catalonia
     lon, lat = 1.83, 41.59

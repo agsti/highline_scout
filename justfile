@@ -7,8 +7,26 @@ install:
     uv sync --extra dev
 
 # FastAPI dev server, auto-restarts on changes in highliner/.
+# For live frontend work, run this alongside `just dev-web`: Vite serves the UI
+# with hot reload on :5173 and proxies API calls to this server on :8000.
 dev:
     uv run uvicorn highliner.app:app --reload --reload-dir highliner --host 127.0.0.1 --port 8000
+
+# Install the frontend's npm dependencies from the lockfile.
+install-web:
+    cd frontend && npm ci
+
+# Vite dev server with hot reload (proxies API calls to FastAPI on :8000).
+dev-web:
+    cd frontend && npm run dev
+
+# Build the production frontend into frontend/dist (served by FastAPI when present).
+build-web:
+    cd frontend && npm run build
+
+# Run the frontend test suite (vitest).
+test-web:
+    cd frontend && npm test
 
 # Production-style server via the CLI (no auto-reload). Override like: just serve 0.0.0.0 9000
 serve host="127.0.0.1" port="8000":

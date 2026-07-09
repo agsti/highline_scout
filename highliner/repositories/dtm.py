@@ -332,11 +332,17 @@ def _cached_query_sheets(session: requests.Session, bbox: Bbox, crs: str,
     """Resolve intersecting MDT05 sheets for ``(bbox, crs)``, caching the CNIG
     catalog query to disk. The chunk grid is deterministic, so re-runs and
     adjacent chunks reuse the cached resolution instead of re-querying CNIG.
-    Concurrency-safe: one file per key, written atomically (tmp + replace)."""
+    Safe across processes: one file per key, written atomically (tmp keyed by
+    pid + replace); the sole caller runs one chunk per process, so same-key
+    threads never race on the tmp file."""
     key = hashlib.sha1(json.dumps([crs, list(bbox)]).encode()).hexdigest()
     path = cache_dir / f"{key}.json"
     if path.exists():
         return [tuple(row) for row in json.loads(path.read_text())]
+    # Empty results are cached too, so sea/no-coverage chunks stop re-querying.
+    # This assumes an empty resolution is genuine: _cnig_query_sheets only
+    # returns [] after real 200 pages (429/5xx are retried in _cnig_request),
+    # so a throttle can't be mistaken for "no sheets" and cached permanently.
     sheets = _cnig_query_sheets(session, bbox, crs)
     cache_dir.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(f".json.{os.getpid()}.tmp")

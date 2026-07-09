@@ -25,6 +25,24 @@ system interpreter's plain `venv` is known-broken here.
     just dev                       # FastAPI dev server, auto-reload, :8000
     just fetch-restrictions        # download protected-area layers -> data/restrictions/
 
+The frontend is a Vite + React + TypeScript app under `frontend/` (Node ≥ 20):
+
+    just install-web               # npm ci (once, and after dependency changes)
+    just dev-web                   # Vite hot-reload UI on :5173, proxies API to :8000
+    just build-web                 # production build -> frontend/dist/ (served by FastAPI)
+    just test-web                  # frontend test suite (vitest)
+
+Local dev and production serve the frontend differently:
+
+- **Local** — run `just dev` (API on :8000) and `just dev-web` (Vite on :5173)
+  together, and open **:5173**. Vite serves the UI and proxies/rewrites the API
+  routes (`/regions`, `/zones`, `/density`, `/anchors`, `/restrictions`) to
+  :8000, so the backend never serves frontend assets. No `build-web` needed.
+- **Production** — the Docker build runs `build-web` and FastAPI mounts the
+  resulting `frontend/dist/` at `/` (`app.py`, guarded by the dir existing).
+  Keep the Vite `server.proxy` list in `vite.config.ts` in sync with the API
+  route prefixes.
+
 CLI (`highliner` entry point, `highliner/cli.py`):
 
     .venv/bin/highliner precompute --region NAME --bbox minx,miny,maxx,maxy [--chunk-km N]
@@ -38,7 +56,7 @@ slice of that layer:
 
     highliner/
       app.py                 FastAPI factory: wires routers, CORS, and the
-                             web/ static mount
+                             frontend/dist/ static mount
       cli.py                 `highliner` entry point (precompute/precompute-density/serve/fetch-restrictions)
       core/                  cross-cutting: config.py, geo.py (coord transforms)
       models/                pure domain dataclasses: anchor, candidate, zone, raster
@@ -75,7 +93,8 @@ on every request — no DTM raster is ever touched at serve time.
    `repositories/candidates.py`); the raw DTM tiles are deleted afterward —
    nothing raster-shaped persists.
 
-2. **Serve** (`app.py` + `router/`) — FastAPI + a Leaflet frontend in `web/`.
+2. **Serve** (`app.py` + `router/`) — FastAPI + a Vite/React frontend in
+   `frontend/` (Leaflet map), served in production from its `frontend/dist/` build.
    On each `GET /zones` (`router/zones.py`) it reads the precomputed pair
    partitions overlapping the viewport (`repositories/chunked_store.py`),
    narrows them with the live `min_len`/`max_len`/`min_exposure`/`max_dh`
@@ -126,45 +145,45 @@ when validating against known lines.
 ## Localization (i18n)
 
 The frontend is trilingual: **Catalan (`ca`, default) / Spanish (`es`) /
-English (`en`)**. There is no build step — `web/i18n.js` is a plain `<script>`
-loaded before `web/app.js`, exposing `STRINGS`, `LANG`, `t()`, `setLang()`,
-`applyStaticI18n()` and `restrictionText()` as globals.
+English (`en`)**. It lives under `frontend/src/lib/i18n/`, exposed as a React
+context: `I18nProvider` wraps the app and `useI18n()` hands components
+`{ lang, setLang, t }`.
 
 ### Where strings live
 
-- **`web/i18n.js` → `STRINGS[lang]`** — every UI string, one flat object per
-  language. Catalan (`ca`) is the base/source-of-truth key set.
-- **`web/i18n.js` → `RESTRICTION_STRINGS[lang]`** — per-layer protected-area
-  text (`label` / `tooltip` / `highlight`), keyed by layer id (`pein`, `parcs`,
-  `fauna`). **Catalan is intentionally absent here** — it comes from the backend
-  (see below) and must not be duplicated.
+- **`frontend/src/lib/i18n/strings.ts` → `STRINGS[lang]`** — every UI string,
+  one flat object per language. Catalan (`ca`) is the base/source-of-truth key
+  set, and `StringKey` is derived from it (`keyof typeof STRINGS.ca`), so `t()`
+  calls type-check against the `ca` keys.
+- **`frontend/src/lib/i18n/restrictionStrings.ts` → `RESTRICTION_STRINGS[lang]`**
+  — per-layer protected-area text (`label` / `tooltip` / `highlight`), keyed by
+  layer id (`pein`, `parcs`, `fauna`). **Catalan is intentionally absent here**
+  — it comes from the backend (see below) and must not be duplicated.
 - **`highliner/repositories/restrictions.py`** — the **Catalan** restriction
   `label` / `tooltip` / `highlight`, served via `/restrictions`. This is the
   `ca` source and the fallback for any layer without a translation.
 
 ### How `t()` and rendering work
 
-- `t(key, params)` looks up `STRINGS[LANG][key]` and interpolates `{name}`
-  placeholders from `params`. A missing key returns the key itself, so gaps show
-  on screen instead of going blank.
+- `t(key, params)` (from `useI18n()`) looks up `STRINGS[lang][key]` and
+  interpolates `{name}` placeholders from `params`. A missing key returns the
+  key itself, so gaps show on screen instead of going blank.
 - Some strings are **HTML** (they feed Leaflet popups/tooltips): `zonePopup`,
   `densityTooltip`, `anchorPopup`, etc. Keep them valid HTML.
-- Static markup uses `data-i18n="key"` attributes (`web/index.html`);
-  `applyStaticI18n()` fills them on load and after each switch.
-- `restrictionText(id, fallback)` resolves a layer's text for the active
+- `restrictionText(id, lang, fallback)` resolves a layer's text for the active
   language, falling back to the server-provided Catalan `{label,tooltip,highlight}`.
-- The language switcher (`#lang` select in `web/index.html`, wired at the bottom
-  of `web/app.js`) calls `setLang()` then re-renders **everything**:
-  `applyStaticI18n()`, drops the density legend so `refresh()` rebuilds it, and
-  re-runs `refresh()` / `refreshAnchors()` / `refreshRestrictions()`.
+- `LanguageSwitcher` calls `setLang()`; because the whole tree consumes the i18n
+  context, switching re-renders every component (labels, legend, popups) and
+  `I18nProvider` persists the choice to `localStorage` and sets
+  `document.documentElement.lang`.
 
 ### Adding or changing a UI string
 
-1. Add the key to **all three** `STRINGS` catalogs (`ca`, `es`, `en`) — the
-   dev-only `assertCatalogParity()` check warns in the console if any catalog's
-   key set differs from `ca`.
-2. Use it via `t("key")` in JS, or `data-i18n="key"` for static markup (with an
-   English fallback in the element's text so it's readable pre-JS).
+1. Add the key to **all three** `STRINGS` catalogs (`ca`, `es`, `en`). The
+   catalog-parity test in `frontend/src/lib/i18n/i18n.test.tsx` fails if any
+   catalog's key set differs from `ca`, and TypeScript flags stray/missing keys
+   at `t()` call sites.
+2. Use it via `const { t } = useI18n()` then `t("key")`.
 3. For placeholders, use `{name}` and pass `t("key", { name: value })`.
 
 ### Adding a restriction-layer translation
@@ -176,9 +195,10 @@ a `ca` entry; the Catalan text lives in the backend repository.
 
 ### Adding a new language
 
-1. Add a full object under `STRINGS` with the **same key set as `ca`**.
+1. Add the code to `LANGS` in `strings.ts` and a full `STRINGS` object with the
+   **same key set as `ca`**.
 2. Add the language's `RESTRICTION_STRINGS` entry (optional — falls back to
    Catalan otherwise).
-3. Add an `<option>` to the `#lang` select in `web/index.html`.
-4. `pickInitialLang()` auto-detects it from the browser (2-letter prefix) and
-   remembers the choice in `localStorage`; no other wiring needed.
+3. `pickInitialLang()` (in `I18nProvider.tsx`) auto-detects it from the browser
+   (2-letter prefix) and remembers the choice in `localStorage`;
+   `LanguageSwitcher` picks up the new `LANGS` entry automatically.

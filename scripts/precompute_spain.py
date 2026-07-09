@@ -52,7 +52,7 @@ def run(cmd: list[str]) -> None:
 def run_region(region: Region, highliner: str, data_dir: str,
                chunk_workers: int) -> None:
     run([highliner, "precompute", "--data-dir", data_dir,
-         "--region", region.name, "--bbox", region.bbox,
+         "--region", region.name, f"--bbox={region.bbox}",
          "--workers", str(chunk_workers)])
     run([highliner, "precompute-density", "--data-dir", data_dir,
          "--region", region.name])

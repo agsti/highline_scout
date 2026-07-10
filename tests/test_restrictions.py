@@ -136,3 +136,20 @@ def test_load_source_rn2000_attaches_designations(
     gdf = R._load_source("rn2000", raw_dir=raw)
 
     assert list(gdf["designations"]) == [{"SpecialProtectionArea"}, set()]
+
+
+def test_fetch_all_writes_the_three_layers(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    rn = _rn2000_source()
+    enp = gpd.GeoDataFrame(
+        {"SITE_NAME": ["Park"]}, geometry=[_SQUARE], crs="EPSG:4326")
+    monkeypatch.setattr(
+        R, "_load_source",
+        lambda key, raw_dir=None: rn if key == "rn2000" else enp)
+
+    written = R.fetch_all(dest_dir=tmp_path / "out")
+
+    assert set(written) == {"zepa", "zec", "enp"}
+    for lid in ("zepa", "zec", "enp"):
+        assert (tmp_path / "out" / f"{lid}.parquet").exists()
+    assert len(R.load_layer(str(tmp_path / "out" / "enp.parquet"))) == 1

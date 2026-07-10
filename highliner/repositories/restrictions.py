@@ -85,9 +85,15 @@ def _load_source(source_key: str,
         raise KeyError(source_key)
     gdf = _load_files(base, SOURCE_GLOBS[source_key])
     if source_key == "rn2000":
+        # GDAL does not expose the INSPIRE designation (it lives in a
+        # ps:designation xlink:href attribute), so the same GML files are read a
+        # second time via raw XML to recover the ZEPA/ZEC codes, joined on
+        # localId below. Use SOURCE_GLOBS so this stays in sync with the
+        # geometry load in _load_files above.
         codes: dict[str, set[str]] = {}
-        for path in sorted(base.glob("*.gml")):
-            codes.update(_parse_designations(path))
+        for pattern in SOURCE_GLOBS["rn2000"]:
+            for path in sorted(base.glob(pattern)):
+                codes.update(_parse_designations(path))
         gdf["designations"] = [codes.get(lid, set()) for lid in gdf["localId"]]
     return gdf
 
@@ -101,7 +107,12 @@ def _load_files(raw_dir: Path, patterns: tuple[str, ...]) -> gpd.GeoDataFrame:
         for path in sorted(raw_dir.glob(pattern)):
             gdf = gpd.read_file(path)
             if gdf.crs is None:
-                gdf = gdf.set_crs("EPSG:4326")
+                if path.suffix.lower() in (".geojson", ".json"):
+                    gdf = gdf.set_crs("EPSG:4326")  # GeoJSON is WGS84 by spec
+                else:
+                    raise ValueError(
+                        f"{path}: source has no CRS and is not GeoJSON; "
+                        f"refusing to assume EPSG:4326")
             elif gdf.crs.to_epsg() != 4326:
                 gdf = gdf.to_crs("EPSG:4326")
             frames.append(gdf)
@@ -201,14 +212,19 @@ def build_layer(layer_id: str,
     return gdf
 
 
-def fetch_all(dest_dir: Path | None = None) -> dict[str, Path]:
-    """Build every layer from the local national files under
-    ``data/restrictions/raw/`` and write ``data/restrictions/<id>.parquet``."""
+def fetch_all(dest_dir: Path | None = None,
+              raw_dir: Path | None = None) -> dict[str, Path]:
+    """Build every layer from the local national files under ``raw_dir``
+    (default ``data/restrictions/raw/``) and write
+    ``data/restrictions/<id>.parquet``."""
     dest_dir = Path(dest_dir or (config.DATA_DIR / "restrictions"))
     dest_dir.mkdir(parents=True, exist_ok=True)
     source_cache: dict[str, gpd.GeoDataFrame] = {}
     written: dict[str, Path] = {}
     for layer_id in LAYERS:
+        src_key = LAYERS[layer_id]["source"]
+        if src_key not in source_cache:
+            source_cache[src_key] = _load_source(src_key, raw_dir)
         gdf = build_layer(layer_id, source_cache)
         path = dest_dir / f"{layer_id}.parquet"
         gdf.to_parquet(path)

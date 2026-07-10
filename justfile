@@ -56,7 +56,7 @@ fetch-restrictions:
       (curl -fL "{{RN2000_URL}}" -o data/restrictions/raw/rn2000.zip && \
        unzip -o -j data/restrictions/raw/rn2000.zip -d data/restrictions/raw && \
        rm data/restrictions/raw/rn2000.zip)
-    ls data/restrictions/raw/*.geojson data/restrictions/raw/*.json >/dev/null 2>&1 || \
+    [ -n "$(ls data/restrictions/raw/*.geojson data/restrictions/raw/*.json 2>/dev/null)" ] || \
       (curl -fL "{{ENP_URL}}" -o data/restrictions/raw/enp.zip && \
        unzip -o -j data/restrictions/raw/enp.zip -d data/restrictions/raw && \
        rm data/restrictions/raw/enp.zip)

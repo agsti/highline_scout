@@ -14,15 +14,13 @@ import {
   tealShade,
   zoneKey,
 } from "@/lib/map-style";
-import type { DensityFeatureCollection, Region, RestrictionLayerMeta, ZoneFeatureCollection } from "@/types/highliner";
+import type { DensityFeatureCollection, RestrictionLayerMeta, ZoneFeatureCollection } from "@/types/highliner";
 import { createDensityLayer, createRestrictionLayer, createZoneLayer, renderAnchors } from "./leafletLayers";
 
 const DEFAULT_VIEW: MapViewState = { center: [41.6, 1.83], zoom: 13 };
 const MOBILE_QUERY = "(max-width: 767px)";
 
 interface MapViewProps {
-  regions: Region[];
-  region: string;
   maxLen: number;
   minExposure: number;
   showAnchors: boolean;
@@ -56,8 +54,6 @@ interface ContextMenuState {
 }
 
 export function MapView({
-  regions,
-  region,
   maxLen,
   minExposure,
   showAnchors,
@@ -72,7 +68,6 @@ export function MapView({
   const { lang, t } = useI18n();
   const elRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<L.Map | null>(null);
-  const skipInitialRegionFitRef = useRef(false);
   const zoneLayerRef = useRef<L.GeoJSON | null>(null);
   const densityLayerRef = useRef<L.GeoJSON | null>(null);
   const anchorLayerRef = useRef<L.LayerGroup | null>(null);
@@ -172,7 +167,6 @@ export function MapView({
   useEffect(() => {
     if (!elRef.current || mapRef.current) return;
     const urlView = initialViewFromSearch(window.location.search);
-    skipInitialRegionFitRef.current = !!urlView;
     const view = urlView ?? DEFAULT_VIEW;
     const map = L.map(elRef.current).setView(view.center, view.zoom);
     L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
@@ -221,22 +215,6 @@ export function MapView({
 
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !region) return;
-    const selected = regions.find((item) => item.name === region);
-    if (!selected) return;
-    if (skipInitialRegionFitRef.current) {
-      skipInitialRegionFitRef.current = false;
-      return;
-    }
-    const [w, s, e, n] = selected.bounds_lonlat;
-    map.fitBounds([
-      [s, w],
-      [n, e],
-    ]);
-  }, [region, regions]);
-
-  useEffect(() => {
-    const map = mapRef.current;
     if (!map) return;
     rebuildDynamicLayers(map);
     onMapStatus(renderStatus());
@@ -248,7 +226,7 @@ export function MapView({
 
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !region) return;
+    if (!map) return;
     const activeMap = map;
     const requestId = (requestIdRef.current += 1);
     const controller = new AbortController();
@@ -269,7 +247,7 @@ export function MapView({
             Math.max(Math.round(zoom) + DENSITY_ZOOM_OFFSET, DENSITY_TILE_MIN),
             DENSITY_TILE_MAX,
           );
-          const fc = await fetchDensity({ region, z, bboxLonLat }, controller.signal);
+          const fc = await fetchDensity({ z, bboxLonLat }, controller.signal);
           if (requestId !== requestIdRef.current) return;
           densityLayerRef.current?.clearLayers();
           densitySortedRef.current = fc.features
@@ -283,7 +261,7 @@ export function MapView({
 
         densityLayerRef.current?.clearLayers();
         shownDensityRef.current = null;
-        const fc = await fetchZones({ region, bboxLonLat, maxLen, minExposure }, controller.signal);
+        const fc = await fetchZones({ bboxLonLat, maxLen, minExposure }, controller.signal);
         if (requestId !== requestIdRef.current) return;
         const fresh = fc.features.filter((feature) => {
           const key = zoneKey(feature);
@@ -311,12 +289,12 @@ export function MapView({
 
     void load();
     return () => controller.abort();
-  }, [region, maxLen, minExposure, onMapStatus, viewportTick]);
+  }, [maxLen, minExposure, onMapStatus, viewportTick]);
 
   useEffect(() => {
     const map = mapRef.current;
     const layer = anchorLayerRef.current;
-    if (!map || !layer || !region) return;
+    if (!map || !layer) return;
     if (!showAnchors) {
       layer.clearLayers();
       onAnchorStatus("");
@@ -328,7 +306,7 @@ export function MapView({
       return;
     }
     const controller = new AbortController();
-    fetchAnchors({ region, bboxLonLat: bboxLonLatParam(map.getBounds()) }, controller.signal)
+    fetchAnchors({ bboxLonLat: bboxLonLatParam(map.getBounds()) }, controller.signal)
       .then((fc) => {
         renderAnchors(layer, fc, t);
         onAnchorStatus(t("anchorsCount", { n: fc.features.length }));
@@ -339,7 +317,7 @@ export function MapView({
         onAnchorStatus(t("anchorError", { detail: error instanceof Error ? error.message : String(error) }));
       });
     return () => controller.abort();
-  }, [region, showAnchors, t, onAnchorStatus, viewportTick]);
+  }, [showAnchors, t, onAnchorStatus, viewportTick]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -376,7 +354,7 @@ export function MapView({
     zoneLayerRef.current?.clearLayers();
     shownZoneKeysRef.current.clear();
     shownZoneFeaturesRef.current = [];
-  }, [region, maxLen, minExposure]);
+  }, [maxLen, minExposure]);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => mapRef.current?.invalidateSize(), 250);

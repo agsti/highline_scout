@@ -26,16 +26,19 @@ new location needs a terrain source that provides:
 
 `highliner/repositories/restrictions.py` is informational — protected-area
 overlays are not required for anchor/zone detection to work, only for the
-map overlay feature. If added for a new location:
+map overlay feature. The current layers (`zepa`/`zec`/`enp`) are built from
+MITECO's national Banco de Datos de la Naturaleza files, so any new location
+*within Spain* is already covered — no new restrictions work is needed. For a
+location outside Spain:
 
-- Needs a WFS (or equivalent) serving protected-area polygons with a
-  license permitting reuse.
-- Layer/attribute schema will very likely differ from the current
-  `zec`/`zepa`/`pein`/`parcs`/`fauna` split — expect to rewrite the
-  layer-derivation logic, not just point it at a new URL.
+- Needs a source (WFS, bulk download, etc.) serving protected-area polygons
+  with a license permitting reuse.
+- Layer/attribute schema will very likely differ from the current national
+  `zepa`/`zec`/`enp` split — expect to rewrite the layer-derivation logic,
+  not just point it at a new URL.
 - Label/tooltip text is currently hardcoded server-side in the source
-  language; a new location needs its own translated strings (see AGENTS.md's
-  i18n section for how the three-language catalogs and the
+  language (English); a new location needs its own translated strings (see
+  AGENTS.md's i18n section for how the three-language catalogs and the
   `RESTRICTION_STRINGS` fallback chain work).
 
 ## 3. Coordinate system

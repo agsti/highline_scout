@@ -20,12 +20,12 @@ helpers that consume it (``layer_meta``, ``clip_to_features``) live in
 ``highliner.services.restrictions``.
 """
 from pathlib import Path
+from collections.abc import Mapping
 from functools import lru_cache
 from typing import Any, Callable, TypedDict
 import xml.etree.ElementTree as ET
 import geopandas as gpd
 import pandas as pd
-from shapely.geometry import shape
 
 from highliner.core import config
 
@@ -101,12 +101,16 @@ def _load_files(raw_dir: Path, patterns: tuple[str, ...]) -> gpd.GeoDataFrame:
     return gpd.GeoDataFrame(pd.concat(frames, ignore_index=True), crs="EPSG:4326")
 
 
+ZEPA_VALUES = frozenset({"SpecialProtectionArea", "SpecialProtecionArea"})
+ZEC_VALUES = frozenset({"SpecialAreaOfConservation", "SiteOfCommunityImportance"})
+
+
 class LayerSpec(TypedDict):
     label: str
     color: str
     source: str
     name_field: str
-    keep: Callable[[dict[str, Any]], bool]
+    keep: Callable[[Mapping[str, Any]], bool]
     tooltip: str
     highlight: str
 
@@ -115,77 +119,71 @@ class LayerSpec(TypedDict):
 # stored size to ~15% of raw with no visible change at map zoom.
 SIMPLIFY_TOL_DEG = 0.0001
 
-# Derived overlay layers. Each pulls from a source feature type, optionally
+# Derived overlay layers. Each pulls from a loaded source and optionally
 # filters by a predicate on properties, and renames one field to `name`.
-# Note: PEIN legally incorporates all Xarxa Natura 2000 (ZEC/ZEPA) spaces, so
-# those layers would just overlap PEIN on the map and are intentionally omitted.
 LAYERS: dict[str, LayerSpec] = {
-    "pein": {
-        "label": "PEIN",
-        "color": "#ff7f00",
-        "source": "PEIN",
-        "name_field": "NOM_PEIN",
-        "keep": lambda p: True,
-        "tooltip": ("Pla d'Espais d'Interès Natural - el nivell bàsic de "
-                    "protecció a Catalunya (Decret 328/1992); inclou els espais "
-                    "de la Xarxa Natura 2000. Règim urbanístic rigorós; les "
-                    "activitats que puguin lesionar els valors naturals poden "
-                    "requerir avaluació d'impacte ambiental. Molts cingles "
-                    "tenen tancaments estacionals d'escalada per la nidificació "
-                    "de rapinyaires (aprox. gener-agost, varia segons l'espai)."),
-        # substring of `tooltip` to emphasize (the highliner-relevant part)
-        "highlight": ("les activitats que puguin lesionar els valors naturals "
-                      "poden requerir avaluació d'impacte ambiental. Molts "
-                      "cingles tenen tancaments estacionals d'escalada per la "
-                      "nidificació de rapinyaires (aprox. gener-agost, varia "
-                      "segons l'espai)."),
-    },
-    "parcs": {
-        "label": "Parcs Naturals",
-        "color": "#6a3d9a",
-        "source": "PARCSNATURALS",
-        "name_field": "NOM_ESPAI",
-        "keep": lambda p: True,
-        "tooltip": ("Nivell de protecció més alt (ENPE), cadascun amb el seu "
-                    "pla de gestió. Activitats com l'escalada, el vivac, els "
-                    "drons i els actes organitzats estan regulades i sovint "
-                    "necessiten autorització de l'òrgan gestor del parc."),
-        "highlight": ("Activitats com l'escalada, el vivac, els drons i els "
-                      "actes organitzats estan regulades i sovint necessiten "
-                      "autorització de l'òrgan gestor del parc."),
-    },
-    "fauna": {
-        "label": "Reserves de Fauna",
+    "zepa": {
+        "label": "ZEPA (Birds)",
         "color": "#e31a1c",
-        "source": "ENPE",
-        "name_field": "NOM_RNFS",
-        "keep": lambda p: bool((p.get("NOM_RNFS") or "").strip()),
-        "tooltip": ("Reserva Natural de Fauna Salvatge - protegeix la fauna. "
-                    "Es prohibeix qualsevol activitat que pugui perjudicar "
-                    "directament o indirectament la fauna protegida; consulteu "
-                    "l'òrgan gestor abans de fer cap activitat."),
-        "highlight": ("Es prohibeix qualsevol activitat que pugui perjudicar "
-                      "directament o indirectament la fauna protegida; "
-                      "consulteu l'òrgan gestor abans de fer cap activitat."),
+        "source": "rn2000",
+        "name_field": "text",
+        "keep": lambda p: bool(ZEPA_VALUES & set(p.get("designations") or ())),
+        "tooltip": ("Special Protection Area for Birds - Red Natura 2000 (EU "
+                    "Birds Directive). Cliffs in these areas commonly have "
+                    "seasonal climbing and access closures for raptor nesting "
+                    "(roughly winter to summer, varies by site); check with the "
+                    "managing body before rigging."),
+        "highlight": ("Cliffs in these areas commonly have seasonal climbing and "
+                      "access closures for raptor nesting (roughly winter to "
+                      "summer, varies by site); check with the managing body "
+                      "before rigging."),
+    },
+    "zec": {
+        "label": "ZEC / LIC",
+        "color": "#ff7f00",
+        "source": "rn2000",
+        "name_field": "text",
+        "keep": lambda p: bool(ZEC_VALUES & set(p.get("designations") or ())),
+        "tooltip": ("Site of Community Importance / Special Area of Conservation "
+                    "- Red Natura 2000 (EU Habitats Directive). Activities that "
+                    "may harm the protected habitats can be regulated and may "
+                    "require an environmental impact assessment."),
+        "highlight": ("Activities that may harm the protected habitats can be "
+                      "regulated and may require an environmental impact "
+                      "assessment."),
+    },
+    "enp": {
+        "label": "Protected Natural Areas",
+        "color": "#6a3d9a",
+        "source": "enp",
+        "name_field": "SITE_NAME",
+        "keep": lambda p: True,
+        "tooltip": ("Protected Natural Area - a national or regional protection "
+                    "figure such as a national or nature park, nature reserve or "
+                    "natural monument, each with its own management plan. "
+                    "Climbing, bivouacking, drones and organized events are often "
+                    "regulated and may need authorization from the managing "
+                    "body."),
+        "highlight": ("Climbing, bivouacking, drones and organized events are "
+                      "often regulated and may need authorization from the "
+                      "managing body."),
     },
 }
 
 
 def build_layer(layer_id: str,
-                source_cache: dict[str, list[dict[str, Any]]]) -> gpd.GeoDataFrame:
-    """Filter/normalize/simplify a source feature type into a derived layer."""
+                source_cache: dict[str, gpd.GeoDataFrame]) -> gpd.GeoDataFrame:
+    """Filter/normalize/simplify a loaded source into a derived overlay layer."""
     spec = LAYERS[layer_id]
     src = source_cache.get(spec["source"])
     if src is None:
-        src = source_cache[spec["source"]] = _fetch_source(spec["source"])
-    names, geoms = [], []
-    for f in src:
-        props = f.get("properties", {})
-        if not spec["keep"](props):
-            continue
-        names.append((props.get(spec["name_field"]) or "").strip())
-        geoms.append(shape(f["geometry"]))
-    gdf = gpd.GeoDataFrame({"name": names}, geometry=geoms, crs="EPSG:4326")
+        src = source_cache[spec["source"]] = _load_source(spec["source"])
+    keep = spec["keep"]
+    sub = src[src.apply(lambda row: keep(row), axis=1)]
+    names = (sub[spec["name_field"]].fillna("").astype(str).str.strip().tolist()
+             if len(sub) else [])
+    gdf = gpd.GeoDataFrame({"name": names}, geometry=list(sub.geometry),
+                           crs="EPSG:4326")
     gdf["geometry"] = gdf.geometry.simplify(SIMPLIFY_TOL_DEG,
                                             preserve_topology=True)
     return gdf
@@ -195,7 +193,7 @@ def fetch_all(dest_dir: Path | None = None) -> dict[str, Path]:
     """Download every layer and write data/restrictions/<id>.parquet."""
     dest_dir = Path(dest_dir or (config.DATA_DIR / "restrictions"))
     dest_dir.mkdir(parents=True, exist_ok=True)
-    source_cache: dict[str, list[dict[str, Any]]] = {}
+    source_cache: dict[str, gpd.GeoDataFrame] = {}
     written: dict[str, Path] = {}
     for layer_id in LAYERS:
         gdf = build_layer(layer_id, source_cache)

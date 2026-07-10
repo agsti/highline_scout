@@ -72,3 +72,38 @@ def test_parse_designations(tmp_path: Path) -> None:
 
     assert codes["ES0000197"] == {"SpecialProtecionArea"}          # typo-only ZEPA
     assert codes["ES6300001"] == {"SiteOfCommunityImportance", "SpecialProtectionArea"}
+
+
+def _rn2000_source() -> gpd.GeoDataFrame:
+    return gpd.GeoDataFrame(
+        {
+            "text": ["Birds Only", "Habitat Only", "Both"],
+            "designations": [
+                {"SpecialProtecionArea"},                       # typo ZEPA
+                {"SiteOfCommunityImportance"},                  # ZEC
+                {"SpecialProtectionArea", "SpecialAreaOfConservation"},
+            ],
+        },
+        geometry=[_SQUARE, _SQUARE, _SQUARE],
+        crs="EPSG:4326",
+    )
+
+
+def test_build_zepa_keeps_spa_incl_typo_and_both() -> None:
+    gdf = R.build_layer("zepa", {"rn2000": _rn2000_source()})
+    assert sorted(gdf["name"]) == ["Birds Only", "Both"]
+    assert gdf.crs.to_epsg() == 4326
+
+
+def test_build_zec_keeps_sci_sac_and_both() -> None:
+    gdf = R.build_layer("zec", {"rn2000": _rn2000_source()})
+    assert sorted(gdf["name"]) == ["Both", "Habitat Only"]
+
+
+def test_build_enp_keeps_all_and_normalizes_name() -> None:
+    src = gpd.GeoDataFrame(
+        {"SITE_NAME": ["  Park  ", None]},
+        geometry=[_SQUARE, _SQUARE], crs="EPSG:4326",
+    )
+    gdf = R.build_layer("enp", {"enp": src})
+    assert sorted(gdf["name"]) == ["", "Park"]

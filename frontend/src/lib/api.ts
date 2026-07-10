@@ -1,8 +1,6 @@
 import type {
   AnchorFeatureCollection,
   DensityFeatureCollection,
-  Region,
-  RegionsResponse,
   RestrictionFeatureCollection,
   RestrictionLayerMeta,
   RestrictionLayersResponse,
@@ -20,7 +18,6 @@ export class ApiError extends Error {
 }
 
 export interface ViewportQuery {
-  region: string;
   bboxLonLat: string;
 }
 
@@ -56,15 +53,9 @@ function query(params: Record<string, string | number>): string {
   ).toString();
 }
 
-export async function fetchRegions(signal?: AbortSignal): Promise<Region[]> {
-  const response = await fetchJson<RegionsResponse>("/regions", signal);
-  return response.regions;
-}
-
 export function fetchZones(params: ZoneQuery, signal?: AbortSignal): Promise<ZoneFeatureCollection> {
   return fetchJson(
     `/zones?${query({
-      region: params.region,
       bbox_lonlat: params.bboxLonLat,
       max_len: params.maxLen,
       min_exposure: params.minExposure,
@@ -76,7 +67,6 @@ export function fetchZones(params: ZoneQuery, signal?: AbortSignal): Promise<Zon
 export function fetchDensity(params: DensityQuery, signal?: AbortSignal): Promise<DensityFeatureCollection> {
   return fetchJson(
     `/density?${query({
-      region: params.region,
       z: params.z,
       bbox_lonlat: params.bboxLonLat,
     })}`,
@@ -85,7 +75,7 @@ export function fetchDensity(params: DensityQuery, signal?: AbortSignal): Promis
 }
 
 export function fetchAnchors(params: ViewportQuery, signal?: AbortSignal): Promise<AnchorFeatureCollection> {
-  return fetchJson(`/anchors?${query({ region: params.region, bbox_lonlat: params.bboxLonLat })}`, signal);
+  return fetchJson(`/anchors?${query({ bbox_lonlat: params.bboxLonLat })}`, signal);
 }
 
 export async function fetchRestrictionLayers(signal?: AbortSignal): Promise<RestrictionLayerMeta[]> {

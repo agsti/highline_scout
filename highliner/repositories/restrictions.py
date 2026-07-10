@@ -180,8 +180,9 @@ def build_layer(layer_id: str,
         src = source_cache[spec["source"]] = _load_source(spec["source"])
     keep = spec["keep"]
     sub = src[src.apply(lambda row: keep(row), axis=1)]
-    names = (sub[spec["name_field"]].fillna("").astype(str).str.strip().tolist()
-             if len(sub) else [])
+    if len(sub) == 0:
+        return gpd.GeoDataFrame({"name": []}, geometry=[], crs="EPSG:4326")
+    names = sub[spec["name_field"]].fillna("").astype(str).str.strip().tolist()
     gdf = gpd.GeoDataFrame({"name": names}, geometry=list(sub.geometry),
                            crs="EPSG:4326")
     gdf["geometry"] = gdf.geometry.simplify(SIMPLIFY_TOL_DEG,

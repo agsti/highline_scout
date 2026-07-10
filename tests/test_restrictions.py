@@ -107,3 +107,32 @@ def test_build_enp_keeps_all_and_normalizes_name() -> None:
     )
     gdf = R.build_layer("enp", {"enp": src})
     assert sorted(gdf["name"]) == ["", "Park"]
+
+
+def test_build_layer_empty_source_returns_empty() -> None:
+    src = gpd.GeoDataFrame(
+        {"text": [], "designations": []}, geometry=[], crs="EPSG:4326")
+    gdf = R.build_layer("zepa", {"rn2000": src})
+    assert len(gdf) == 0
+    assert gdf.crs.to_epsg() == 4326
+
+
+def test_load_source_unknown_key_raises(tmp_path: Path) -> None:
+    with pytest.raises(KeyError):
+        R._load_source("nope", raw_dir=tmp_path)
+
+
+def test_load_source_rn2000_attaches_designations(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    raw = tmp_path / "raw"
+    raw.mkdir()
+    (raw / "x.gml").write_text("<x/>")  # so base.glob("*.gml") finds a file
+    base_gdf = gpd.GeoDataFrame(
+        {"localId": ["ES1", "ES2"]}, geometry=[_SQUARE, _SQUARE], crs="EPSG:4326")
+    monkeypatch.setattr(R, "_load_files", lambda rd, pats: base_gdf.copy())
+    monkeypatch.setattr(R, "_parse_designations",
+                        lambda p: {"ES1": {"SpecialProtectionArea"}})
+
+    gdf = R._load_source("rn2000", raw_dir=raw)
+
+    assert list(gdf["designations"]) == [{"SpecialProtectionArea"}, set()]

@@ -87,17 +87,6 @@ def clip_anchors(anchors: list[Anchor], bbox: Bbox) -> list[Anchor]:
             if minx <= a.x <= maxx and miny <= a.y <= maxy]
 
 
-def anchors_in_view(anchors: list[Anchor], bbox: Bbox) -> list[Anchor]:
-    """Filter anchors to a UTM ``(minx, miny, maxx, maxy)`` bbox. Raises
-    HTTPException(413) if more than ``MAX_ANCHORS_IN_VIEW`` remain."""
-    minx, miny, maxx, maxy = bbox
-    in_view = [a for a in anchors
-               if minx <= a.x <= maxx and miny <= a.y <= maxy]
-    if len(in_view) > config.MAX_ANCHORS_IN_VIEW:
-        raise HTTPException(413, "too many anchors in view; zoom in")
-    return in_view
-
-
 def get_data_dir(request: Request) -> Path:
     data_dir: Path = request.app.state.data_dir
     return data_dir

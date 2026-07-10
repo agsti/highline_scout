@@ -22,6 +22,7 @@ helpers that consume it (``layer_meta``, ``clip_to_features``) live in
 from pathlib import Path
 from functools import lru_cache
 from typing import Any, Callable, TypedDict
+import xml.etree.ElementTree as ET
 import geopandas as gpd
 import pandas as pd
 from shapely.geometry import shape
@@ -34,6 +35,50 @@ SOURCE_GLOBS: dict[str, tuple[str, ...]] = {
     "rn2000": ("*.gml",),
     "enp": ("*.geojson", "*.json"),
 }
+
+_PS = "http://inspire.ec.europa.eu/schemas/ps/5.0"
+_BASE = "http://inspire.ec.europa.eu/schemas/base/4.0"
+_XLINK_HREF = "{http://www.w3.org/1999/xlink}href"
+_XML_NS = {"ps": _PS, "base": _BASE}
+
+
+def _parse_designations(path: Path) -> dict[str, set[str]]:
+    """Map each ProtectedSite localId to its INSPIRE designation codes.
+
+    The ZEPA/ZEC designation lives in ``ps:designation``'s ``xlink:href``
+    attribute, which GDAL exposes as ``None``, so stream the raw XML instead."""
+    out: dict[str, set[str]] = {}
+    site_tag = f"{{{_PS}}}ProtectedSite"
+    for _, elem in ET.iterparse(path, events=("end",)):
+        if elem.tag != site_tag:
+            continue
+        lid_el = elem.find("ps:inspireId/base:Identifier/base:localId", _XML_NS)
+        if lid_el is not None and lid_el.text:
+            codes = {
+                d.attrib[_XLINK_HREF].rsplit("/", 1)[-1]
+                for d in elem.findall(
+                    ".//ps:siteDesignation/ps:DesignationType/ps:designation", _XML_NS)
+                if _XLINK_HREF in d.attrib and d.attrib[_XLINK_HREF]
+            }
+            out[lid_el.text] = codes
+        elem.clear()
+    return out
+
+
+def _load_source(source_key: str,
+                 raw_dir: Path | None = None) -> gpd.GeoDataFrame:
+    """Load a source's raw files (EPSG:4326, concatenated). For ``rn2000`` also
+    attach a ``designations`` column (set of INSPIRE codes) joined on localId."""
+    base = raw_dir if raw_dir is not None else RAW_DIR
+    if source_key not in SOURCE_GLOBS:
+        raise KeyError(source_key)
+    gdf = _load_files(base, SOURCE_GLOBS[source_key])
+    if source_key == "rn2000":
+        codes: dict[str, set[str]] = {}
+        for path in sorted(base.glob("*.gml")):
+            codes.update(_parse_designations(path))
+        gdf["designations"] = [codes.get(lid, set()) for lid in gdf["localId"]]
+    return gdf
 
 
 def _load_files(raw_dir: Path, patterns: tuple[str, ...]) -> gpd.GeoDataFrame:

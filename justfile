@@ -45,8 +45,21 @@ update:
     uv lock --upgrade
     uv sync --extra dev
 
-# Download + transform protected-area boundaries into data/restrictions/.
+# Download national protected-area files (once) into data/restrictions/raw/
+# and transform them into data/restrictions/<id>.parquet.
+RN2000_URL := "https://www.miteco.gob.es/content/dam/miteco/es/biodiversidad/servicios/banco-datos-naturaleza/3-rn2000/PS.Natura2000_2025_gml.zip"
+ENP_URL := "https://www.miteco.gob.es/content/dam/miteco/es/biodiversidad/servicios/banco-datos-naturaleza/enp/Enp2025_geojson.zip"
+
 fetch-restrictions:
+    mkdir -p data/restrictions/raw
+    ls data/restrictions/raw/*.gml >/dev/null 2>&1 || \
+      (curl -fL "{{RN2000_URL}}" -o data/restrictions/raw/rn2000.zip && \
+       unzip -o -j data/restrictions/raw/rn2000.zip -d data/restrictions/raw && \
+       rm data/restrictions/raw/rn2000.zip)
+    ls data/restrictions/raw/*.geojson data/restrictions/raw/*.json >/dev/null 2>&1 || \
+      (curl -fL "{{ENP_URL}}" -o data/restrictions/raw/enp.zip && \
+       unzip -o -j data/restrictions/raw/enp.zip -d data/restrictions/raw && \
+       rm data/restrictions/raw/enp.zip)
     uv run highliner fetch-restrictions
 
 # Precompute anchors + candidate pairs for a region into data/<region>/.

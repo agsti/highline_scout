@@ -3,7 +3,7 @@ from typing import Callable
 import numpy as np
 from scipy.spatial import cKDTree
 from shapely.geometry import MultiPoint
-from highliner.core import config
+from highliner.core import config, geo
 from highliner.models.anchor import Anchor
 from highliner.models.candidate import Candidate
 from highliner.models.zone import Zone
@@ -73,3 +73,59 @@ def build_zones(candidates: list[Candidate],
             n_pairs=len(pairs),
         ))
     return sorted(zones, key=lambda z: z.height_max, reverse=True)
+
+
+def reproject_candidates(cands: list[Candidate], src_crs: str,
+                         dst_crs: str) -> list[Candidate]:
+    """Move each candidate's endpoints from ``src_crs`` into ``dst_crs``.
+
+    A no-op when the CRSs match. Only x/y move; elevation, sectors, and the
+    precomputed metric fields (length/exposure/height_diff) are invariants.
+    """
+    if src_crs == dst_crs or not cands:
+        return cands
+    xs = np.array([v for c in cands for v in (c.a.x, c.b.x)])
+    ys = np.array([v for c in cands for v in (c.a.y, c.b.y)])
+    tx, ty = geo.reproject_xy(xs, ys, src_crs, dst_crs)
+    out: list[Candidate] = []
+    for i, c in enumerate(cands):
+        a = Anchor(x=float(tx[2 * i]), y=float(ty[2 * i]),
+                   elev=c.a.elev, sectors=c.a.sectors)
+        b = Anchor(x=float(tx[2 * i + 1]), y=float(ty[2 * i + 1]),
+                   elev=c.b.elev, sectors=c.b.sectors)
+        out.append(Candidate(a=a, b=b, length=c.length,
+                             exposure=c.exposure, height_diff=c.height_diff))
+    return out
+
+
+def dedup_candidates(cands: list[Candidate],
+                     grid_m: float = config.SEAM_DEDUP_GRID_M,
+                     bearing_bucket_deg: float = config.SEAM_DEDUP_BEARING_DEG,
+                     ) -> list[Candidate]:
+    """Drop near-duplicate pairs by a (midpoint, length, bearing) signature.
+
+    Endpoint order is canonicalized (sorted) so ``(a, b)`` and ``(b, a)`` — and
+    the two overlapping regions' independent extractions of one line — collide.
+
+    Known heuristic limitation: this is a grid-snap, not a true clustering, so
+    a duplicate can dodge collapse if its endpoints are near-vertical (x1 ~= x2,
+    where ``sorted()``'s tuple-order tiebreak on y can flip which endpoint is
+    "first" between the two copies) or if the pair's midpoint/bearing sits
+    right on a grid-cell or bearing-bucket boundary and rounds to different
+    buckets in the two extractions. Either case only re-inflates a seam zone's
+    ``n_pairs``/``n_anchors`` counts — it never produces wrong geometry, since
+    the union-find in `build_zones` still merges the (near-identical) anchors
+    into one component.
+    """
+    seen: set[tuple[int, int, int, int]] = set()
+    out: list[Candidate] = []
+    for c in cands:
+        (x1, y1), (x2, y2) = sorted(((c.a.x, c.a.y), (c.b.x, c.b.y)))
+        mx, my = (x1 + x2) / 2.0, (y1 + y2) / 2.0
+        brg = geo.bearing(x1, y1, x2, y2)
+        key = (round(mx / grid_m), round(my / grid_m),
+               round(c.length / grid_m), round(brg / bearing_bucket_deg))
+        if key not in seen:
+            seen.add(key)
+            out.append(c)
+    return out

@@ -111,7 +111,11 @@ between them, sampled along the line). Exposure is the highline's height.
 **Zones** (`services/zones.py`): clusters paired anchors via union-find — pair
 endpoints always merge (joining both rims of a gap), plus any paired anchors
 within `cluster_dist`. Each zone is the convex hull (buffered) of its anchors,
-reporting the min/max exposure across its pairs as a height range.
+reporting the min/max exposure across its pairs as a height range. When a
+viewport straddles multiple precomputed regions, `/zones` reprojects all
+in-view candidates into the westernmost region's CRS, dedups near-duplicate
+seam pairs, and runs a single union-find so border-straddling zones aren't
+fragmented; single-region requests are unchanged.
 
 **Coordinate convention**: everything internal is UTM EPSG:25831 (meters) — ICGC
 native, needed for distance/slope math. Conversion to/from WGS84 lon/lat happens

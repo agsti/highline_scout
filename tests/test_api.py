@@ -306,3 +306,81 @@ def test_anchors_merged_cap_413(tmp_path: Path, monkeypatch: pytest.MonkeyPatch)
     client = TestClient(create_app(data_dir=tmp_path))
     r = client.get("/anchors", params={"bbox_lonlat": "1.80,41.55,2.00,41.65"})
     assert r.status_code == 413
+
+
+def test_zones_merges_cross_crs_seam_into_one_zone(tmp_path: Path) -> None:
+    # A pair in a 25830 region and a nearby pair in a 25831 region, ~33 m apart,
+    # both inside one viewport straddling the Aragon/Catalonia seam. The old
+    # per-region loop returned two fragments; the merge returns one zone.
+    from highliner.core import geo
+
+    def pair_in(crs: str, dlat: float) -> tuple[float, float, Anchor, Anchor, Candidate]:
+        cx, cy = geo.from_lonlat_crs(0.72, 42.05 + dlat, crs)
+        a = Anchor(x=cx - 40, y=cy, elev=100.0, sectors=((80.0, 100.0, 60.0),))
+        b = Anchor(x=cx + 40, y=cy, elev=100.0, sectors=((260.0, 280.0, 60.0),))
+        c = Candidate(a=a, b=b, length=80.0, exposure=80.0, height_diff=0.0)
+        return cx, cy, a, b, c
+
+    cxA, cyA, aA, bA, cA = pair_in("EPSG:25830", 0.0)
+    _write_region(tmp_path, "aragon", (cxA - 200, cyA - 200, cxA + 200, cyA + 200),
+                  [aA, bA], [cA], crs="EPSG:25830")
+    cxB, cyB, aB, bB, cB = pair_in("EPSG:25831", 0.0003)  # ~33 m north
+    _write_region(tmp_path, "catalonia",
+                  (cxB - 200, cyB - 200, cxB + 200, cyB + 200),
+                  [aB, bB], [cB])  # no crs -> defaults to 25831
+
+    client = TestClient(create_app(data_dir=tmp_path))
+    r = client.get("/zones", params={
+        "bbox_lonlat": "0.70,42.03,0.74,42.07",
+        "max_len": 120, "min_exposure": 50, "max_dh": 5,
+    })
+    assert r.status_code == 200
+    fc = r.json()
+    assert len(fc["features"]) == 1
+    props = fc["features"][0]["properties"]
+    assert props["n_pairs"] == 2 and props["n_anchors"] == 4
+
+
+def test_zones_cross_crs_duplicate_collapses_to_one_pair(tmp_path: Path) -> None:
+    # The SAME physical line, written into a 25830 region and a 25831 region
+    # (no offset between them). A plain cluster-merge would keep both copies
+    # as two distinct pairs (n_pairs == 2); only the reproject -> dedup path
+    # collapses them into a single surviving pair. n_pairs == 1 is therefore
+    # proof the dedup step ran, not just the union-find merge.
+    from highliner.core import geo
+    import math
+
+    # lon0/lat0 chosen (and verified) so the reprojected midpoint lands ~1 m
+    # from a 15 m grid-cell center (round(mx/15) boundaries sit at the
+    # cell's +-7.5 m edges) -- comfortably mid-cell, not boundary-sensitive.
+    lon0, lat0 = 0.70, 42.00
+    dlon = 80.0 / (111320.0 * math.cos(math.radians(lat0)))  # ~80 m east
+    lon1 = lon0 + dlon
+
+    def line_in(crs: str) -> tuple[Anchor, Anchor, Candidate]:
+        ax, ay = geo.from_lonlat_crs(lon0, lat0, crs)
+        bx, by = geo.from_lonlat_crs(lon1, lat0, crs)
+        a = Anchor(x=ax, y=ay, elev=100.0, sectors=((80.0, 100.0, 60.0),))
+        b = Anchor(x=bx, y=by, elev=100.0, sectors=((260.0, 280.0, 60.0),))
+        c = Candidate(a=a, b=b, length=80.0, exposure=80.0, height_diff=0.0)
+        return a, b, c
+
+    aA, bA, cA = line_in("EPSG:25830")
+    _write_region(tmp_path, "aragon",
+                  (aA.x - 200, aA.y - 200, bA.x + 200, bA.y + 200),
+                  [aA, bA], [cA], crs="EPSG:25830")
+    aB, bB, cB = line_in("EPSG:25831")
+    _write_region(tmp_path, "catalonia",
+                  (aB.x - 200, aB.y - 200, bB.x + 200, bB.y + 200),
+                  [aB, bB], [cB])  # no crs -> defaults to 25831
+
+    client = TestClient(create_app(data_dir=tmp_path))
+    r = client.get("/zones", params={
+        "bbox_lonlat": "0.68,41.99,0.72,42.01",
+        "max_len": 120, "min_exposure": 50, "max_dh": 5,
+    })
+    assert r.status_code == 200
+    fc = r.json()
+    assert len(fc["features"]) == 1
+    props = fc["features"][0]["properties"]
+    assert props["n_pairs"] == 1 and props["n_anchors"] == 2

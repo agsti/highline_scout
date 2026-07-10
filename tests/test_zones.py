@@ -84,3 +84,56 @@ def test_to_geojson_polygons_with_properties() -> None:
         "length_min": 80.0, "length_max": 80.0,
         "n_anchors": 2, "n_pairs": 1,
     }
+
+
+def test_reproject_candidates_same_crs_is_noop() -> None:
+    inp = [make_pair(0, 80, 0, exposure=60.0)]
+    out = zones.reproject_candidates(inp, "EPSG:25831", "EPSG:25831")
+    assert out is inp
+
+
+def test_reproject_candidates_moves_coords_keeps_metrics() -> None:
+    from highliner.core import geo
+
+    ax, ay = geo.from_lonlat_crs(0.72, 42.05, "EPSG:25831")
+    a = Anchor(x=ax, y=ay, elev=120.0, sectors=((80.0, 100.0, 60.0),))
+    b = Anchor(x=ax + 80, y=ay, elev=118.0, sectors=((260.0, 280.0, 60.0),))
+    c = Candidate(a=a, b=b, length=80.0, exposure=75.0, height_diff=2.0)
+
+    [out] = zones.reproject_candidates([c], "EPSG:25831", "EPSG:25830")
+    # metric fields untouched
+    assert out.length == 80.0 and out.exposure == 75.0 and out.height_diff == 2.0
+    assert out.a.elev == 120.0 and out.a.sectors == a.sectors
+    # coordinates actually moved
+    assert abs(out.a.x - ax) > 1.0
+    # round-trip back is ~identity
+    [back] = zones.reproject_candidates([out], "EPSG:25830", "EPSG:25831")
+    assert abs(back.a.x - ax) < 1e-3 and abs(back.a.y - ay) < 1e-3
+
+
+def test_dedup_collapses_offset_duplicate() -> None:
+    # Same line, re-extracted a few meters off (within the grid), same
+    # length and bearing -> one survivor.
+    c1 = make_pair(0, 80, 0, exposure=60.0)   # midpoint (40, 0), len 80, brg 90
+    c2 = make_pair(3, 83, 4, exposure=61.0)   # midpoint (43, 4), len 80, brg 90
+    out = zones.dedup_candidates([c1, c2])
+    assert len(out) == 1
+
+
+def test_dedup_keeps_distant_lines() -> None:
+    c1 = make_pair(0, 80, 0, exposure=60.0)     # midpoint (40, 0)
+    c2 = make_pair(0, 80, 500, exposure=60.0)   # midpoint (40, 500)
+    assert len(zones.dedup_candidates([c1, c2])) == 2
+
+
+def test_dedup_keeps_crossing_lines_same_midpoint() -> None:
+    # Same midpoint and length, perpendicular bearings -> both survive.
+    horiz = Candidate(
+        a=Anchor(x=-40, y=0, elev=100.0, sectors=((80.0, 100.0, 60.0),)),
+        b=Anchor(x=40, y=0, elev=100.0, sectors=((260.0, 280.0, 60.0),)),
+        length=80.0, exposure=60.0, height_diff=0.0)
+    vert = Candidate(
+        a=Anchor(x=0, y=-40, elev=100.0, sectors=((170.0, 190.0, 60.0),)),
+        b=Anchor(x=0, y=40, elev=100.0, sectors=((350.0, 10.0, 60.0),)),
+        length=80.0, exposure=60.0, height_diff=0.0)
+    assert len(zones.dedup_candidates([horiz, vert])) == 2

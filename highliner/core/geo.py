@@ -1,10 +1,11 @@
 import math
 from functools import lru_cache
+from typing import Any
 from pyproj import Transformer
 from highliner.core import config
 
 
-@lru_cache(maxsize=2)
+@lru_cache(maxsize=32)
 def _transformer(src: str, dst: str) -> Transformer:
     return Transformer.from_crs(src, dst, always_xy=True)
 
@@ -23,6 +24,11 @@ def to_lonlat_crs(x: float, y: float, crs: str) -> tuple[float, float]:
 
 def from_lonlat_crs(lon: float, lat: float, crs: str) -> tuple[float, float]:
     return _transformer(config.WGS84_CRS, crs).transform(lon, lat)
+
+
+def reproject_xy(xs: Any, ys: Any, src_crs: str, dst_crs: str) -> tuple[Any, Any]:
+    """Transform coordinate arrays from ``src_crs`` to ``dst_crs`` in one call."""
+    return _transformer(src_crs, dst_crs).transform(xs, ys)
 
 
 def bearing(x1: float, y1: float, x2: float, y2: float) -> float:

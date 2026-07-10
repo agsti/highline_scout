@@ -49,3 +49,19 @@ def test_roundtrip_explicit_crs() -> None:
     lon2, lat2 = geo.to_lonlat_crs(x, y, "EPSG:4083")
     assert math.isclose(lon, lon2, abs_tol=1e-6)
     assert math.isclose(lat, lat2, abs_tol=1e-6)
+
+
+def test_reproject_xy_roundtrip() -> None:
+    import numpy as np
+    from highliner.core import geo
+
+    # Two points near the Aragon/Catalonia seam, in EPSG:25831.
+    xs = np.array([300000.0, 300080.0])
+    ys = np.array([4658000.0, 4658000.0])
+    tx, ty = geo.reproject_xy(xs, ys, "EPSG:25831", "EPSG:25830")
+    # A real reprojection moves the coordinates.
+    assert abs(tx[0] - xs[0]) > 1.0
+    # Round-trip returns to the originals.
+    bx, by = geo.reproject_xy(tx, ty, "EPSG:25830", "EPSG:25831")
+    assert np.allclose(bx, xs, atol=1e-3)
+    assert np.allclose(by, ys, atol=1e-3)

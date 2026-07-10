@@ -25,6 +25,11 @@ MAX_RESTRICTION_FEATURES = 4000  # cap protected-area polygons returned per view
 # Zone clustering
 CLUSTER_DIST_M = 50.0       # paired anchors closer than this share a zone
 ZONE_BUFFER_M = 15.0        # hull buffer so 2-anchor zones render as polygons
+# Serve-time dedup of near-duplicate pairs at overlapping region seams.
+# Two extractions of one line can wander up to ~THIN_DIST_M apart across a
+# cross-CRS seam; a (midpoint, length, bearing) signature collapses them.
+SEAM_DEDUP_GRID_M = 15.0        # ~THIN_DIST_M; midpoint/length quantization
+SEAM_DEDUP_BEARING_DEG = 10.0   # ~SECTOR_TOL_DEG; bearing quantization
 
 # Chunked precompute
 CHUNK_M = 10000.0           # side of each analysis chunk (meters)

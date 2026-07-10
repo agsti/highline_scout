@@ -102,7 +102,6 @@ describe("AppShell", () => {
     render(
       <I18nProvider>
         <MobileControlSheet
-          region="Montserrat"
           summary="Longitud maxima 150 m"
           filters={<div>sheet filters</div>}
           statuses={<div>sheet status</div>}
@@ -126,7 +125,6 @@ describe("AppShell", () => {
     render(
       <I18nProvider>
         <MobileControlSheet
-          region="Montserrat"
           summary="Longitud maxima 150 m"
           filters={<div>sheet filters</div>}
           statuses={<div>sheet status</div>}
@@ -190,7 +188,6 @@ describe("AppShell", () => {
     render(
       <I18nProvider>
         <MobileControlSheet
-          region="Montserrat"
           summary="Longitud maxima 150 m"
           filters={<div>sheet filters</div>}
           statuses={<div>sheet status</div>}

@@ -6,12 +6,10 @@ import { App } from "./App";
 import { I18nProvider, useI18n } from "./lib/i18n";
 
 const apiMocks = vi.hoisted(() => ({
-  fetchRegions: vi.fn(),
   fetchRestrictionLayers: vi.fn(),
 }));
 
 vi.mock("./lib/api", () => ({
-  fetchRegions: apiMocks.fetchRegions,
   fetchRestrictionLayers: apiMocks.fetchRestrictionLayers,
 }));
 
@@ -89,22 +87,7 @@ vi.mock("./components/ui/button", () => ({
 }));
 
 vi.mock("./components/FilterControls", () => ({
-  FilterControls: ({
-    region,
-    regions,
-    onRegionChange,
-  }: {
-    region: string;
-    regions: Array<{ name: string }>;
-    onRegionChange: (value: string) => void;
-  }) => (
-    <div>
-      <div data-testid="current-region">{region}</div>
-      <button type="button" onClick={() => onRegionChange(regions[1]?.name ?? "")}>
-        change region
-      </button>
-    </div>
-  ),
+  FilterControls: (_props: Record<string, unknown>) => <div data-testid="filter-controls" />,
 }));
 
 function LanguageControl() {
@@ -127,10 +110,6 @@ function renderApp() {
 
 describe("App", () => {
   beforeEach(() => {
-    apiMocks.fetchRegions.mockReset().mockResolvedValue([
-      { name: "alpha", bounds_lonlat: [1, 2, 3, 4] },
-      { name: "beta", bounds_lonlat: [5, 6, 7, 8] },
-    ]);
     apiMocks.fetchRestrictionLayers.mockReset().mockResolvedValue([
       {
         id: "pein",
@@ -146,22 +125,6 @@ describe("App", () => {
     vi.restoreAllMocks();
   });
 
-  it("loads regions once and does not refetch on region or language changes", async () => {
-    const user = userEvent.setup();
-    renderApp();
-
-    await screen.findAllByTestId("current-region");
-    expect(apiMocks.fetchRegions).toHaveBeenCalledTimes(1);
-    expect(screen.getAllByTestId("current-region")[0]).toHaveTextContent("alpha");
-
-    await user.click(screen.getAllByRole("button", { name: "change region" })[0]);
-    expect(screen.getAllByTestId("current-region")[0]).toHaveTextContent("beta");
-    expect(apiMocks.fetchRegions).toHaveBeenCalledTimes(1);
-
-    await user.click(screen.getByRole("button", { name: "set english" }));
-    expect(apiMocks.fetchRegions).toHaveBeenCalledTimes(1);
-  });
-
   it("shows the map status in both desktop and mobile status areas", async () => {
     renderApp();
 
@@ -172,7 +135,7 @@ describe("App", () => {
   it("does not show map actions in the mobile filter controls", async () => {
     renderApp();
 
-    await screen.findAllByTestId("current-region");
+    await screen.findAllByTestId("filter-controls");
     expect(screen.queryByTestId("mobile-actions-slot")).not.toBeInTheDocument();
   });
 

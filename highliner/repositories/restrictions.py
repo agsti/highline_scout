@@ -23,10 +23,37 @@ from pathlib import Path
 from functools import lru_cache
 from typing import Any, Callable, TypedDict
 import geopandas as gpd
-import requests
+import pandas as pd
 from shapely.geometry import shape
 
 from highliner.core import config
+
+
+RAW_DIR = Path(config.DATA_DIR) / "restrictions" / "raw"
+SOURCE_GLOBS: dict[str, tuple[str, ...]] = {
+    "rn2000": ("*.gml",),
+    "enp": ("*.geojson", "*.json"),
+}
+
+
+def _load_files(raw_dir: Path, patterns: tuple[str, ...]) -> gpd.GeoDataFrame:
+    """Read every raw file matching any of ``patterns`` under ``raw_dir``,
+    reproject each to EPSG:4326, and concatenate. The national datasets ship as
+    a peninsula+baleares file and a canarias file, each in its own CRS."""
+    frames: list[gpd.GeoDataFrame] = []
+    for pattern in patterns:
+        for path in sorted(raw_dir.glob(pattern)):
+            gdf = gpd.read_file(path)
+            if gdf.crs is None:
+                gdf = gdf.set_crs("EPSG:4326")
+            elif gdf.crs.to_epsg() != 4326:
+                gdf = gdf.to_crs("EPSG:4326")
+            frames.append(gdf)
+    if not frames:
+        raise FileNotFoundError(
+            f"no raw files matching {patterns} in {raw_dir} "
+            f"(run `just fetch-restrictions`)")
+    return gpd.GeoDataFrame(pd.concat(frames, ignore_index=True), crs="EPSG:4326")
 
 
 class LayerSpec(TypedDict):
@@ -42,12 +69,6 @@ class LayerSpec(TypedDict):
 # 1:5,000-1:50,000, far finer than the web map renders; simplifying here cuts
 # stored size to ~15% of raw with no visible change at map zoom.
 SIMPLIFY_TOL_DEG = 0.0001
-
-WFS = "https://sig.gencat.cat/ows/ESPAIS_NATURALS/wfs"
-_NS = "ESPAIS_NATURALS:ESPAISNATURALS_"
-_PAGE = 5000  # features per WFS GetFeature page
-# The WFS rejects the default python-requests User-Agent with HTTP 403.
-_HEADERS = {"User-Agent": "highliner-finder/0.1 (+https://github.com)"}
 
 # Derived overlay layers. Each pulls from a source feature type, optionally
 # filters by a predicate on properties, and renames one field to `name`.
@@ -103,30 +124,6 @@ LAYERS: dict[str, LayerSpec] = {
                       "consulteu l'òrgan gestor abans de fer cap activitat."),
     },
 }
-
-
-def _fetch_source(feature_type: str) -> list[dict[str, Any]]:
-    """Download all features of one WFS feature type as GeoJSON (EPSG:4326)."""
-    features: list[dict[str, Any]] = []
-    start = 0
-    while True:
-        params: dict[str, str | int] = {
-            "service": "WFS",
-            "version": "2.0.0",
-            "request": "GetFeature",
-            "typeNames": _NS + feature_type,
-            "srsName": "EPSG:4326",
-            "outputFormat": "application/json",
-            "count": _PAGE,
-            "startIndex": start,
-        }
-        r = requests.get(WFS, params=params, headers=_HEADERS, timeout=180)
-        r.raise_for_status()
-        batch = r.json().get("features", [])
-        features.extend(batch)
-        if len(batch) < _PAGE:
-            return features
-        start += _PAGE
 
 
 def build_layer(layer_id: str,

@@ -59,7 +59,7 @@ def _cmd_precompute_density(args: argparse.Namespace) -> None:
 
 def _cmd_fetch_restrictions(args: argparse.Namespace) -> None:
     from highliner.repositories.restrictions import fetch_all
-    print("Downloading protected-area layers from the Generalitat WFS...")
+    print("Building national protected-area layers from data/restrictions/raw/ ...")
     fetch_all()
 
 

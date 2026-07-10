@@ -52,9 +52,9 @@ describe("useI18n", () => {
 
 describe("restrictionText", () => {
   const fallback = {
-    label: "PEIN",
-    tooltip: "Text en catala",
-    highlight: "catala",
+    label: "L",
+    tooltip: "T",
+    highlight: "T",
   };
 
   it("keeps every translated restriction highlight as a tooltip substring", () => {
@@ -66,32 +66,27 @@ describe("restrictionText", () => {
     }
   });
 
-  it("uses Catalan backend fallback for ca", () => {
-    expect(restrictionText("pein", "ca", fallback)).toEqual(fallback);
+  it("falls back to the server text for the base language (en)", () => {
+    expect(restrictionText("zepa", "en", fallback)).toEqual(fallback);
   });
 
-  it("uses frontend translation for en", () => {
-    const text = restrictionText("pein", "en", fallback);
-    expect(text.label).toBe("PEIN");
-    expect(text.tooltip).toContain("Catalonia");
-    expect(text.tooltip).toContain(text.highlight);
-  });
-
-  it("preserves representative restriction tooltip and highlight source text", () => {
-    expect(restrictionText("pein", "es", fallback)).toEqual({
-      label: "PEIN",
+  it("returns the Spanish override for a known layer", () => {
+    expect(restrictionText("enp", "es", fallback)).toEqual({
+      label: "Espacios Naturales Protegidos",
       tooltip:
-        "Plan de Espacios de Interés Natural — el nivel básico de protección en Cataluña (Decreto 328/1992); incluye los espacios de la Red Natura 2000. Régimen urbanístico riguroso; las actividades que puedan lesionar los valores naturales pueden requerir evaluación de impacto ambiental. Muchos riscos tienen cierres estacionales de escalada por la nidificación de rapaces (aprox. enero-agosto, varía según el espacio).",
+        "Espacio Natural Protegido — una figura de protección estatal o autonómica como un parque nacional o natural, una reserva natural o un monumento natural, cada uno con su propio plan de gestión. La escalada, el vivac, los drones y los actos organizados suelen estar regulados y pueden necesitar autorización del órgano gestor.",
       highlight:
-        "las actividades que puedan lesionar los valores naturales pueden requerir evaluación de impacto ambiental. Muchos riscos tienen cierres estacionales de escalada por la nidificación de rapaces (aprox. enero-agosto, varía según el espacio).",
+        "La escalada, el vivac, los drones y los actos organizados suelen estar regulados y pueden necesitar autorización del órgano gestor.",
     });
+  });
 
-    expect(restrictionText("fauna", "en", fallback)).toEqual({
-      label: "Wildlife Reserves",
+  it("returns the Catalan override for a known layer", () => {
+    expect(restrictionText("zepa", "ca", fallback)).toEqual({
+      label: "ZEPA (Aus)",
       tooltip:
-        "Wildlife Nature Reserve — protects fauna. Any activity that could directly or indirectly harm the protected fauna is forbidden; consult the managing body before doing any activity.",
+        "Zona d'Especial Protecció per a les Aus — Xarxa Natura 2000 (Directiva Aus). Els cingles d'aquestes zones sovint tenen tancaments estacionals d'escalada i accés per la nidificació de rapinyaires (aprox. d'hivern a estiu, varia segons l'espai); consulteu l'òrgan gestor abans d'instal·lar.",
       highlight:
-        "Any activity that could directly or indirectly harm the protected fauna is forbidden; consult the managing body before doing any activity.",
+        "Els cingles d'aquestes zones sovint tenen tancaments estacionals d'escalada i accés per la nidificació de rapinyaires (aprox. d'hivern a estiu, varia segons l'espai); consulteu l'òrgan gestor abans d'instal·lar.",
     });
   });
 

@@ -176,10 +176,9 @@ def test_restriction_layers_registry(tmp_path: Path) -> None:
     assert r.status_code == 200
     layers = r.json()["layers"]
     ids = {row["id"] for row in layers}
-    assert {"pein", "parcs", "fauna"} <= ids
-    assert "zec" not in ids and "zepa" not in ids  # dropped: overlap PEIN
-    pein = next(row for row in layers if row["id"] == "pein")
-    assert pein["label"] and pein["color"].startswith("#")
+    assert {"zepa", "zec", "enp"} <= ids
+    zepa = next(row for row in layers if row["id"] == "zepa")
+    assert zepa["label"] and zepa["color"].startswith("#")
     assert all(row["tooltip"].strip() for row in layers)
     # every layer emphasizes its highliner-relevant clause; the highlight must
     # be a verbatim substring of the tooltip so the frontend can locate it.
@@ -188,26 +187,26 @@ def test_restriction_layers_registry(tmp_path: Path) -> None:
 
 
 def test_restrictions_in_view(tmp_path: Path) -> None:
-    _write_restriction_layer(tmp_path, "pein", "Montserrat",
+    _write_restriction_layer(tmp_path, "zepa", "Montserrat",
                              (1.80, 41.55, 1.85, 41.62))
     client = TestClient(create_app(data_dir=tmp_path))
     r = client.get("/restrictions", params={
-        "bbox_lonlat": "1.78,41.54,1.90,41.66", "layers": "pein"})
+        "bbox_lonlat": "1.78,41.54,1.90,41.66", "layers": "zepa"})
     assert r.status_code == 200
     fc = r.json()
     assert fc["type"] == "FeatureCollection"
     assert len(fc["features"]) == 1
     props = fc["features"][0]["properties"]
-    assert props["layer"] == "pein"
+    assert props["layer"] == "zepa"
     assert props["name"] == "Montserrat"
 
 
 def test_restrictions_filters_out_of_view(tmp_path: Path) -> None:
-    _write_restriction_layer(tmp_path, "pein", "Montserrat",
+    _write_restriction_layer(tmp_path, "zepa", "Montserrat",
                              (1.80, 41.55, 1.85, 41.62))
     client = TestClient(create_app(data_dir=tmp_path))
     r = client.get("/restrictions", params={
-        "bbox_lonlat": "2.50,42.00,2.60,42.10", "layers": "pein"})
+        "bbox_lonlat": "2.50,42.00,2.60,42.10", "layers": "zepa"})
     assert r.status_code == 200
     assert r.json()["features"] == []
 

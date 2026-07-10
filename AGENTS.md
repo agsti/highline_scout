@@ -61,7 +61,7 @@ slice of that layer:
       core/                  cross-cutting: config.py, geo.py (coord transforms)
       models/                pure domain dataclasses: anchor, candidate, zone, raster
       repositories/          persistence & external IO: anchors (parquet), dtm
-                             (ICGC WCS), restrictions (Generalitat WFS)
+                             (ICGC WCS), restrictions (national MITECO files)
       services/              domain logic: terrain, pairing, zones,
                              restrictions (serving helpers)
       router/                HTTP layer: one APIRouter per resource (regions,
@@ -121,10 +121,18 @@ only at the web boundary, in `core/geo.py` (and the GeoJSON serializers in
 
 **Restrictions** (`repositories/restrictions.py` for download/storage +
 `services/restrictions.py` for serving): informational protected-area overlays
-(PEIN, Parcs Naturals, Reserves de Fauna) downloaded once from the Generalitat
-WFS into `data/restrictions/<id>.parquet`, clipped to the viewport on
-`GET /restrictions`. Tooltips are in Catalan. The WFS rejects the default
-requests User-Agent with 403 — a custom UA header is required.
+covering all of Spain, built from MITECO's (national) Banco de Datos de la
+Naturaleza files — Red Natura 2000 GML (INSPIRE ProtectedSites) and Espacios
+Naturales Protegidos GeoJSON, each shipped as a peninsula+Baleares file and a
+Canarias file in different CRSes. `just fetch-restrictions` downloads the raw
+files into `data/restrictions/raw/` and runs `highliner fetch-restrictions`
+to derive three layers — `zepa` (Special Protection Area for Birds) and `zec`
+(Site/Area of Community Importance), both filtered from the RN2000 GML by
+designation code (parsed from the raw XML, since GDAL doesn't expose it as an
+attribute), plus `enp` (Protected Natural Areas) from the ENP GeoJSON —
+written to `data/restrictions/<id>.parquet` and clipped to the viewport on
+`GET /restrictions`. Tooltips are in English (the base/source-of-truth
+language for restrictions text; see i18n below).
 
 ## Data layout (gitignored)
 
@@ -157,11 +165,11 @@ context: `I18nProvider` wraps the app and `useI18n()` hands components
   calls type-check against the `ca` keys.
 - **`frontend/src/lib/i18n/restrictionStrings.ts` → `RESTRICTION_STRINGS[lang]`**
   — per-layer protected-area text (`label` / `tooltip` / `highlight`), keyed by
-  layer id (`pein`, `parcs`, `fauna`). **Catalan is intentionally absent here**
+  layer id (`zepa`, `zec`, `enp`). **English is intentionally absent here**
   — it comes from the backend (see below) and must not be duplicated.
-- **`highliner/repositories/restrictions.py`** — the **Catalan** restriction
+- **`highliner/repositories/restrictions.py`** — the **English** restriction
   `label` / `tooltip` / `highlight`, served via `/restrictions`. This is the
-  `ca` source and the fallback for any layer without a translation.
+  `en` source and the fallback for any layer without a translation.
 
 ### How `t()` and rendering work
 
@@ -171,7 +179,9 @@ context: `I18nProvider` wraps the app and `useI18n()` hands components
 - Some strings are **HTML** (they feed Leaflet popups/tooltips): `zonePopup`,
   `densityTooltip`, `anchorPopup`, etc. Keep them valid HTML.
 - `restrictionText(id, lang, fallback)` resolves a layer's text for the active
-  language, falling back to the server-provided Catalan `{label,tooltip,highlight}`.
+  language, falling back to the server-provided English `{label,tooltip,highlight}`.
+- `RestrictionLayerControls` shows a `restrictionCredit` line ("Protected-area
+  data © MITECO", translated) crediting the national data source.
 - `LanguageSwitcher` calls `setLang()`; because the whole tree consumes the i18n
   context, switching re-renders every component (labels, legend, popups) and
   `I18nProvider` persists the choice to `localStorage` and sets
@@ -188,10 +198,10 @@ context: `I18nProvider` wraps the app and `useI18n()` hands components
 
 ### Adding a restriction-layer translation
 
-Add the layer id under `RESTRICTION_STRINGS[es]` and `[en]` with `label`,
+Add the layer id under `RESTRICTION_STRINGS[es]` and `[ca]` with `label`,
 `tooltip`, `highlight`. **Invariant:** per language, `highlight` MUST be a
 verbatim substring of `tooltip` — the panel marks it via `indexOf()`. Do not add
-a `ca` entry; the Catalan text lives in the backend repository.
+an `en` entry; the English text lives in the backend repository.
 
 ### Adding a new language
 

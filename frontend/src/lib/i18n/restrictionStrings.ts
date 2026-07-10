@@ -8,49 +8,49 @@ export interface RestrictionText {
 
 export const RESTRICTION_STRINGS: Partial<Record<Lang, Record<string, RestrictionText>>> = {
   es: {
-    pein: {
-      label: "PEIN",
+    zepa: {
+      label: "ZEPA (Aves)",
       tooltip:
-        "Plan de Espacios de Interés Natural — el nivel básico de protección en Cataluña (Decreto 328/1992); incluye los espacios de la Red Natura 2000. Régimen urbanístico riguroso; las actividades que puedan lesionar los valores naturales pueden requerir evaluación de impacto ambiental. Muchos riscos tienen cierres estacionales de escalada por la nidificación de rapaces (aprox. enero-agosto, varía según el espacio).",
+        "Zona de Especial Protección para las Aves — Red Natura 2000 (Directiva Aves). Los cortados de estas zonas suelen tener cierres estacionales de escalada y acceso por la nidificación de rapaces (aprox. de invierno a verano, varía según el espacio); consulta al órgano gestor antes de instalar.",
       highlight:
-        "las actividades que puedan lesionar los valores naturales pueden requerir evaluación de impacto ambiental. Muchos riscos tienen cierres estacionales de escalada por la nidificación de rapaces (aprox. enero-agosto, varía según el espacio).",
+        "Los cortados de estas zonas suelen tener cierres estacionales de escalada y acceso por la nidificación de rapaces (aprox. de invierno a verano, varía según el espacio); consulta al órgano gestor antes de instalar.",
     },
-    parcs: {
-      label: "Parques Naturales",
+    zec: {
+      label: "ZEC / LIC",
       tooltip:
-        "El nivel de protección más alto (ENPE), cada uno con su propio plan de gestión. Actividades como la escalada, el vivac, los drones y los actos organizados están reguladas y a menudo necesitan autorización del órgano gestor del parque.",
+        "Lugar de Importancia Comunitaria / Zona Especial de Conservación — Red Natura 2000 (Directiva Hábitats). Las actividades que puedan dañar los hábitats protegidos pueden estar reguladas y requerir evaluación de impacto ambiental.",
       highlight:
-        "Actividades como la escalada, el vivac, los drones y los actos organizados están reguladas y a menudo necesitan autorización del órgano gestor del parque.",
+        "Las actividades que puedan dañar los hábitats protegidos pueden estar reguladas y requerir evaluación de impacto ambiental.",
     },
-    fauna: {
-      label: "Reservas de Fauna",
+    enp: {
+      label: "Espacios Naturales Protegidos",
       tooltip:
-        "Reserva Natural de Fauna Salvaje — protege la fauna. Se prohíbe cualquier actividad que pueda perjudicar directa o indirectamente a la fauna protegida; consulte al órgano gestor antes de realizar cualquier actividad.",
+        "Espacio Natural Protegido — una figura de protección estatal o autonómica como un parque nacional o natural, una reserva natural o un monumento natural, cada uno con su propio plan de gestión. La escalada, el vivac, los drones y los actos organizados suelen estar regulados y pueden necesitar autorización del órgano gestor.",
       highlight:
-        "Se prohíbe cualquier actividad que pueda perjudicar directa o indirectamente a la fauna protegida; consulte al órgano gestor antes de realizar cualquier actividad.",
+        "La escalada, el vivac, los drones y los actos organizados suelen estar regulados y pueden necesitar autorización del órgano gestor.",
     },
   },
-  en: {
-    pein: {
-      label: "PEIN",
+  ca: {
+    zepa: {
+      label: "ZEPA (Aus)",
       tooltip:
-        "Plan for Areas of Natural Interest — Catalonia's baseline level of protection (Decree 328/1992); it includes the Natura 2000 network sites. Strict land-use regime; activities that may harm natural values can require an environmental impact assessment. Many cliffs have seasonal climbing closures for raptor nesting (roughly January–August, varies by site).",
+        "Zona d'Especial Protecció per a les Aus — Xarxa Natura 2000 (Directiva Aus). Els cingles d'aquestes zones sovint tenen tancaments estacionals d'escalada i accés per la nidificació de rapinyaires (aprox. d'hivern a estiu, varia segons l'espai); consulteu l'òrgan gestor abans d'instal·lar.",
       highlight:
-        "activities that may harm natural values can require an environmental impact assessment. Many cliffs have seasonal climbing closures for raptor nesting (roughly January–August, varies by site).",
+        "Els cingles d'aquestes zones sovint tenen tancaments estacionals d'escalada i accés per la nidificació de rapinyaires (aprox. d'hivern a estiu, varia segons l'espai); consulteu l'òrgan gestor abans d'instal·lar.",
     },
-    parcs: {
-      label: "Nature Parks",
+    zec: {
+      label: "ZEC / LIC",
       tooltip:
-        "The highest level of protection (ENPE), each with its own management plan. Activities such as climbing, bivouacking, drones and organized events are regulated and often need authorization from the park's managing body.",
+        "Lloc d'Importància Comunitària / Zona Especial de Conservació — Xarxa Natura 2000 (Directiva Hàbitats). Les activitats que puguin malmetre els hàbitats protegits poden estar regulades i requerir avaluació d'impacte ambiental.",
       highlight:
-        "Activities such as climbing, bivouacking, drones and organized events are regulated and often need authorization from the park's managing body.",
+        "Les activitats que puguin malmetre els hàbitats protegits poden estar regulades i requerir avaluació d'impacte ambiental.",
     },
-    fauna: {
-      label: "Wildlife Reserves",
+    enp: {
+      label: "Espais Naturals Protegits",
       tooltip:
-        "Wildlife Nature Reserve — protects fauna. Any activity that could directly or indirectly harm the protected fauna is forbidden; consult the managing body before doing any activity.",
+        "Espai Natural Protegit — una figura de protecció estatal o autonòmica com un parc nacional o natural, una reserva natural o un monument natural, cadascun amb el seu pla de gestió. L'escalada, el vivac, els drons i els actes organitzats sovint estan regulats i poden necessitar autorització de l'òrgan gestor.",
       highlight:
-        "Any activity that could directly or indirectly harm the protected fauna is forbidden; consult the managing body before doing any activity.",
+        "L'escalada, el vivac, els drons i els actes organitzats sovint estan regulats i poden necessitar autorització de l'òrgan gestor.",
     },
   },
 };

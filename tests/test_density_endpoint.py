@@ -77,3 +77,26 @@ def test_density_404_without_dir(tmp_path: Path) -> None:
     r = client.get("/density", params={
         "region": "catalonia", "z": 12, "bbox_lonlat": "1.7,41.5,2.0,41.7"})
     assert r.status_code == 404
+
+
+def _write_grid(data_dir: Path, region: str,
+                bbox: tuple[float, float, float, float]) -> None:
+    (data_dir / region).mkdir(parents=True, exist_ok=True)
+    (data_dir / region / "grid.json").write_text(
+        json.dumps({"bbox": list(bbox), "chunk_m": 10000.0}))
+
+
+def test_density_merges_regions_when_region_omitted(tmp_path: Path) -> None:
+    from highliner.core import geo
+    # Two indexed regions near Montserrat, each with one density cell at z12.
+    cx, cy = geo.to_utm(1.83, 41.59)
+    _write_grid(tmp_path, "one", (cx - 500, cy - 500, cx + 500, cy + 500))
+    _write_grid(tmp_path, "two", (cx - 500, cy - 500, cx + 500, cy + 500))
+    _write_density(tmp_path, "one", 12)
+    _write_density(tmp_path, "two", 12)
+
+    client = TestClient(create_app(data_dir=tmp_path))
+    r = client.get("/density", params={
+        "z": 12, "bbox_lonlat": "1.7,41.5,2.0,41.7"})
+    assert r.status_code == 200
+    assert len(r.json()["features"]) == 2

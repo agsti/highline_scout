@@ -4,15 +4,14 @@ Serves the offline-built ``density/z{z}.json`` cells as viewport-clipped GeoJSON
 tile polygons. Read-only over static files; no per-request aggregation.
 """
 import json
-from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 
 from highliner.core import config, tiles
 from highliner.core.regions import defaults_for_region
 from highliner.repositories import chunked_store
-from highliner.router.deps import get_data_dir, parse_bbox_lonlat
+from highliner.router.deps import get_region_index, parse_bbox_lonlat
 
 router = APIRouter()
 
@@ -29,25 +28,8 @@ def _overlaps(cell: tuple[float, float, float, float],
     return w <= ve and e >= vw and s <= vn and n >= vs
 
 
-@router.get("/density")
-def density(
-    region: str,
-    z: int,
-    bbox: str | None = None,
-    bbox_lonlat: str | None = None,
-    data_dir: Path = Depends(get_data_dir),
-) -> dict[str, Any]:
-    zc = _clamp_zoom(z)
-    path = data_dir / region / "density" / f"z{zc}.json"
-    if not (data_dir / region / "density").is_dir():
-        raise HTTPException(404, f"no density layer for region '{region}'")
-    try:
-        crs = chunked_store.read_grid(data_dir / region).crs
-    except FileNotFoundError:
-        crs = defaults_for_region(region).crs
-    view = parse_bbox_lonlat(bbox, bbox_lonlat, crs)
-    cells = json.loads(path.read_text()) if path.exists() else []
-
+def _cells_to_features(cells: list[dict[str, Any]], zc: int,
+                       view: tuple[float, float, float, float]) -> list[dict[str, Any]]:
     features: list[dict[str, Any]] = []
     for c in cells:
         w, s, e, n = tiles.tile_bounds_lonlat(zc, c["x"], c["y"])
@@ -60,9 +42,45 @@ def density(
             "properties": {
                 "n_pairs": c["n"],
                 "max_exposure": c["max_exp"],
-                # Absent in density layers built before length was tracked.
                 "length_min": c.get("min_len"),
                 "length_max": c.get("max_len"),
             },
         })
+    return features
+
+
+@router.get("/density")
+def density(
+    request: Request,
+    z: int,
+    region: str | None = None,
+    bbox: str | None = None,
+    bbox_lonlat: str | None = None,
+) -> dict[str, Any]:
+    zc = _clamp_zoom(z)
+    data_dir = request.app.state.data_dir
+
+    if region is not None:
+        density_dir = data_dir / region / "density"
+        if not density_dir.is_dir():
+            raise HTTPException(404, f"no density layer for region '{region}'")
+        try:
+            crs = chunked_store.read_grid(data_dir / region).crs
+        except FileNotFoundError:
+            crs = defaults_for_region(region).crs
+        view = parse_bbox_lonlat(bbox, bbox_lonlat, crs)
+        path = density_dir / f"z{zc}.json"
+        cells = json.loads(path.read_text()) if path.exists() else []
+        return {"type": "FeatureCollection",
+                "features": _cells_to_features(cells, zc, view)}
+
+    # region omitted: merge every indexed region that has this z-layer.
+    view = parse_bbox_lonlat(bbox, bbox_lonlat)
+    features: list[dict[str, Any]] = []
+    for entry in get_region_index(request):
+        path = entry.region_dir / "density" / f"z{zc}.json"
+        if not path.exists():
+            continue
+        cells = json.loads(path.read_text())
+        features.extend(_cells_to_features(cells, zc, view))
     return {"type": "FeatureCollection", "features": features}

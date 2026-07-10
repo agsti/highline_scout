@@ -56,6 +56,7 @@ export function RestrictionLayerControls({
           </div>
         );
       })}
+      <p className="text-xs text-muted-foreground mt-2">{t("restrictionCredit")}</p>
     </fieldset>
   );
 }

@@ -218,3 +218,92 @@ def test_restrictions_missing_data_is_empty(tmp_path: Path) -> None:
     r = client.get("/restrictions", params={"bbox_lonlat": "1.0,41.0,2.0,42.0"})
     assert r.status_code == 200
     assert r.json()["features"] == []
+
+
+def test_zones_merges_two_regions_by_viewport(tmp_path: Path) -> None:
+    # Two regions with real UTM coords whose lon/lat extents both fall inside one
+    # wide viewport; a region-less /zones request must return zones from both.
+    from highliner.core import geo
+    from highliner.models.anchor import Anchor
+    from highliner.models.candidate import Candidate
+
+    def facing_pair(lon: float, lat: float):
+        cx, cy = geo.to_utm(lon, lat)
+        a = Anchor(x=cx - 40, y=cy, elev=100.0, sectors=((80.0, 100.0, 60.0),))
+        b = Anchor(x=cx + 40, y=cy, elev=100.0, sectors=((260.0, 280.0, 60.0),))
+        c = Candidate(a=a, b=b, length=80.0, exposure=80.0, height_diff=0.0)
+        return cx, cy, a, b, c
+
+    cx1, cy1, a1, b1, c1 = facing_pair(1.83, 41.59)
+    _write_region(tmp_path, "one", (cx1 - 200, cy1 - 200, cx1 + 200, cy1 + 200),
+                  [a1, b1], [c1])
+    cx2, cy2, a2, b2, c2 = facing_pair(1.95, 41.60)
+    _write_region(tmp_path, "two", (cx2 - 200, cy2 - 200, cx2 + 200, cy2 + 200),
+                  [a2, b2], [c2])
+
+    client = TestClient(create_app(data_dir=tmp_path))
+    r = client.get("/zones", params={
+        "bbox_lonlat": "1.80,41.55,2.00,41.65",
+        "max_len": 120, "min_exposure": 50, "max_dh": 5,
+    })
+    assert r.status_code == 200
+    assert len(r.json()["features"]) == 2
+
+
+def test_zones_region_omitted_no_overlap_is_empty(tmp_path: Path) -> None:
+    _gap_region(tmp_path, "one")  # tiny region near (0,0) UTM, not real lon/lat
+    client = TestClient(create_app(data_dir=tmp_path))
+    r = client.get("/zones", params={"bbox_lonlat": "1.80,41.55,2.00,41.65"})
+    assert r.status_code == 200
+    assert r.json()["features"] == []
+
+
+def test_anchors_merges_two_regions(tmp_path: Path) -> None:
+    from highliner.core import geo
+    from highliner.models.anchor import Anchor
+    from highliner.models.candidate import Candidate
+
+    def facing_pair(lon: float, lat: float):
+        cx, cy = geo.to_utm(lon, lat)
+        a = Anchor(x=cx - 40, y=cy, elev=100.0, sectors=((80.0, 100.0, 60.0),))
+        b = Anchor(x=cx + 40, y=cy, elev=100.0, sectors=((260.0, 280.0, 60.0),))
+        c = Candidate(a=a, b=b, length=80.0, exposure=80.0, height_diff=0.0)
+        return cx, cy, a, b, c
+
+    cx1, cy1, a1, b1, c1 = facing_pair(1.83, 41.59)
+    _write_region(tmp_path, "one", (cx1 - 200, cy1 - 200, cx1 + 200, cy1 + 200),
+                  [a1, b1], [c1])
+    cx2, cy2, a2, b2, c2 = facing_pair(1.95, 41.60)
+    _write_region(tmp_path, "two", (cx2 - 200, cy2 - 200, cx2 + 200, cy2 + 200),
+                  [a2, b2], [c2])
+
+    client = TestClient(create_app(data_dir=tmp_path))
+    r = client.get("/anchors", params={"bbox_lonlat": "1.80,41.55,2.00,41.65"})
+    assert r.status_code == 200
+    assert len(r.json()["features"]) == 4  # 2 anchors per region
+
+
+def test_anchors_merged_cap_413(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from highliner.core import geo
+    from highliner.models.anchor import Anchor
+    from highliner.models.candidate import Candidate
+
+    def facing_pair(lon: float, lat: float):
+        cx, cy = geo.to_utm(lon, lat)
+        a = Anchor(x=cx - 40, y=cy, elev=100.0, sectors=((80.0, 100.0, 60.0),))
+        b = Anchor(x=cx + 40, y=cy, elev=100.0, sectors=((260.0, 280.0, 60.0),))
+        c = Candidate(a=a, b=b, length=80.0, exposure=80.0, height_diff=0.0)
+        return cx, cy, a, b, c
+
+    cx1, cy1, a1, b1, c1 = facing_pair(1.83, 41.59)
+    _write_region(tmp_path, "one", (cx1 - 200, cy1 - 200, cx1 + 200, cy1 + 200),
+                  [a1, b1], [c1])
+    cx2, cy2, a2, b2, c2 = facing_pair(1.95, 41.60)
+    _write_region(tmp_path, "two", (cx2 - 200, cy2 - 200, cx2 + 200, cy2 + 200),
+                  [a2, b2], [c2])
+
+    # 2 anchors per region overlap the viewport; a cap of 3 must trip on the total.
+    monkeypatch.setattr(config, "MAX_ANCHORS_IN_VIEW", 3)
+    client = TestClient(create_app(data_dir=tmp_path))
+    r = client.get("/anchors", params={"bbox_lonlat": "1.80,41.55,2.00,41.65"})
+    assert r.status_code == 413

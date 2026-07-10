@@ -6,7 +6,6 @@ import { useI18n } from "@/lib/i18n";
 import { LanguageSwitcher } from "./LanguageSwitcher";
 
 interface MobileControlSheetProps {
-  region?: string;
   summary: string;
   filters: ReactNode;
   restrictions: ReactNode;
@@ -23,7 +22,7 @@ export function MobileControlSheet(props: MobileControlSheetProps) {
         <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-border" />
         <div className="flex items-center gap-3">
           <div className="min-w-0 flex-1">
-            <div className="truncate text-sm font-semibold">{props.region || "Highline Scout"}</div>
+            <div className="truncate text-sm font-semibold">Highline Scout</div>
             <div className="truncate text-xs text-muted-foreground">{props.summary}</div>
           </div>
           <SheetTrigger asChild>

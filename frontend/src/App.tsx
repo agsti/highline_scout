@@ -8,15 +8,13 @@ import { MapView } from "./components/map/MapView";
 import { RestrictionLayerControls } from "./components/RestrictionLayerControls";
 import { SafetyDisclaimerDialog } from "./components/SafetyDisclaimerDialog";
 import { StatusLine } from "./components/StatusLine";
-import { fetchRegions, fetchRestrictionLayers } from "./lib/api";
+import { fetchRestrictionLayers } from "./lib/api";
 import { bboxLonLatParam } from "./lib/geo";
 import { useI18n } from "./lib/i18n";
-import type { Region, RestrictionLayerMeta } from "./types/highliner";
+import type { RestrictionLayerMeta } from "./types/highliner";
 
 export function App() {
   const { t } = useI18n();
-  const [regions, setRegions] = useState<Region[]>([]);
-  const [region, setRegion] = useState("");
   const [mapStatus, setMapStatus] = useState(() => t("searching"));
   const [mapErrorDetail, setMapErrorDetail] = useState("");
   const [, setViewportBbox] = useState("");
@@ -28,19 +26,6 @@ export function App() {
   const [restrictionStatus, setRestrictionStatus] = useState("");
   const [enabledRestrictions, setEnabledRestrictions] = useState<string[]>([]);
   const [disclaimerOpen, setDisclaimerOpen] = useState(true);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    fetchRegions(controller.signal)
-      .then((items) => {
-        setRegions(items);
-        setRegion((current) => current || items[0]?.name || "");
-      })
-      .catch((error) => {
-        if (error.name !== "AbortError") setMapErrorDetail(error.detail ?? String(error));
-      });
-    return () => controller.abort();
-  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -58,12 +43,9 @@ export function App() {
 
   const filters = (
     <FilterControls
-      regions={regions}
-      region={region}
       maxLen={maxLen}
       minExposure={minExposure}
       showAnchors={showAnchors}
-      onRegionChange={setRegion}
       onMaxLenChange={setMaxLen}
       onMaxLenCommit={setMaxLen}
       onMinExposureChange={setMinExposure}
@@ -106,7 +88,6 @@ export function App() {
         }
         mobileControls={
           <MobileControlSheet
-            region={region}
             summary={summary}
             filters={filters}
             statuses={statuses}
@@ -116,8 +97,6 @@ export function App() {
         }
         map={
           <MapView
-            regions={regions}
-            region={region}
             maxLen={maxLen}
             minExposure={minExposure}
             showAnchors={showAnchors}

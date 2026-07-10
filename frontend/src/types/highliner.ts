@@ -5,15 +5,6 @@ import type {
   PolygonGeometry,
 } from "./geojson";
 
-export interface Region {
-  name: string;
-  bounds_lonlat: [number, number, number, number];
-}
-
-export interface RegionsResponse {
-  regions: Region[];
-}
-
 export interface ZoneProperties {
   height_min: number;
   height_max: number;

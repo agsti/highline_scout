@@ -149,8 +149,6 @@ function renderMapView(props?: Partial<React.ComponentProps<typeof MapView>>) {
   return render(
     <I18nProvider>
       <MapView
-        regions={props?.regions ?? [{ name: "alpha", bounds_lonlat: [1, 2, 3, 4] }]}
-        region={props?.region ?? "alpha"}
         maxLen={props?.maxLen ?? 150}
         minExposure={props?.minExposure ?? 30}
         showAnchors={props?.showAnchors ?? true}
@@ -180,8 +178,6 @@ function renderMapViewWithLanguageControl(props?: Partial<React.ComponentProps<t
     <I18nProvider>
       <LanguageControl />
       <MapView
-        regions={props?.regions ?? [{ name: "alpha", bounds_lonlat: [1, 2, 3, 4] }]}
-        region={props?.region ?? "alpha"}
         maxLen={props?.maxLen ?? 150}
         minExposure={props?.minExposure ?? 30}
         showAnchors={props?.showAnchors ?? true}
@@ -369,64 +365,6 @@ describe("MapView", () => {
     });
   });
 
-  it("keeps the URL view through the first selected-region update, then fits later region changes", () => {
-    const onViewportChange = vi.fn();
-    const onMapStatus = vi.fn();
-    const { rerender } = renderMapView({
-      regions: [],
-      region: "",
-      onViewportChange,
-      onMapStatus,
-    });
-
-    rerender(
-      <I18nProvider>
-        <MapView
-          regions={[{ name: "alpha", bounds_lonlat: [1, 2, 3, 4] }]}
-          region="alpha"
-          maxLen={150}
-          minExposure={30}
-          showAnchors
-          enabledRestrictions={[]}
-          restrictionLayers={[]}
-          onViewportChange={onViewportChange}
-          onMapStatus={onMapStatus}
-          onAnchorStatus={vi.fn()}
-          onRestrictionStatus={vi.fn()}
-        />
-      </I18nProvider>,
-    );
-
-    expect(leafletMocks.fitBounds).not.toHaveBeenCalled();
-
-    rerender(
-      <I18nProvider>
-        <MapView
-          regions={[
-            { name: "alpha", bounds_lonlat: [1, 2, 3, 4] },
-            { name: "beta", bounds_lonlat: [5, 6, 7, 8] },
-          ]}
-          region="beta"
-          maxLen={150}
-          minExposure={30}
-          showAnchors
-          enabledRestrictions={[]}
-          restrictionLayers={[]}
-          onViewportChange={onViewportChange}
-          onMapStatus={onMapStatus}
-          onAnchorStatus={vi.fn()}
-          onRestrictionStatus={vi.fn()}
-        />
-      </I18nProvider>,
-    );
-
-    expect(leafletMocks.fitBounds).toHaveBeenCalledTimes(1);
-    expect(leafletMocks.fitBounds).toHaveBeenCalledWith([
-      [6, 5],
-      [8, 7],
-    ]);
-  });
-
   it("loads density cells at low zoom and reports hotspot status", async () => {
     leafletState.zoom = 12;
     apiMocks.fetchDensity.mockResolvedValue({
@@ -450,7 +388,7 @@ describe("MapView", () => {
 
     await waitFor(() =>
       expect(apiMocks.fetchDensity).toHaveBeenCalledWith(
-        { region: "alpha", z: 14, bboxLonLat: "1,2,3,4" },
+        { z: 14, bboxLonLat: "1,2,3,4" },
         expect.any(AbortSignal),
       ),
     );
@@ -550,8 +488,6 @@ describe("MapView", () => {
     view.rerender(
       <I18nProvider>
         <MapView
-          regions={[{ name: "alpha", bounds_lonlat: [1, 2, 3, 4] }]}
-          region="alpha"
           maxLen={200}
           minExposure={30}
           showAnchors
@@ -658,7 +594,7 @@ describe("MapView", () => {
 
     await waitFor(() =>
       expect(apiMocks.fetchAnchors).toHaveBeenCalledWith(
-        { region: "alpha", bboxLonLat: "1,2,3,4" },
+        { bboxLonLat: "1,2,3,4" },
         expect.any(AbortSignal),
       ),
     );

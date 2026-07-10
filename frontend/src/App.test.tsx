@@ -15,13 +15,11 @@ vi.mock("./lib/api", () => ({
 
 vi.mock("./components/map/MapView", () => ({
   MapView: ({
-    region,
     showAnchors,
     enabledRestrictions,
     restrictionLayers,
     onMapStatus,
   }: {
-    region: string;
     showAnchors?: boolean;
     enabledRestrictions?: string[];
     restrictionLayers?: Array<{ id: string }>;
@@ -32,7 +30,6 @@ vi.mock("./components/map/MapView", () => ({
     }, [onMapStatus]);
     return (
       <div data-testid="map-view">
-        <div>{region}</div>
         <div data-testid="show-anchors">{String(showAnchors)}</div>
         <div data-testid="enabled-restrictions">{enabledRestrictions?.join(",") ?? ""}</div>
         <div data-testid="restriction-layer-count">{restrictionLayers?.length ?? 0}</div>

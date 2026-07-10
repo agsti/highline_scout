@@ -11,7 +11,7 @@ from fastapi import APIRouter, HTTPException, Request
 from highliner.core import config, tiles
 from highliner.core.regions import defaults_for_region
 from highliner.repositories import chunked_store
-from highliner.router.deps import get_region_index, parse_bbox_lonlat
+from highliner.router.deps import get_region_index, parse_bbox_lonlat, regions_in_view
 
 router = APIRouter()
 
@@ -77,7 +77,7 @@ def density(
     # region omitted: merge every indexed region that has this z-layer.
     view = parse_bbox_lonlat(bbox, bbox_lonlat)
     features: list[dict[str, Any]] = []
-    for entry in get_region_index(request):
+    for entry in regions_in_view(get_region_index(request), view):
         path = entry.region_dir / "density" / f"z{zc}.json"
         if not path.exists():
             continue

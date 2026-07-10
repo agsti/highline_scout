@@ -109,8 +109,8 @@ describe("App", () => {
   beforeEach(() => {
     apiMocks.fetchRestrictionLayers.mockReset().mockResolvedValue([
       {
-        id: "pein",
-        label: "PEIN",
+        id: "zepa",
+        label: "ZEPA (Birds)",
         tooltip: "tooltip",
         highlight: "tooltip",
         color: "#0a0",

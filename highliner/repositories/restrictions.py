@@ -1,23 +1,34 @@
-"""Download protected-area boundaries for Catalonia and store them locally.
+"""Build protected-area overlay layers for all of Spain and store them locally.
 
-Source: the Generalitat's unified "Espais Naturals" WFS, which carries every
-protected-area figure as a separate feature type (or as attribute flags within
-one). We derive overlay layers relevant to highline access:
+Source: MITECO's (national) Banco de Datos de la Naturaleza files, placed
+under ``data/restrictions/raw/`` by ``just fetch-restrictions``:
 
-    pein   PEIN                (ESPAISNATURALS_PEIN)
-    parcs  Parcs Naturals      (ESPAISNATURALS_PARCSNATURALS)
-    fauna  Reserves de Fauna   (ESPAISNATURALS_ENPE where NOM_RNFS is set)
+    rn2000  Red Natura 2000 GML (INSPIRE ProtectedSites), drives ``zepa`` and
+            ``zec`` by filtering on RN2000 designation
+    enp     Espacios Naturales Protegidos GeoJSON, drives ``enp``
 
-The WFS serves GeoJSON in EPSG:4326 (lon/lat), which is exactly what the web
-map consumes, so no reprojection is needed. Each derived layer is simplified
-(geometry detail is far finer than map scale needs) and written to
-``data/restrictions/<id>.parquet`` with only a normalized ``name`` property.
+Each source ships as two files - one covering the peninsula + Baleares, one
+covering Canarias - in different CRSes; ``_load_files`` reprojects each to
+EPSG:4326 independently before concatenating. The RN2000 GML doesn't expose
+the ZEPA/ZEC designation through GDAL's normal attribute reader, so
+``_parse_designations`` streams the raw XML (``ps:designation``'s
+``xlink:href``) and joins the result onto the GeoDataFrame by ``localId``.
 
-This module owns persistence: the WFS download/transform (``fetch_all``) and
-reading stored layers (``load_layer``). The ``LAYERS`` registry of overlay
-specifications lives here too, since the download is driven by it; the serving
-helpers that consume it (``layer_meta``, ``clip_to_features``) live in
-``highliner.services.restrictions``.
+We derive three overlay layers relevant to highline access:
+
+    zepa  Special Protection Area for Birds  (rn2000, ZEPA designation)
+    zec   Site/Area of Community Importance  (rn2000, ZEC/LIC designation)
+    enp   Protected Natural Area             (enp, all features)
+
+Each derived layer is simplified (geometry detail is far finer than map scale
+needs) and written to ``data/restrictions/<id>.parquet`` with only a
+normalized ``name`` property.
+
+This module owns persistence: building/transforming the layers from the raw
+files (``fetch_all``) and reading stored layers (``load_layer``). The
+``LAYERS`` registry of overlay specifications lives here too, since the build
+is driven by it; the serving helpers that consume it (``layer_meta``,
+``clip_to_features``) live in ``highliner.services.restrictions``.
 """
 from pathlib import Path
 from collections.abc import Mapping

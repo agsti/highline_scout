@@ -4,9 +4,9 @@
 
 **Goal:** Replace Catalonia's three Generalitat protected-area layers (`pein`/`parcs`/`fauna`) with three national MITECO layers (`zepa`/`zec`/`enp`) covering all of Spain, fetched via a `just` recipe that downloads national files once into `data/` and transformed locally.
 
-**Architecture:** A `just fetch-restrictions` recipe downloads two national bulk files (RN2000 GML, ENP GeoJSON) into `data/restrictions/raw/` idempotently, unzips them, then runs the Python transform. The transform (`highliner/repositories/restrictions.py`) reads the local files with GeoPandas, reprojects to EPSG:4326, splits/filters them into the three derived layers via the `LAYERS` registry, and writes `data/restrictions/<id>.parquet`. The serving layer and frontend controls are data-driven off `GET /restrictions/layers` and need no logic change — only the layer ids/strings change. i18n base language flips from Catalan to English.
+**Architecture:** A `just fetch-restrictions` recipe downloads the national bulk files (RN2000 GML + ENP GeoJSON, each split into a peninsula+baleares file and a canarias file) into `data/restrictions/raw/` idempotently, unzips them, then runs the Python transform. The transform (`highliner/repositories/restrictions.py`) reads every local file with GeoPandas, reprojects each to EPSG:4326, concatenates, splits/filters them into the three derived layers via the `LAYERS` registry, and writes `data/restrictions/<id>.parquet`. The serving layer and frontend controls are data-driven off `GET /restrictions/layers` and need no logic change — only the layer ids/strings change. i18n base language flips from Catalan to English.
 
-**Tech Stack:** Python 3.12, GeoPandas (+ pyogrio/GDAL for GML), Shapely, FastAPI; React + TypeScript + Vitest frontend; `just`, `uv`, `curl`, `unzip`.
+**Tech Stack:** Python 3.12, GeoPandas (+ pyogrio/GDAL for GML), Shapely, `xml.etree.ElementTree`, pandas, FastAPI; React + TypeScript + Vitest frontend; `just`, `uv`, `curl`, `unzip`.
 
 ## Global Constraints
 
@@ -15,125 +15,52 @@
 - Each language's `highlight` string MUST be a verbatim substring of that language's `tooltip` (the frontend locates it with `indexOf` in `appendDescText`).
 - i18n base language is **English**: server (`LAYERS`) text is English; `restrictionStrings.ts` provides `es` + `ca` overrides only; `en` falls back to the server text.
 - Layer geometry is simplified with the existing `SIMPLIFY_TOL_DEG = 0.0001`.
-- Verified-live source URLs (2026-07-10), base `https://www.miteco.gob.es/content/dam/miteco/es/biodiversidad/servicios/banco-datos-naturaleza`:
-  - RN2000 (GML): `/3-rn2000/PS.Natura2000_2025_gml.zip`
-  - ENP (GeoJSON): `/enp/Enp2025_geojson.zip`
-- Work on a feature branch (we start on `main`): `git checkout -b feat/national-restrictions` before Task 1.
+- Strict mypy is enforced (`uv run mypy` must pass).
+
+### Discovered data facts (from Task 1 — treat as verified, do not re-derive)
+
+- **Two files per source**, each in a different CRS — the transform must read **all** matching files and reproject each to 4326 before concatenating:
+  | file (in `data/restrictions/raw/`) | source | CRS |
+  |---|---|---|
+  | `PS.Natura2000_p_2025.gml` (peninsula+baleares) | rn2000 | EPSG:3040 |
+  | `PS.Natura2000_c_2025.gml` (canarias) | rn2000 | EPSG:3040 |
+  | `Enp2025_p.json` (peninsula+baleares) | enp | EPSG:25830 |
+  | `Enp2025_c.json` (canarias) | enp | EPSG:32628 |
+- **RN2000 ZEPA/ZEC designation is NOT a GeoPandas column.** It lives in `ps:siteDesignation/ps:DesignationType/ps:designation/@xlink:href` (INSPIRE Protected Sites schema); GDAL returns those attributes as `None`. It must be recovered by parsing the raw GML XML and joined to the geometries on the `localId` field (which GeoPandas *does* read). A feature can carry several designation codes at once (ZEPA + ZEC + LIC).
+- **Designation code value sets** (last path segment of the href), including MITECO's genuine source typo which is *more common* than the correct spelling — omitting it drops ~59% of ZEPA sites:
+  - `ZEPA_VALUES = {"SpecialProtectionArea", "SpecialProtecionArea"}`  ← second entry is the typo (missing "t"), intentional
+  - `ZEC_VALUES = {"SpecialAreaOfConservation", "SiteOfCommunityImportance"}`
+- **Name fields:** RN2000 site name = column `text`; ENP site name = column `SITE_NAME`.
+- **XML namespaces** for the designation parse:
+  ```python
+  {"ps": "http://inspire.ec.europa.eu/schemas/ps/5.0",
+   "base": "http://inspire.ec.europa.eu/schemas/base/4.0",
+   "xlink": "http://www.w3.org/1999/xlink"}
+  ```
+  Per `ps:ProtectedSite`: localId at `ps:inspireId/base:Identifier/base:localId`; designation hrefs at `.//ps:siteDesignation/ps:DesignationType/ps:designation` read from `.attrib["{http://www.w3.org/1999/xlink}href"].rsplit("/", 1)[-1]`.
+- Reading/parsing the 451 MB peninsula GML is slow-ish but fine; use `ET.iterparse` (streaming) with `elem.clear()`, never a full-DOM `ET.parse`.
 - Attribution: MITECO must be credited as data author/owner somewhere user-visible.
 
 ---
 
-### Task 1: Download recipe + raw-file schema discovery
+### Task 1 — COMPLETE (commit `475a163`)
 
-Downloads the national files once and records the actual attribute field names and type values the later tasks depend on. This is a scaffolding/discovery task; its "test" is running the recipe and the inspection command and recording their output into this plan's constants.
-
-**Files:**
-- Modify: `justfile` (the `fetch-restrictions` recipe, currently at `justfile:48-50`)
-- Create: `scripts/inspect_restrictions_raw.py` (throwaway inspection helper)
-
-**Interfaces:**
-- Produces: `data/restrictions/raw/` containing one `*.gml` (RN2000) and one `*.geojson`/`*.json` (ENP) file; and the four discovered constants recorded in Task 3 (`RN2000_TYPE_FIELD`, `RN2000_NAME_FIELD`, `ENP_NAME_FIELD`, and the ZEPA/ZEC type value sets).
-
-- [ ] **Step 1: Create the feature branch**
-
-```bash
-git checkout -b feat/national-restrictions
-```
-
-- [ ] **Step 2: Rewrite the `fetch-restrictions` recipe in `justfile`**
-
-Replace the current recipe (`justfile:48-50`) with a download-once-then-transform recipe:
-
-```make
-# Download national protected-area files (once) into data/restrictions/raw/
-# and transform them into data/restrictions/<id>.parquet.
-RN2000_URL := "https://www.miteco.gob.es/content/dam/miteco/es/biodiversidad/servicios/banco-datos-naturaleza/3-rn2000/PS.Natura2000_2025_gml.zip"
-ENP_URL := "https://www.miteco.gob.es/content/dam/miteco/es/biodiversidad/servicios/banco-datos-naturaleza/enp/Enp2025_geojson.zip"
-
-fetch-restrictions:
-    mkdir -p data/restrictions/raw
-    ls data/restrictions/raw/*.gml >/dev/null 2>&1 || \
-      (curl -fL "{{RN2000_URL}}" -o data/restrictions/raw/rn2000.zip && \
-       unzip -o -j data/restrictions/raw/rn2000.zip -d data/restrictions/raw && \
-       rm data/restrictions/raw/rn2000.zip)
-    ls data/restrictions/raw/*.geojson data/restrictions/raw/*.json >/dev/null 2>&1 || \
-      (curl -fL "{{ENP_URL}}" -o data/restrictions/raw/enp.zip && \
-       unzip -o -j data/restrictions/raw/enp.zip -d data/restrictions/raw && \
-       rm data/restrictions/raw/enp.zip)
-    uv run highliner fetch-restrictions
-```
-
-- [ ] **Step 3: Add `data/restrictions/raw/` to `.gitignore`**
-
-Confirm `data/` (or `data/restrictions/`) is already git-ignored; if not, append `data/restrictions/raw/` to `.gitignore`. The raw downloads and derived parquet are build artifacts, not committed.
-
-- [ ] **Step 4: Download the raw files**
-
-Run: `just fetch-restrictions` — expect it to fail at the final `uv run highliner fetch-restrictions` step (the transform still targets the old WFS code). That's fine; the goal here is the downloaded files. Verify:
-
-```bash
-ls -la data/restrictions/raw/
-```
-Expected: at least one `*.gml` file and one `*.geojson` (or `*.json`) file present.
-
-- [ ] **Step 5: Write the inspection helper**
-
-Create `scripts/inspect_restrictions_raw.py`:
-
-```python
-"""Print columns, CRS, and candidate type/name fields of the raw MITECO files.
-
-Throwaway helper used once to discover the attribute schema the LAYERS registry
-depends on. Safe to delete after the constants are recorded in the plan.
-"""
-import glob
-import geopandas as gpd
-
-for pattern in ("data/restrictions/raw/*.gml", "data/restrictions/raw/*.geojson",
-                "data/restrictions/raw/*.json"):
-    for path in glob.glob(pattern):
-        gdf = gpd.read_file(path, rows=50)
-        print(f"\n=== {path} ===")
-        print("CRS:", gdf.crs)
-        print("columns:", list(gdf.columns))
-        for col in gdf.columns:
-            if gdf[col].dtype == object and col != "geometry":
-                vals = gdf[col].dropna().unique()[:8]
-                print(f"  {col!r} sample: {list(vals)}")
-```
-
-- [ ] **Step 6: Run the inspection and record the schema**
-
-Run: `uv run python scripts/inspect_restrictions_raw.py`
-
-From the output, record and carry into Task 3:
-- **`RN2000_TYPE_FIELD`** — the field in the GML that distinguishes ZEPA vs LIC/ZEC. Expected: an INSPIRE site-type field. Under the INSPIRE/BDN convention values are `A` (SPA→ZEPA), `B` (SCI/SAC→ZEC/LIC), `C` (both). If instead the field holds strings like `ZEPA`/`LIC`/`ZEC`, note the exact strings.
-- **ZEPA/ZEC value sets** — from the observed values: ZEPA = the SPA value(s) plus the "both" value; ZEC = the SCI/SAC value(s) plus the "both" value.
-- **`RN2000_NAME_FIELD`** — the official site-name column (e.g. `SITE_NAME`, `NOMBRE`, `NOM`).
-- **`ENP_NAME_FIELD`** — the ENP site-name column.
-- Confirm each file's **CRS** (to know whether reprojection to 4326 is needed).
-
-- [ ] **Step 7: Commit**
-
-```bash
-git add justfile scripts/inspect_restrictions_raw.py .gitignore
-git commit -m "chore: national MITECO restriction download recipe + schema inspector"
-```
+Download recipe + raw-file schema discovery. Done: `justfile` `fetch-restrictions` recipe downloads the two zips into `data/restrictions/raw/` idempotently; `scripts/inspect_restrictions_raw.py` inspector added; all schema facts recorded (see the "Discovered data facts" section above and `.superpowers/sdd/task-1-report.md`). `data/` is already git-ignored. Do not redo.
 
 ---
 
-### Task 2: `_load_source` — read local files, reproject to 4326
+### Task 2: Multi-file loader — read all raw files, reproject each to 4326, concatenate
 
 **Files:**
 - Modify: `highliner/repositories/restrictions.py`
 - Test: `tests/test_restrictions.py` (create)
 
 **Interfaces:**
-- Consumes: raw files under `data/restrictions/raw/` from Task 1.
+- Consumes: raw files under `data/restrictions/raw/` (Task 1).
 - Produces:
-  - `RAW_DIR: Path` — `Path(config.DATA_DIR) / "restrictions" / "raw"`.
-  - `SOURCE_GLOBS: dict[str, tuple[str, ...]]` — `{"rn2000": ("*.gml",), "enp": ("*.geojson", "*.json")}`.
-  - `_load_source(source_key: str, raw_dir: Path | None = None) -> gpd.GeoDataFrame` — reads the first file matching the source's globs, reprojects to EPSG:4326, returns it. Raises `FileNotFoundError` if no file matches.
+  - `RAW_DIR: Path` = `Path(config.DATA_DIR) / "restrictions" / "raw"`.
+  - `SOURCE_GLOBS: dict[str, tuple[str, ...]]` = `{"rn2000": ("*.gml",), "enp": ("*.geojson", "*.json")}`.
+  - `_load_files(raw_dir: Path, patterns: tuple[str, ...]) -> gpd.GeoDataFrame` — read every file matching any pattern (sorted), reproject each to EPSG:4326, concatenate into one GeoDataFrame (crs 4326). Raises `FileNotFoundError` if nothing matches.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -143,48 +70,47 @@ Create `tests/test_restrictions.py`:
 from pathlib import Path
 
 import geopandas as gpd
+import pytest
 from shapely.geometry import Polygon
 
 from highliner.repositories import restrictions as R
 
-
-def _write_geojson(path: Path, epsg: int) -> None:
-    gdf = gpd.GeoDataFrame(
-        {"NOMBRE": ["A"]},
-        geometry=[Polygon([(0, 0), (0, 1), (1, 1), (1, 0)])],
-        crs="EPSG:4326",
-    ).to_crs(epsg)
-    gdf.to_file(path, driver="GeoJSON")
+_SQUARE = Polygon([(0, 0), (0, 1), (1, 1), (1, 0)])
 
 
-def test_load_source_reprojects_to_4326(tmp_path: Path) -> None:
+def _write(path: Path, epsg: int, name: str) -> None:
+    gpd.GeoDataFrame(
+        {"SITE_NAME": [name]}, geometry=[_SQUARE], crs="EPSG:4326"
+    ).to_crs(epsg).to_file(path, driver="GeoJSON")
+
+
+def test_load_files_concats_and_reprojects(tmp_path: Path) -> None:
     raw = tmp_path / "raw"
     raw.mkdir()
-    _write_geojson(raw / "enp.geojson", epsg=25830)
+    _write(raw / "enp_p.json", 25830, "Peninsula")
+    _write(raw / "enp_c.json", 32628, "Canarias")
 
-    gdf = R._load_source("enp", raw_dir=raw)
+    gdf = R._load_files(raw, ("*.geojson", "*.json"))
 
-    assert gdf.crs is not None
     assert gdf.crs.to_epsg() == 4326
-    assert len(gdf) == 1
+    assert sorted(gdf["SITE_NAME"]) == ["Canarias", "Peninsula"]
 
 
-def test_load_source_missing_raises(tmp_path: Path) -> None:
+def test_load_files_missing_raises(tmp_path: Path) -> None:
     raw = tmp_path / "raw"
     raw.mkdir()
-    import pytest
     with pytest.raises(FileNotFoundError):
-        R._load_source("enp", raw_dir=raw)
+        R._load_files(raw, ("*.gml",))
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `uv run pytest tests/test_restrictions.py -v`
-Expected: FAIL — `AttributeError: module has no attribute '_load_source'` (and `RAW_DIR`/`SOURCE_GLOBS` missing).
+Expected: FAIL — `AttributeError: module ... has no attribute '_load_files'`.
 
-- [ ] **Step 3: Implement `_load_source`**
+- [ ] **Step 3: Implement `_load_files` and the module constants**
 
-In `highliner/repositories/restrictions.py`, remove the WFS constants (`WFS`, `_NS`, `_PAGE`, `_HEADERS`) and the `_fetch_source` function, and add near the top (after imports):
+In `highliner/repositories/restrictions.py`: remove the WFS constants (`WFS`, `_NS`, `_PAGE`, `_HEADERS`) and the `_fetch_source` function; add `import pandas as pd` (and keep `from pathlib import Path`). Add near the top, after imports:
 
 ```python
 RAW_DIR = Path(config.DATA_DIR) / "restrictions" / "raw"
@@ -194,25 +120,27 @@ SOURCE_GLOBS: dict[str, tuple[str, ...]] = {
 }
 
 
-def _load_source(source_key: str, raw_dir: Path | None = None) -> gpd.GeoDataFrame:
-    """Read the first raw file matching ``source_key``'s globs and return it in
-    EPSG:4326. Raw files are placed by the ``just fetch-restrictions`` recipe."""
-    base = raw_dir if raw_dir is not None else RAW_DIR
-    for pattern in SOURCE_GLOBS[source_key]:
-        matches = sorted(base.glob(pattern))
-        if matches:
-            gdf = gpd.read_file(matches[0])
+def _load_files(raw_dir: Path, patterns: tuple[str, ...]) -> gpd.GeoDataFrame:
+    """Read every raw file matching any of ``patterns`` under ``raw_dir``,
+    reproject each to EPSG:4326, and concatenate. The national datasets ship as
+    a peninsula+baleares file and a canarias file, each in its own CRS."""
+    frames: list[gpd.GeoDataFrame] = []
+    for pattern in patterns:
+        for path in sorted(raw_dir.glob(pattern)):
+            gdf = gpd.read_file(path)
             if gdf.crs is None:
                 gdf = gdf.set_crs("EPSG:4326")
             elif gdf.crs.to_epsg() != 4326:
                 gdf = gdf.to_crs("EPSG:4326")
-            return gdf
-    raise FileNotFoundError(
-        f"no raw file for source {source_key!r} in {base} "
-        f"(run `just fetch-restrictions`)")
+            frames.append(gdf)
+    if not frames:
+        raise FileNotFoundError(
+            f"no raw files matching {patterns} in {raw_dir} "
+            f"(run `just fetch-restrictions`)")
+    return gpd.GeoDataFrame(pd.concat(frames, ignore_index=True), crs="EPSG:4326")
 ```
 
-Keep the existing `import requests` only if still used elsewhere; otherwise remove it and drop `requests`/`types-requests` from `pyproject.toml` if no other module imports it (check with `rg -l "import requests" highliner/`).
+If `import requests` is now unused in the module, remove it (check `rg -n "requests" highliner/repositories/restrictions.py`).
 
 - [ ] **Step 4: Run test to verify it passes**
 
@@ -223,62 +151,191 @@ Expected: PASS (both tests).
 
 ```bash
 git add highliner/repositories/restrictions.py tests/test_restrictions.py
-git commit -m "feat: read local MITECO source files, reproject to 4326"
+git commit -m "feat: multi-file restriction loader (reproject each to 4326, concat)"
 ```
 
 ---
 
-### Task 3: Rewrite `LAYERS` registry + `build_layer` for the three national layers
+### Task 3: RN2000 designation parser + `_load_source` dispatch
 
 **Files:**
 - Modify: `highliner/repositories/restrictions.py`
 - Test: `tests/test_restrictions.py`
 
 **Interfaces:**
-- Consumes: `_load_source` from Task 2.
+- Consumes: `_load_files`, `SOURCE_GLOBS`, `RAW_DIR` (Task 2).
 - Produces:
-  - `LAYERS: dict[str, LayerSpec]` keyed by `"zepa"`, `"zec"`, `"enp"`, each with `label`, `color`, `source` (key into `SOURCE_GLOBS`), `name_field`, `keep: Callable[[Mapping[str, Any]], bool]`, `tooltip`, `highlight` (English).
-  - `build_layer(layer_id: str, source_cache: dict[str, gpd.GeoDataFrame]) -> gpd.GeoDataFrame` — filters the source by `keep`, normalizes `name`, simplifies, returns a 4326 GeoDataFrame with columns `["name", "geometry"]`.
-
-> Set the four discovery constants below from **Task 1 Step 6** output before implementing. Values shown are the expected INSPIRE/BDN convention; adjust to what the inspector actually printed.
+  - `_parse_designations(path: Path) -> dict[str, set[str]]` — map each ProtectedSite `localId` to its set of INSPIRE designation codes, by streaming the raw GML XML.
+  - `_load_source(source_key: str, raw_dir: Path | None = None) -> gpd.GeoDataFrame` — load a source's files (4326, concatenated); for `"rn2000"`, additionally attach a `designations` column (a `set[str]` per row) joined on `localId`. Raises `KeyError` for an unknown source.
 
 - [ ] **Step 1: Write the failing test**
 
 Append to `tests/test_restrictions.py`:
 
 ```python
-def _rn2000_fixture() -> gpd.GeoDataFrame:
-    poly = Polygon([(0, 0), (0, 1), (1, 1), (1, 0)])
+_GML = """<?xml version="1.0" encoding="UTF-8"?>
+<wfs:FeatureCollection
+    xmlns:wfs="http://www.opengis.net/wfs/2.0"
+    xmlns:gml="http://www.opengis.net/gml/3.2"
+    xmlns:ps="http://inspire.ec.europa.eu/schemas/ps/5.0"
+    xmlns:base="http://inspire.ec.europa.eu/schemas/base/4.0"
+    xmlns:xlink="http://www.w3.org/1999/xlink">
+  <wfs:member>
+    <ps:ProtectedSite>
+      <ps:inspireId><base:Identifier><base:localId>ES0000197</base:localId></base:Identifier></ps:inspireId>
+      <ps:siteDesignation><ps:DesignationType>
+        <ps:designation xlink:href="http://inspire.ec.europa.eu/codelist/Natura2000DesignationValue/SpecialProtecionArea"/>
+      </ps:DesignationType></ps:siteDesignation>
+    </ps:ProtectedSite>
+  </wfs:member>
+  <wfs:member>
+    <ps:ProtectedSite>
+      <ps:inspireId><base:Identifier><base:localId>ES6300001</base:localId></base:Identifier></ps:inspireId>
+      <ps:siteDesignation><ps:DesignationType>
+        <ps:designation xlink:href="http://inspire.ec.europa.eu/codelist/Natura2000DesignationValue/SiteOfCommunityImportance"/>
+      </ps:DesignationType></ps:siteDesignation>
+      <ps:siteDesignation><ps:DesignationType>
+        <ps:designation xlink:href="http://inspire.ec.europa.eu/codelist/Natura2000DesignationValue/SpecialProtectionArea"/>
+      </ps:DesignationType></ps:siteDesignation>
+    </ps:ProtectedSite>
+  </wfs:member>
+</wfs:FeatureCollection>
+"""
+
+
+def test_parse_designations(tmp_path: Path) -> None:
+    gml = tmp_path / "rn.gml"
+    gml.write_text(_GML)
+
+    codes = R._parse_designations(gml)
+
+    assert codes["ES0000197"] == {"SpecialProtecionArea"}          # typo-only ZEPA
+    assert codes["ES6300001"] == {"SiteOfCommunityImportance", "SpecialProtectionArea"}
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `uv run pytest tests/test_restrictions.py::test_parse_designations -v`
+Expected: FAIL — `AttributeError: ... '_parse_designations'`.
+
+- [ ] **Step 3: Implement the parser and `_load_source`**
+
+Add to `highliner/repositories/restrictions.py`:
+
+```python
+import xml.etree.ElementTree as ET
+
+_PS = "http://inspire.ec.europa.eu/schemas/ps/5.0"
+_BASE = "http://inspire.ec.europa.eu/schemas/base/4.0"
+_XLINK_HREF = "{http://www.w3.org/1999/xlink}href"
+_XML_NS = {"ps": _PS, "base": _BASE}
+
+
+def _parse_designations(path: Path) -> dict[str, set[str]]:
+    """Map each ProtectedSite localId to its INSPIRE designation codes.
+
+    The ZEPA/ZEC designation lives in ``ps:designation``'s ``xlink:href``
+    attribute, which GDAL exposes as ``None``, so stream the raw XML instead."""
+    out: dict[str, set[str]] = {}
+    site_tag = f"{{{_PS}}}ProtectedSite"
+    for _, elem in ET.iterparse(path, events=("end",)):
+        if elem.tag != site_tag:
+            continue
+        lid_el = elem.find("ps:inspireId/base:Identifier/base:localId", _XML_NS)
+        if lid_el is not None and lid_el.text:
+            codes = {
+                d.attrib[_XLINK_HREF].rsplit("/", 1)[-1]
+                for d in elem.findall(
+                    ".//ps:siteDesignation/ps:DesignationType/ps:designation", _XML_NS)
+                if _XLINK_HREF in d.attrib and d.attrib[_XLINK_HREF]
+            }
+            out[lid_el.text] = codes
+        elem.clear()
+    return out
+
+
+def _load_source(source_key: str,
+                 raw_dir: Path | None = None) -> gpd.GeoDataFrame:
+    """Load a source's raw files (EPSG:4326, concatenated). For ``rn2000`` also
+    attach a ``designations`` column (set of INSPIRE codes) joined on localId."""
+    base = raw_dir if raw_dir is not None else RAW_DIR
+    if source_key not in SOURCE_GLOBS:
+        raise KeyError(source_key)
+    gdf = _load_files(base, SOURCE_GLOBS[source_key])
+    if source_key == "rn2000":
+        codes: dict[str, set[str]] = {}
+        for path in sorted(base.glob("*.gml")):
+            codes.update(_parse_designations(path))
+        gdf["designations"] = [codes.get(lid, set()) for lid in gdf["localId"]]
+    return gdf
+```
+
+- [ ] **Step 4: Run test to verify it passes**
+
+Run: `uv run pytest tests/test_restrictions.py -v`
+Expected: PASS (all tests so far).
+
+- [ ] **Step 5: Typecheck**
+
+Run: `uv run mypy`
+Expected: no errors.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add highliner/repositories/restrictions.py tests/test_restrictions.py
+git commit -m "feat: parse RN2000 INSPIRE designations from GML, attach to source"
+```
+
+---
+
+### Task 4: `LAYERS` registry + `build_layer` for the three national layers
+
+**Files:**
+- Modify: `highliner/repositories/restrictions.py`
+- Test: `tests/test_restrictions.py`
+
+**Interfaces:**
+- Consumes: `_load_source` (Task 3), the designation value sets, the name fields.
+- Produces:
+  - `LAYERS: dict[str, LayerSpec]` keyed `"zepa"`, `"zec"`, `"enp"`, each `label`, `color`, `source` (key into `SOURCE_GLOBS`), `name_field`, `keep: Callable[[Mapping[str, Any]], bool]`, `tooltip`, `highlight` (English).
+  - `build_layer(layer_id: str, source_cache: dict[str, gpd.GeoDataFrame]) -> gpd.GeoDataFrame` — filter the source by `keep`, normalize `name` from `name_field`, simplify, return a 4326 GeoDataFrame with columns `["name", "geometry"]`.
+
+- [ ] **Step 1: Write the failing test**
+
+Append to `tests/test_restrictions.py`:
+
+```python
+def _rn2000_source() -> gpd.GeoDataFrame:
     return gpd.GeoDataFrame(
         {
-            R.RN2000_TYPE_FIELD: ["A", "B", "C"],  # SPA, SCI, both
-            R.RN2000_NAME_FIELD: ["Birds Site", "Habitat Site", "Both Site"],
+            "text": ["Birds Only", "Habitat Only", "Both"],
+            "designations": [
+                {"SpecialProtecionArea"},                       # typo ZEPA
+                {"SiteOfCommunityImportance"},                  # ZEC
+                {"SpecialProtectionArea", "SpecialAreaOfConservation"},
+            ],
         },
-        geometry=[poly, poly, poly],
+        geometry=[_SQUARE, _SQUARE, _SQUARE],
         crs="EPSG:4326",
     )
 
 
-def test_build_zepa_keeps_spa_and_both(monkeypatch) -> None:
-    src = _rn2000_fixture()
-    cache = {"rn2000": src}
-    gdf = R.build_layer("zepa", cache)
-    assert sorted(gdf["name"]) == ["Birds Site", "Both Site"]
+def test_build_zepa_keeps_spa_incl_typo_and_both() -> None:
+    gdf = R.build_layer("zepa", {"rn2000": _rn2000_source()})
+    assert sorted(gdf["name"]) == ["Birds Only", "Both"]
     assert gdf.crs.to_epsg() == 4326
 
 
-def test_build_zec_keeps_sci_and_both() -> None:
-    src = _rn2000_fixture()
-    gdf = R.build_layer("zec", {"rn2000": src})
-    assert sorted(gdf["name"]) == ["Both Site", "Habitat Site"]
+def test_build_zec_keeps_sci_sac_and_both() -> None:
+    gdf = R.build_layer("zec", {"rn2000": _rn2000_source()})
+    assert sorted(gdf["name"]) == ["Both", "Habitat Only"]
 
 
 def test_build_enp_keeps_all_and_normalizes_name() -> None:
-    poly = Polygon([(0, 0), (0, 1), (1, 1), (1, 0)])
     src = gpd.GeoDataFrame(
-        {R.ENP_NAME_FIELD: ["  Park  ", None]},
-        geometry=[poly, poly],
-        crs="EPSG:4326",
+        {"SITE_NAME": ["  Park  ", None]},
+        geometry=[_SQUARE, _SQUARE], crs="EPSG:4326",
     )
     gdf = R.build_layer("enp", {"enp": src})
     assert sorted(gdf["name"]) == ["", "Park"]
@@ -287,22 +344,17 @@ def test_build_enp_keeps_all_and_normalizes_name() -> None:
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `uv run pytest tests/test_restrictions.py -k build -v`
-Expected: FAIL — `RN2000_TYPE_FIELD` / new `LAYERS` shape not present.
+Expected: FAIL — new `LAYERS`/`build_layer` shape not present.
 
 - [ ] **Step 3: Implement the registry and `build_layer`**
 
-Replace the old `LAYERS` dict and `build_layer` in `highliner/repositories/restrictions.py`. Add the discovery constants and update `LayerSpec.keep` typing:
+Replace the old `LayerSpec`, `LAYERS`, and `build_layer` in `highliner/repositories/restrictions.py`:
 
 ```python
 from collections.abc import Mapping
 
-# --- Discovery constants (set from Task 1 inspection) -----------------------
-RN2000_TYPE_FIELD = "SITE_TYPE"     # INSPIRE site type: A=SPA, B=SCI/SAC, C=both
-RN2000_NAME_FIELD = "SITE_NAME"     # official RN2000 site name column
-ENP_NAME_FIELD = "SITE_NAME"        # official ENP site name column
-_ZEPA_TYPES = {"A", "C"}
-_ZEC_TYPES = {"B", "C"}
-# ---------------------------------------------------------------------------
+ZEPA_VALUES = frozenset({"SpecialProtectionArea", "SpecialProtecionArea"})
+ZEC_VALUES = frozenset({"SpecialAreaOfConservation", "SiteOfCommunityImportance"})
 
 
 class LayerSpec(TypedDict):
@@ -320,8 +372,8 @@ LAYERS: dict[str, LayerSpec] = {
         "label": "ZEPA (Birds)",
         "color": "#e31a1c",
         "source": "rn2000",
-        "name_field": RN2000_NAME_FIELD,
-        "keep": lambda p: str(p.get(RN2000_TYPE_FIELD) or "").strip() in _ZEPA_TYPES,
+        "name_field": "text",
+        "keep": lambda p: bool(ZEPA_VALUES & set(p.get("designations") or ())),
         "tooltip": ("Special Protection Area for Birds - Red Natura 2000 (EU "
                     "Birds Directive). Cliffs in these areas commonly have "
                     "seasonal climbing and access closures for raptor nesting "
@@ -336,8 +388,8 @@ LAYERS: dict[str, LayerSpec] = {
         "label": "ZEC / LIC",
         "color": "#ff7f00",
         "source": "rn2000",
-        "name_field": RN2000_NAME_FIELD,
-        "keep": lambda p: str(p.get(RN2000_TYPE_FIELD) or "").strip() in _ZEC_TYPES,
+        "name_field": "text",
+        "keep": lambda p: bool(ZEC_VALUES & set(p.get("designations") or ())),
         "tooltip": ("Site of Community Importance / Special Area of Conservation "
                     "- Red Natura 2000 (EU Habitats Directive). Activities that "
                     "may harm the protected habitats can be regulated and may "
@@ -350,7 +402,7 @@ LAYERS: dict[str, LayerSpec] = {
         "label": "Protected Natural Areas",
         "color": "#6a3d9a",
         "source": "enp",
-        "name_field": ENP_NAME_FIELD,
+        "name_field": "SITE_NAME",
         "keep": lambda p: True,
         "tooltip": ("Protected Natural Area - a national or regional protection "
                     "figure such as a national or nature park, nature reserve or "
@@ -373,12 +425,11 @@ def build_layer(layer_id: str,
     if src is None:
         src = source_cache[spec["source"]] = _load_source(spec["source"])
     keep = spec["keep"]
-    mask = src.apply(lambda row: keep(row), axis=1)
-    sub = src[mask]
-    names = (sub[spec["name_field"]].fillna("").astype(str).str.strip()
+    sub = src[src.apply(lambda row: keep(row), axis=1)]
+    names = (sub[spec["name_field"]].fillna("").astype(str).str.strip().tolist()
              if len(sub) else [])
-    gdf = gpd.GeoDataFrame({"name": list(names)},
-                           geometry=list(sub.geometry), crs="EPSG:4326")
+    gdf = gpd.GeoDataFrame({"name": names}, geometry=list(sub.geometry),
+                           crs="EPSG:4326")
     gdf["geometry"] = gdf.geometry.simplify(SIMPLIFY_TOL_DEG,
                                             preserve_topology=True)
     return gdf
@@ -387,12 +438,12 @@ def build_layer(layer_id: str,
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `uv run pytest tests/test_restrictions.py -v`
-Expected: PASS (all Task 2 + Task 3 tests).
+Expected: PASS (all restriction tests).
 
 - [ ] **Step 5: Typecheck**
 
 Run: `uv run mypy`
-Expected: no errors (strict mypy is enforced in this repo).
+Expected: no errors.
 
 - [ ] **Step 6: Commit**
 
@@ -403,7 +454,7 @@ git commit -m "feat: national zepa/zec/enp layer registry + build_layer"
 
 ---
 
-### Task 4: Update `fetch_all`, the CLI message, and the API registry test
+### Task 5: Wire `fetch_all`, the CLI message, and the API registry test
 
 **Files:**
 - Modify: `highliner/repositories/restrictions.py` (`fetch_all` docstring/print only)
@@ -411,13 +462,12 @@ git commit -m "feat: national zepa/zec/enp layer registry + build_layer"
 - Modify: `tests/test_api.py:161-218` (restriction tests → new ids)
 
 **Interfaces:**
-- Consumes: `LAYERS`, `build_layer` from Task 3.
+- Consumes: `LAYERS`, `build_layer` (Task 4).
 - Produces: `data/restrictions/{zepa,zec,enp}.parquet` when run end-to-end.
 
-- [ ] **Step 1: Update the failing API test to the new ids**
+- [ ] **Step 1: Update the API test to the new ids**
 
-In `tests/test_api.py`, change the registry assertion (`test_restriction_layers_registry`) from:
-
+In `tests/test_api.py`, change the registry assertion in `test_restriction_layers_registry` from:
 ```python
     assert {"pein", "parcs", "fauna"} <= ids
     pein = next(row for row in layers if row["id"] == "pein")
@@ -429,20 +479,16 @@ to:
     zepa = next(row for row in layers if row["id"] == "zepa")
     assert zepa["label"] and zepa["color"].startswith("#")
 ```
-
 In `test_restrictions_in_view` and `test_restrictions_filters_out_of_view`, replace every `"pein"` literal (the `_write_restriction_layer(...)` id, the `layers=` param, and the `props["layer"] == "pein"` assertion) with `"zepa"`.
 
-- [ ] **Step 2: Run the API tests to verify they fail**
+- [ ] **Step 2: Run the API tests**
 
 Run: `uv run pytest tests/test_api.py -k restriction -v`
-Expected: FAIL — server still serves `pein`/`parcs`/`fauna` (old registry) OR passes only after Task 3 is merged; the registry test fails on the id set.
-
-> Note: if Task 3 is already merged, `test_restriction_layers_registry` passes immediately (registry already returns the new ids) and only the `_write_restriction_layer`-based tests needed the id rename — that is expected; proceed.
+Expected: the registry test passes if Task 4 is merged (registry already serves new ids); the `_write_restriction_layer` tests pass with the renamed id. If any fail on a stale id, fix that literal. (These tests write parquet directly and do not touch raw MITECO files.)
 
 - [ ] **Step 3: Update `fetch_all` message and CLI text**
 
-In `highliner/repositories/restrictions.py`, update the `fetch_all` docstring to say it reads local national files (not WFS). In `highliner/cli.py:62`, change:
-
+In `highliner/repositories/restrictions.py`, update the `fetch_all` docstring to say it builds layers from the local national files under `data/restrictions/raw/` (not a WFS). In `highliner/cli.py:62`, change:
 ```python
     print("Downloading protected-area layers from the Generalitat WFS...")
 ```
@@ -451,17 +497,12 @@ to:
     print("Building national protected-area layers from data/restrictions/raw/ ...")
 ```
 
-- [ ] **Step 4: Run the API tests to verify they pass**
-
-Run: `uv run pytest tests/test_api.py -k restriction -v`
-Expected: PASS.
-
-- [ ] **Step 5: Full end-to-end build (integration check)**
+- [ ] **Step 4: Full end-to-end build (integration check)**
 
 Run: `just fetch-restrictions`
-Expected: downloads (or skips) raw files, then prints one line per layer (`zepa`, `zec`, `enp`) with a feature count and KiB size, writing `data/restrictions/{zepa,zec,enp}.parquet`. Sanity-check counts are plausible (hundreds–low thousands of features each; `zepa` and `zec` non-empty, `enp` largest).
+Expected: skips the download (raw files already present from Task 1), then prints one line per layer (`zepa`, `zec`, `enp`) with a feature count and KiB size, writing `data/restrictions/{zepa,zec,enp}.parquet`. Sanity: `zepa` ≈ 650 features, `zec` ≈ 2900, `enp` ≈ 1785 (order-of-magnitude; all three non-empty, no `pein`/`parcs`/`fauna` files produced). If counts are wildly off (e.g. `zepa` empty), stop — the designation join or value sets are wrong.
 
-- [ ] **Step 6: Delete the throwaway inspector and commit**
+- [ ] **Step 5: Delete the throwaway inspector and commit**
 
 ```bash
 rm scripts/inspect_restrictions_raw.py
@@ -471,7 +512,7 @@ git commit -m "feat: wire national restriction build end-to-end; update CLI + ap
 
 ---
 
-### Task 5: Frontend i18n — English base, es/ca overrides for new ids
+### Task 6: Frontend i18n — English base, es/ca overrides for new ids
 
 **Files:**
 - Modify: `frontend/src/lib/i18n/restrictionStrings.ts`
@@ -484,7 +525,7 @@ git commit -m "feat: wire national restriction build end-to-end; update CLI + ap
 
 - [ ] **Step 1: Rewrite `restrictionStrings.ts`**
 
-Replace the `RESTRICTION_STRINGS` object body (keep the `import`, the `RestrictionText` interface, and the `restrictionText` resolver at the bottom unchanged) with:
+Replace the `RESTRICTION_STRINGS` object body (keep the `import`, the `RestrictionText` interface, and the `restrictionText` resolver unchanged) with:
 
 ```typescript
 export const RESTRICTION_STRINGS: Partial<Record<Lang, Record<string, RestrictionText>>> = {
@@ -539,18 +580,16 @@ export const RESTRICTION_STRINGS: Partial<Record<Lang, Record<string, Restrictio
 
 - [ ] **Step 2: Update `i18n.test.tsx` restriction assertions**
 
-The test at `frontend/src/lib/i18n/i18n.test.tsx:53-95` uses old ids (`pein`, `fauna`) and assumed Catalan-base semantics. Update:
-- The substring-invariant loop (lines ~60-66) is id-agnostic — it iterates `RESTRICTION_STRINGS` — leave its logic, it now covers `es`/`ca`.
-- The "falls back for the base language" case: change the base-language check so that **`en`** returns the fallback (English is now the server base):
-
+At `frontend/src/lib/i18n/i18n.test.tsx:53-95` the tests use old ids (`pein`, `fauna`, `n`) and Catalan-base semantics. Update:
+- Leave the substring-invariant loop that iterates `RESTRICTION_STRINGS` (it is id-agnostic; now covers `es`/`ca`).
+- Change the base-language fallback case so **`en`** returns the fallback (English is the server base now):
 ```typescript
   it("falls back to the server text for the base language (en)", () => {
     const fallback = { label: "L", tooltip: "T", highlight: "T" };
     expect(restrictionText("zepa", "en", fallback)).toEqual(fallback);
   });
 ```
-- Replace the representative-text assertions (the `restrictionText("pein", "es", ...)` / `restrictionText("fauna", "en", ...)` cases) with `zepa`/`enp` in `es`/`ca`, asserting the exact strings from Step 1, e.g.:
-
+- Replace the representative-text assertions with a `zepa`/`enp` override in `es`/`ca`, asserting the exact strings from Step 1, e.g.:
 ```typescript
   it("returns the Spanish override for a known layer", () => {
     const fallback = { label: "L", tooltip: "T", highlight: "T" };
@@ -566,7 +605,7 @@ The test at `frontend/src/lib/i18n/i18n.test.tsx:53-95` uses old ids (`pein`, `f
 
 - [ ] **Step 3: Update `MapView.test.tsx` layer id**
 
-In `frontend/src/components/map/MapView.test.tsx`, the restriction fixtures use `id: "pein"` / `layer: "pein"` / `enabledRestrictions: ["pein"]` (shown as `"n"` earlier due to a grep replace). Change those literals to `"zepa"` and the `label: "PEIN"` fixture to `label: "ZEPA (Birds)"` so it reflects the new registry. These are opaque string fixtures; the component logic is unaffected.
+In `frontend/src/components/map/MapView.test.tsx`, the restriction fixtures use `id: "pein"` / `layer: "pein"` / `enabledRestrictions: ["pein"]` and `label: "PEIN"`. Change those literals to `"zepa"` and the label to `"ZEPA (Birds)"`. These are opaque fixtures; component logic is unaffected.
 
 - [ ] **Step 4: Run the frontend tests**
 
@@ -582,55 +621,56 @@ git commit -m "feat: national restriction i18n (English base, es/ca overrides)"
 
 ---
 
-### Task 6: MITECO attribution credit
+### Task 7: MITECO attribution credit
 
 **Files:**
 - Modify: `frontend/src/lib/i18n/strings.ts` (add a credit string key)
-- Modify: the restriction panel component `frontend/src/components/RestrictionLayerControls.tsx` (render the credit)
-- Test: `frontend/src/components/AppShell.test.tsx` or the controls' own test
+- Modify: `frontend/src/components/RestrictionLayerControls.tsx` (render the credit)
+- Test: `frontend/src/components/RestrictionLayerControls.test.tsx` (create, or extend an existing controls test)
 
 **Interfaces:**
 - Consumes: the existing `STRINGS`/`useI18n()` machinery.
-- Produces: a visible "Protected-area data © MITECO" line under the restriction layer controls.
+- Produces: a visible "Protected-area data © MITECO" line in the restriction layer controls.
 
-- [ ] **Step 1: Add the credit string**
+- [ ] **Step 1: Read the component + strings shape first**
 
-In `frontend/src/lib/i18n/strings.ts`, add a key to each language's `STRINGS` entry (find the existing per-language object shape and match it), e.g. `restrictionCredit`:
+Read `frontend/src/components/RestrictionLayerControls.tsx` and `frontend/src/lib/i18n/strings.ts` to learn the component's props, how it reads translations (e.g. `useI18n()`), and the per-language `STRINGS` object shape. Match those patterns exactly in the steps below.
+
+- [ ] **Step 2: Add the credit string**
+
+In `frontend/src/lib/i18n/strings.ts`, add a `restrictionCredit` key to each language's entry:
 - en: `"Protected-area data © MITECO"`
 - es: `"Datos de espacios protegidos © MITECO"`
 - ca: `"Dades d'espais protegits © MITECO"`
 
-- [ ] **Step 2: Write/extend the failing test**
+- [ ] **Step 3: Write the failing test**
 
-In the restriction controls' test (create `frontend/src/components/RestrictionLayerControls.test.tsx` if none exists, mirroring an existing component test's setup), assert the credit renders:
-
+Create `frontend/src/components/RestrictionLayerControls.test.tsx` (mirror the render/props setup of an existing sibling component test), asserting the credit renders:
 ```typescript
 it("shows the MITECO data attribution", () => {
-  render(<RestrictionLayerControls {/* existing required props from a sibling test */} />);
+  // render with the same required props a sibling test uses
   expect(screen.getByText(/© MITECO/)).toBeInTheDocument();
 });
 ```
 
-- [ ] **Step 3: Run to verify it fails**
+- [ ] **Step 4: Run to verify it fails**
 
 Run: `cd frontend && npm test -- RestrictionLayerControls`
 Expected: FAIL — credit not rendered.
 
-- [ ] **Step 4: Render the credit**
+- [ ] **Step 5: Render the credit**
 
-In `frontend/src/components/RestrictionLayerControls.tsx`, add a small muted line after the list of layer toggles:
-
+In `frontend/src/components/RestrictionLayerControls.tsx`, after the list of layer toggles, add a small muted line using the component's existing i18n accessor, e.g.:
 ```tsx
 <p className="text-xs text-muted-foreground mt-2">{t.restrictionCredit}</p>
 ```
-(Use the component's existing i18n accessor — match how sibling strings are read, e.g. `const { t } = useI18n()` or the project's equivalent.)
 
-- [ ] **Step 5: Run to verify it passes**
+- [ ] **Step 6: Run to verify it passes**
 
 Run: `cd frontend && npm test -- RestrictionLayerControls`
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
 git add frontend/src/lib/i18n/strings.ts frontend/src/components/RestrictionLayerControls.tsx frontend/src/components/RestrictionLayerControls.test.tsx
@@ -639,47 +679,24 @@ git commit -m "feat: MITECO attribution credit in restriction panel"
 
 ---
 
-### Task 7: Full verification + docs
+### Task 8: Full verification + docs
 
 **Files:**
-- Modify: `AGENTS.md` (restrictions section — source is now national MITECO, not Generalitat WFS)
-- Modify: `NEW_LOCATIONS.md` if it references the old `zec/zepa/pein/parcs/fauna` split (it does — update the layer list)
+- Modify: `AGENTS.md` (restrictions section)
+- Modify: `NEW_LOCATIONS.md` (layer-list reference)
 
-- [ ] **Step 1: Backend suite**
-
-Run: `uv run pytest`
-Expected: all pass (including `tests/test_restrictions.py`, `tests/test_api.py`).
-
-- [ ] **Step 2: Typecheck**
-
-Run: `uv run mypy`
-Expected: no errors.
-
-- [ ] **Step 3: Frontend suite**
-
-Run: `cd frontend && npm test`
-Expected: all pass.
-
-- [ ] **Step 4: Manual smoke**
-
-Run `just dev` and `just dev-web`, open the map, toggle the `ZEPA (Birds)` / `ZEC / LIC` / `Protected Natural Areas` layers over a non-Catalan cliff area (e.g. Riglos ~ `-0.53, 42.34` or El Chorro ~ `-4.77, 36.90`), confirm polygons render and popups show the site name + English tooltip; switch UI language to es/ca and confirm the tooltip text changes and the credit line updates.
-
-- [ ] **Step 5: Update docs**
-
-In `AGENTS.md`, update the restrictions description: source is MITECO's Banco de Datos de la Naturaleza national files (RN2000 GML + ENP GeoJSON) downloaded by `just fetch-restrictions`, layers `zepa`/`zec`/`enp`, English-base i18n. In `NEW_LOCATIONS.md`, replace the `zec/zepa/pein/parcs/fauna` example split reference with the current `zepa/zec/enp` national layers.
-
-- [ ] **Step 6: Commit**
-
-```bash
-git add AGENTS.md NEW_LOCATIONS.md
-git commit -m "docs: national MITECO restrictions in AGENTS.md and NEW_LOCATIONS.md"
-```
+- [ ] **Step 1: Backend suite** — Run: `uv run pytest` — Expected: all pass.
+- [ ] **Step 2: Typecheck** — Run: `uv run mypy` — Expected: no errors.
+- [ ] **Step 3: Frontend suite** — Run: `cd frontend && npm test` — Expected: all pass.
+- [ ] **Step 4: Manual smoke** — `just dev` + `just dev-web`, open the map over a non-Catalan cliff (Riglos ~ `-0.53, 42.34`, El Chorro ~ `-4.77, 36.90`); toggle `ZEPA (Birds)` / `ZEC / LIC` / `Protected Natural Areas`; confirm polygons render and popups show the site name + English tooltip; switch UI language to es/ca and confirm the tooltip and the credit line change.
+- [ ] **Step 5: Update docs** — In `AGENTS.md`, update the restrictions description: source is MITECO's Banco de Datos de la Naturaleza national files (RN2000 GML + ENP GeoJSON, peninsula + canarias) downloaded by `just fetch-restrictions`, layers `zepa`/`zec`/`enp`, RN2000 designation parsed from GML XML, English-base i18n. In `NEW_LOCATIONS.md`, replace the `zec/zepa/pein/parcs/fauna` example split reference with the current `zepa/zec/enp` national layers.
+- [ ] **Step 6: Commit** — `git add AGENTS.md NEW_LOCATIONS.md && git commit -m "docs: national MITECO restrictions in AGENTS.md and NEW_LOCATIONS.md"`
 
 ---
 
 ## Notes for the implementer
 
-- The four discovery constants (`RN2000_TYPE_FIELD`, `RN2000_NAME_FIELD`, `ENP_NAME_FIELD`, and the `_ZEPA_TYPES`/`_ZEC_TYPES` value sets) are the only values not knowable ahead of downloading the data. Task 1 Step 6 records them from the real files; every later task uses them by name. Do Task 1 first and do not guess.
-- If GeoPandas cannot read the GML (`pyogrio`/GDAL missing the GML driver), the fallback is to add `pyogrio` explicitly to `pyproject.toml` dev/runtime deps, or convert the GML to GeoJSON in the `just` recipe with `ogr2ogr`. Check `uv run python -c "import pyogrio; print(pyogrio.__gdal_version__)"` first.
-- `zepa` and `zec` share the `rn2000` source; `build_layer`'s `source_cache` reads it once across both — do not load it twice.
-```
+- `zepa` and `zec` share the `rn2000` source; `build_layer`'s `source_cache` reads (and XML-parses) it once across both — do not load it twice.
+- The `SpecialProtecionArea` typo in `ZEPA_VALUES` is deliberate — it is MITECO's misspelling and is more common than the correct spelling. Do not "fix" it.
+- Never full-DOM-parse the 451 MB GML; `_parse_designations` uses `ET.iterparse` + `elem.clear()`.
+- The two ENP files are in different CRSes (25830 vs 32628); `_load_files` reprojects each independently before concatenating — do not assume one CRS.

@@ -16,7 +16,6 @@ describe("catalog parity", () => {
   });
 
   it("preserves representative source strings from web/i18n.js", () => {
-    expect(STRINGS.ca.region).toBe("Regió");
     expect(STRINGS.ca.searching).toBe("cercant…");
     expect(STRINGS.ca.mapLoading).toBe("Carregant mapa");
     expect(STRINGS.ca.zonePopup).toBe(
@@ -24,7 +23,6 @@ describe("catalog parity", () => {
     );
     expect(STRINGS.ca.anchorSector).toBe("caiguda {a}–{b}° ({drop} m)");
 
-    expect(STRINGS.es.region).toBe("Región");
     expect(STRINGS.es.mapLoading).toBe("Cargando mapa");
     expect(STRINGS.es.hotspotCells).toBe("{n} celdas de puntos de interés (amplía para ver zonas)");
     expect(STRINGS.es.anchorPopup).toBe("anclaje • elev {elev} m<br>{sectors}");

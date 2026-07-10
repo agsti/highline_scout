@@ -622,23 +622,23 @@ describe("MapView", () => {
         {
           type: "Feature",
           geometry: { type: "Polygon", coordinates: [[[1, 2], [1, 3], [2, 3], [1, 2]]] },
-          properties: { layer: "pein", name: "Montseny" },
+          properties: { layer: "zepa", name: "Montseny" },
         },
       ],
     });
 
     const onRestrictionStatus = vi.fn();
     renderMapView({
-      enabledRestrictions: ["pein"],
+      enabledRestrictions: ["zepa"],
       restrictionLayers: [
-        { id: "pein", label: "PEIN", tooltip: "tooltip", highlight: "tooltip", color: "#0a0" },
+        { id: "zepa", label: "ZEPA (Birds)", tooltip: "tooltip", highlight: "tooltip", color: "#0a0" },
       ],
       onRestrictionStatus,
     });
 
     await waitFor(() =>
       expect(apiMocks.fetchRestrictions).toHaveBeenCalledWith(
-        { bboxLonLat: "1,2,3,4", layers: ["pein"] },
+        { bboxLonLat: "1,2,3,4", layers: ["zepa"] },
         expect.any(AbortSignal),
       ),
     );

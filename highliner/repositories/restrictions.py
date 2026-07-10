@@ -191,7 +191,8 @@ def build_layer(layer_id: str,
 
 
 def fetch_all(dest_dir: Path | None = None) -> dict[str, Path]:
-    """Download every layer and write data/restrictions/<id>.parquet."""
+    """Build every layer from the local national files under
+    ``data/restrictions/raw/`` and write ``data/restrictions/<id>.parquet``."""
     dest_dir = Path(dest_dir or (config.DATA_DIR / "restrictions"))
     dest_dir.mkdir(parents=True, exist_ok=True)
     source_cache: dict[str, gpd.GeoDataFrame] = {}

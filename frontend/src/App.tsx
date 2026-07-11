@@ -6,6 +6,7 @@ import { FilterControls, type LengthRange } from "./components/FilterControls";
 import { MobileControlSheet } from "./components/MobileControlSheet";
 import { MapView } from "./components/map/MapView";
 import { RestrictionLayerControls } from "./components/RestrictionLayerControls";
+import { RestrictionLegend } from "./components/RestrictionLegend";
 import { SafetyDisclaimerDialog } from "./components/SafetyDisclaimerDialog";
 import { StatusLine } from "./components/StatusLine";
 import { capture } from "./lib/analytics";
@@ -107,6 +108,8 @@ export function App() {
     />
   );
 
+  const legend = <RestrictionLegend layers={restrictionLayers} enabled={enabledRestrictions} />;
+
   const summary = useMemo(
     () =>
       t("filterSummary", {
@@ -131,6 +134,7 @@ export function App() {
         mobileControls={
           <MobileControlSheet
             summary={summary}
+            legend={legend}
             filters={filters}
             statuses={statuses}
             restrictions={restrictions}

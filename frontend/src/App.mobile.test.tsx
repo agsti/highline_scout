@@ -12,7 +12,9 @@ vi.mock("./lib/analytics", () => ({
 }));
 
 vi.mock("./lib/api", () => ({
-  fetchRestrictionLayers: vi.fn().mockResolvedValue([]),
+  fetchRestrictionLayers: vi.fn().mockResolvedValue([
+    { id: "zepa", label: "ZEPA (Aves)", tooltip: "tooltip", highlight: "highlight", color: "#e31a1c" },
+  ]),
 }));
 
 vi.mock("./components/map/MapView", () => ({
@@ -71,5 +73,25 @@ describe("mobile control sheet", () => {
     await waitFor(() =>
       expect(within(card).getByText("21–150 m · exp ≥30 m")).toBeInTheDocument(),
     );
+  });
+
+  it("legends the restriction layers drawn on the map", async () => {
+    const user = userEvent.setup();
+    render(
+      <I18nProvider>
+        <App />
+      </I18nProvider>,
+    );
+
+    await user.click(screen.getByRole("button", { name: /i understand/i }));
+
+    const card = screen.getByTestId("mobile-summary-card");
+    expect(within(card).queryByText("ZEPA (Aves)")).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: /open controls/i }));
+    const sheet = await screen.findByRole("dialog");
+    await user.click(await within(sheet).findByRole("checkbox", { name: /ZEPA/ }));
+
+    expect(within(card).getByText("ZEPA (Aves)")).toBeInTheDocument();
   });
 });

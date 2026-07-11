@@ -7,6 +7,7 @@ import { LanguageSwitcher } from "./LanguageSwitcher";
 
 interface MobileControlSheetProps {
   summary: string;
+  legend: ReactNode;
   filters: ReactNode;
   restrictions: ReactNode;
   statuses: ReactNode;
@@ -33,6 +34,7 @@ export function MobileControlSheet(props: MobileControlSheetProps) {
             </Button>
           </SheetTrigger>
         </div>
+        {props.legend}
       </div>
       <SheetContent
         side="bottom"

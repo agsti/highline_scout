@@ -13,6 +13,7 @@ function ControlledMobileControlSheet() {
   return (
     <MobileControlSheet
       summary="Longitud maxima 150 m"
+      legend={null}
       filters={<div>sheet filters</div>}
       statuses={<div>sheet status</div>}
       restrictions={<div>sheet restrictions</div>}

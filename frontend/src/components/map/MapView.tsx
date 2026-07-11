@@ -2,6 +2,7 @@ import L from "leaflet";
 import { CopyIcon, ExternalLink, Loader2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { captureMapSettled } from "@/lib/analytics";
 import { ApiError, fetchAnchors, fetchDensity, fetchRestrictions, fetchZones } from "@/lib/api";
 import { bboxLonLatParam, initialViewFromSearch, type MapViewState } from "@/lib/geo";
 import { useI18n } from "@/lib/i18n";
@@ -187,6 +188,8 @@ export function MapView({
       }
       onViewportChange(map);
       publishViewState(map);
+      const center = map.getCenter();
+      captureMapSettled(map.getZoom(), center.lat, center.lng);
       setViewportTick((value) => value + 1);
     });
     map.on("contextmenu", (event) => {

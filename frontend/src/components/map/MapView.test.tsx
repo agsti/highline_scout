@@ -255,7 +255,7 @@ describe("MapView", () => {
     leafletState.moveend = null;
     leafletState.pane = { style: { zIndex: "" } };
     leafletState.zoom = 13;
-    let zoneOnEachFeature: ((feature: unknown, layer: { bindPopup: (html: string) => void }) => void) | null = null;
+    let zoneOnEachFeature: ((feature: unknown, layer: { bindPopup: (html: string) => void; on: (event: string, handler: () => void) => void }) => void) | null = null;
     let densityOnEachFeature: ((feature: unknown, layer: { bindTooltip: (html: string) => void }) => void) | null = null;
     leafletMocks.map.mockReturnValue({
       setView: leafletMocks.setView.mockReturnThis(),
@@ -310,7 +310,11 @@ describe("MapView", () => {
           clearLayers: leafletMocks.clearLayers,
           addData: leafletMocks.zoneLayerAddData.mockImplementation((fc: { features?: unknown[] }) => {
             for (const feature of fc.features ?? []) {
-              zoneOnEachFeature?.(feature, { bindPopup: leafletMocks.bindPopup });
+              zoneOnEachFeature?.(feature, {
+                bindPopup: leafletMocks.bindPopup,
+                // createZoneLayer binds a popupopen listener to emit zone_opened.
+                on: leafletMocks.on,
+              });
             }
           }),
           bindPopup: leafletMocks.bindPopup,

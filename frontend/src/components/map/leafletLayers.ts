@@ -1,4 +1,5 @@
 import L from "leaflet";
+import { capture } from "@/lib/analytics";
 import { wedge } from "@/lib/geo";
 import { ANCHOR_COLOR, ANCHOR_DETAIL_LIMIT, ANCHOR_WEDGE_RADIUS_M, densityRank, tealShade, ZONE_COLOR } from "@/lib/map-style";
 import type {
@@ -23,6 +24,10 @@ export function createZoneLayer(t: T): L.GeoJSON {
     onEachFeature: (feature, layer) => {
       const zone = feature as ZoneFeature;
       layer.bindPopup(zonePopupHtml(zone.properties, t));
+      layer.on("popupopen", () => {
+        const { length_min, length_max, height_max, n_pairs } = zone.properties;
+        capture("zone_opened", { length_min, length_max, height_max, n_pairs });
+      });
     },
   });
 }

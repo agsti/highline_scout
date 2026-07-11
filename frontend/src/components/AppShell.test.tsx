@@ -197,4 +197,14 @@ describe("AppShell", () => {
 
     expect(document.body.style.pointerEvents).toBe("");
   });
+
+  it("renders a top navbar with the brand and the language switcher", () => {
+    renderShell();
+
+    expect(screen.getByRole("banner")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Highline Scout" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "CA" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "ES" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "EN" })).toBeInTheDocument();
+  });
 });

@@ -97,4 +97,23 @@ describe("mobile control sheet", () => {
 
     expect(within(card).getByText("ZEPA (Aves)")).toBeInTheDocument();
   });
+
+  it("expands the sheet when the card body is tapped", async () => {
+    const user = userEvent.setup();
+    render(
+      <I18nProvider>
+        <App />
+      </I18nProvider>,
+    );
+
+    await user.click(screen.getByRole("button", { name: /i understand/i }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+
+    const card = screen.getByTestId("mobile-summary-card");
+
+    // The summary text is not a button — tapping it must still open the sheet.
+    await user.click(within(card).getByText("20–150 m · exp ≥30 m"));
+
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+  });
 });

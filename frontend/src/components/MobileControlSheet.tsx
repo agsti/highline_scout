@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { SlidersHorizontal } from "lucide-react";
+import { ChevronUp, SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { useI18n } from "@/lib/i18n";
@@ -22,18 +22,28 @@ export function MobileControlSheet(props: MobileControlSheetProps) {
     <Sheet open={props.open} onOpenChange={props.onOpenChange}>
       <div
         data-testid="mobile-summary-card"
-        className="fixed inset-x-3 bottom-3 z-[1100] rounded-xl border bg-card/95 p-3 shadow-xl backdrop-blur"
+        onClick={() => props.onOpenChange(true)}
+        className="fixed inset-x-3 bottom-3 z-[1100] cursor-pointer rounded-xl border bg-card/95 p-3 shadow-xl backdrop-blur"
       >
         <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-border" />
         <div className="flex items-center gap-3">
-          <div className="min-w-0 flex-1 text-sm font-medium">{props.summary}</div>
+          <div className="flex min-w-0 flex-1 items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            <SlidersHorizontal className="h-3.5 w-3.5 shrink-0" />
+            {t("filters")}
+          </div>
           <SheetTrigger asChild>
-            <Button type="button" size="sm" aria-label={t("openControls")}>
-              <SlidersHorizontal className="mr-2 h-4 w-4" />
-              {t("filters")}
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              className="h-7 w-7 shrink-0"
+              aria-label={t("openControls")}
+            >
+              <ChevronUp className="h-4 w-4" />
             </Button>
           </SheetTrigger>
         </div>
+        <div className="mt-1 text-sm font-medium">{props.summary}</div>
         {props.legend}
       </div>
       <SheetContent

@@ -19,13 +19,13 @@ export function MobileControlSheet(props: MobileControlSheetProps) {
   const { t } = useI18n();
   return (
     <Sheet open={props.open} onOpenChange={props.onOpenChange}>
-      <div className="fixed inset-x-3 bottom-3 z-[1100] rounded-xl border bg-card/95 p-3 shadow-xl backdrop-blur">
+      <div
+        data-testid="mobile-summary-card"
+        className="fixed inset-x-3 bottom-3 z-[1100] rounded-xl border bg-card/95 p-3 shadow-xl backdrop-blur"
+      >
         <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-border" />
         <div className="flex items-center gap-3">
-          <div className="min-w-0 flex-1">
-            <div className="truncate text-sm font-semibold">Highline Scout</div>
-            <div className="truncate text-xs text-muted-foreground">{props.summary}</div>
-          </div>
+          <div className="min-w-0 flex-1 text-sm font-medium">{props.summary}</div>
           <SheetTrigger asChild>
             <Button type="button" size="sm" aria-label={t("openControls")}>
               <SlidersHorizontal className="mr-2 h-4 w-4" />

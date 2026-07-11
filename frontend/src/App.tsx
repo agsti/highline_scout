@@ -109,7 +109,11 @@ export function App() {
 
   const summary = useMemo(
     () =>
-      `${t("lineLength")} ${appliedLengthRange[0]}–${appliedLengthRange[1]} m - ${t("minExposure")} ${appliedMinExposure} m`,
+      t("filterSummary", {
+        min: appliedLengthRange[0],
+        max: appliedLengthRange[1],
+        exp: appliedMinExposure,
+      }),
     [t, appliedLengthRange, appliedMinExposure],
   );
 

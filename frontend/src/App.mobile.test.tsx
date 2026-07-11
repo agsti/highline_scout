@@ -43,4 +43,33 @@ describe("mobile control sheet", () => {
 
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
+
+  it("summarises the applied filters, not the drafts", async () => {
+    const user = userEvent.setup();
+    render(
+      <I18nProvider>
+        <App />
+      </I18nProvider>,
+    );
+
+    await user.click(screen.getByRole("button", { name: /i understand/i }));
+
+    const card = screen.getByTestId("mobile-summary-card");
+    expect(within(card).getByText("20–150 m · exp ≥30 m")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /open controls/i }));
+    const sheet = await screen.findByRole("dialog");
+    const sliders = within(sheet).getAllByRole("slider");
+    sliders[0].focus();
+    await user.keyboard("{ArrowRight}");
+
+    // Dragging a slider is only a draft — the card must still describe the map.
+    expect(within(card).getByText("20–150 m · exp ≥30 m")).toBeInTheDocument();
+
+    await user.click(within(sheet).getByRole("button", { name: /apply filters/i }));
+
+    await waitFor(() =>
+      expect(within(card).getByText("21–150 m · exp ≥30 m")).toBeInTheDocument(),
+    );
+  });
 });

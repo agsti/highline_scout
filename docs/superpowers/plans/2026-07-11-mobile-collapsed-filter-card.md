@@ -10,7 +10,15 @@
 
 ## Global Constraints
 
-- Run all frontend commands from `frontend/`. Test command is `npm test` (`vitest run`); a single file is `npm test -- src/path/File.test.tsx`.
+- Run all frontend commands from `frontend/`. **Bare `npm` does not work in this shell** — the user's zsh has a broken nvm lazy-load hook, and `npm` dies in a `command_not_found_handler`. The only invocation that works is:
+
+  ```bash
+  cd frontend
+  PATH="/home/gus/.nvm/versions/node/v20.20.2/bin:$PATH" /home/gus/.nvm/versions/node/v20.20.2/bin/npm <cmd>
+  ```
+
+  Wherever this plan says `npm test` or `npm run build`, use that form. A single file is `... npm test -- src/path/File.test.tsx`.
+- Baseline before Task 1: **72 tests passing across 17 files**. Every task must leave the suite green.
 - `i18n.test.tsx` enforces **catalog parity**: any new key in `STRINGS.ca` MUST also exist in `STRINGS.es` and `STRINGS.en`, or the suite fails.
 - Tests run under jsdom, where `navigator.language` is `en-US`, so `I18nProvider` resolves to **English**. Assert against English strings.
 - `RESTRICTION_STRINGS` only has `es` and `ca` entries. Under `en`, `restrictionText(id, lang, layer)` falls back to the `layer.label` supplied by the API. Test fixtures must therefore assert the fixture's own `label`.

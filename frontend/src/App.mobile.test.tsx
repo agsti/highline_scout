@@ -12,7 +12,9 @@ vi.mock("./lib/analytics", () => ({
 }));
 
 vi.mock("./lib/api", () => ({
-  fetchRestrictionLayers: vi.fn().mockResolvedValue([]),
+  fetchRestrictionLayers: vi.fn().mockResolvedValue([
+    { id: "zepa", label: "ZEPA (Aves)", tooltip: "tooltip", highlight: "highlight", color: "#e31a1c" },
+  ]),
 }));
 
 vi.mock("./components/map/MapView", () => ({
@@ -42,5 +44,76 @@ describe("mobile control sheet", () => {
     await user.click(within(sheet).getByRole("button", { name: /apply filters/i }));
 
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  });
+
+  it("summarises the applied filters, not the drafts", async () => {
+    const user = userEvent.setup();
+    render(
+      <I18nProvider>
+        <App />
+      </I18nProvider>,
+    );
+
+    await user.click(screen.getByRole("button", { name: /i understand/i }));
+
+    const card = screen.getByTestId("mobile-summary-card");
+    expect(within(card).getByText("20–150 m · exp ≥30 m")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /open controls/i }));
+    const sheet = await screen.findByRole("dialog");
+    const sliders = within(sheet).getAllByRole("slider");
+    sliders[0].focus();
+    await user.keyboard("{ArrowRight}");
+
+    // Dragging a slider is only a draft — the card must still describe the map.
+    expect(within(card).getByText("20–150 m · exp ≥30 m")).toBeInTheDocument();
+
+    await user.click(within(sheet).getByRole("button", { name: /apply filters/i }));
+
+    await waitFor(() =>
+      expect(within(card).getByText("21–150 m · exp ≥30 m")).toBeInTheDocument(),
+    );
+  });
+
+  it("legends the restriction layers drawn on the map", async () => {
+    const user = userEvent.setup();
+    render(
+      <I18nProvider>
+        <App />
+      </I18nProvider>,
+    );
+
+    await user.click(screen.getByRole("button", { name: /i understand/i }));
+
+    const card = screen.getByTestId("mobile-summary-card");
+    expect(within(card).queryByText("ZEPA (Aves)")).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: /open controls/i }));
+    const sheet = await screen.findByRole("dialog");
+    await user.click(await within(sheet).findByRole("checkbox", { name: /ZEPA/ }));
+
+    await user.click(within(sheet).getByRole("button", { name: /close controls/i }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+
+    expect(within(card).getByText("ZEPA (Aves)")).toBeInTheDocument();
+  });
+
+  it("expands the sheet when the card body is tapped", async () => {
+    const user = userEvent.setup();
+    render(
+      <I18nProvider>
+        <App />
+      </I18nProvider>,
+    );
+
+    await user.click(screen.getByRole("button", { name: /i understand/i }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+
+    const card = screen.getByTestId("mobile-summary-card");
+
+    // The summary text is not a button — tapping it must still open the sheet.
+    await user.click(within(card).getByText("20–150 m · exp ≥30 m"));
+
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
   });
 });

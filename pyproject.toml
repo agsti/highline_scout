@@ -14,6 +14,8 @@ dependencies = [
     "fastapi",
     "uvicorn[standard]",
     "pydantic-settings",
+    "posthog>=7.22.1",
+    "sentry-sdk[fastapi]>=2.64.0",
 ]
 
 [project.optional-dependencies]

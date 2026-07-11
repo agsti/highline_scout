@@ -52,6 +52,14 @@ class Settings(BaseSettings):
     # always the working directory the app is run from.
     data_dir: Path = Path("data")
 
+    # Telemetry. Every credential is optional and absent means disabled, so a
+    # dev machine sends nothing without any configuration.
+    posthog_key: str | None = None
+    posthog_host: str = "https://eu.i.posthog.com"
+    sentry_dsn: str | None = None
+    environment: str = "development"
+    slow_request_ms: float = 1000.0
+
 
 settings = Settings()
 DATA_DIR = settings.data_dir

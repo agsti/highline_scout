@@ -22,7 +22,7 @@ export function MobileControlSheet(props: MobileControlSheetProps) {
       <div
         data-testid="mobile-summary-card"
         onClick={() => props.onOpenChange(true)}
-        className="fixed inset-x-0 bottom-0 z-[1100] cursor-pointer rounded-t-xl border border-b-0 bg-card/95 p-3 pb-4 shadow-xl backdrop-blur"
+        className="fixed inset-x-3 bottom-0 z-[1100] cursor-pointer rounded-t-xl border border-b-0 bg-card/95 p-3 pb-4 shadow-xl backdrop-blur"
       >
         <SheetTrigger asChild>
           <button

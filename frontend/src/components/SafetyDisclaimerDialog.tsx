@@ -31,7 +31,7 @@ export function SafetyDisclaimerDialog({ open, onAccept }: SafetyDisclaimerDialo
         className="fixed left-1/2 top-1/2 z-[1210] grid w-[calc(100vw-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 gap-4 rounded-lg border bg-background p-6 shadow-lg"
       >
         <div className="flex justify-end">
-          <LanguageSwitcher compact />
+          <LanguageSwitcher />
         </div>
         <div className="space-y-4 text-left">
           <h2 id="safety-disclaimer-title" className="text-lg font-semibold leading-none tracking-tight">

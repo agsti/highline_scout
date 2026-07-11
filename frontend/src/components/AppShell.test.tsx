@@ -209,7 +209,9 @@ describe("AppShell", () => {
     expect(screen.getByRole("button", { name: "EN" })).toBeInTheDocument();
   });
 
-  it("renders exactly one language switcher across the navbar, sidebar, and mobile sheet", () => {
+  it("renders exactly one language switcher across the navbar, sidebar, and mobile sheet", async () => {
+    const user = userEvent.setup();
+
     render(
       <I18nProvider>
         <AppShell
@@ -227,6 +229,13 @@ describe("AppShell", () => {
       </I18nProvider>,
     );
 
-    expect(screen.getAllByRole("button", { name: "CA" })).toHaveLength(1);
+    // The sheet body only mounts once open, so open it before counting —
+    // otherwise a duplicate switcher inside the sheet is invisible to getAllByRole.
+    await user.click(screen.getByRole("button", { name: /obre controls|open controls|abrir controles/i }));
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+
+    // The open (modal) sheet marks the rest of the page aria-hidden, so the query
+    // must opt in to hidden elements to still see the navbar and sidebar switchers.
+    expect(screen.getAllByRole("button", { name: "CA", hidden: true })).toHaveLength(1);
   });
 });

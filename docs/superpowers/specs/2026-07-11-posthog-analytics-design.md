@@ -83,7 +83,7 @@ one is bound to a **discrete, committed** action — never to a drag or a raw pa
 | Event | Trigger | Properties |
 |---|---|---|
 | `filter_changed` | `onMaxLenCommit` / `onMinExposureCommit` | `filter`, `value` |
-| `zone_opened` | zone popup opens | `length_m`, `exposure_m` |
+| `zone_opened` | zone popup opens | `length_min`, `length_max`, `height_max`, `n_pairs` |
 | `restriction_layer_toggled` | layer checkbox | `layer`, `enabled` |
 | `map_settled` | ~2s debounce after pan/zoom stops | `zoom`, `lat`, `lon` |
 

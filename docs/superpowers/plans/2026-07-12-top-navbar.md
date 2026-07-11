@@ -15,7 +15,13 @@ Spec: `docs/superpowers/specs/2026-07-12-top-navbar-design.md`
 - No new i18n strings. `Highline Scout` is a proper noun and stays untranslated; the switcher already localizes its `aria-label` via the existing `language` key.
 - The navbar is in normal flow (it pushes content down); it must not float over the map.
 - `SafetyDisclaimerDialog` keeps its own `LanguageSwitcher` — it blocks the app on first load, so language must be selectable from inside it.
-- Run all frontend commands from `frontend/`. Tests: `npm test`. Typecheck+build: `npm run build`.
+- Run all frontend commands from `frontend/`.
+- **Bare `npm` is broken in this shell** (a zsh nvm lazy-load hook dies). The only working form is:
+  ```bash
+  cd frontend && PATH="/home/gus/.nvm/versions/node/v20.20.2/bin:$PATH" /home/gus/.nvm/versions/node/v20.20.2/bin/npm <cmd>
+  ```
+  Use `NPM` below as shorthand for that full `PATH=… npm` prefix. Tests: `NPM test`. Typecheck+build: `NPM run build`.
+- Baseline before this plan: 18 test files, 79 tests, all passing.
 
 ## File Structure
 
@@ -58,7 +64,7 @@ Add this test to the existing `describe("AppShell", ...)` block in `frontend/src
 
 - [ ] **Step 2: Run the test to verify it fails**
 
-Run: `cd frontend && npm test -- src/components/AppShell.test.tsx`
+Run: `cd frontend && PATH="/home/gus/.nvm/versions/node/v20.20.2/bin:$PATH" /home/gus/.nvm/versions/node/v20.20.2/bin/npm test -- src/components/AppShell.test.tsx`
 Expected: FAIL — `Unable to find an accessible element with the role "banner"`.
 
 - [ ] **Step 3: Create the NavBar component**
@@ -139,7 +145,7 @@ export function AppShell({ sidebar, mobileControls, map }: AppShellProps) {
 
 - [ ] **Step 5: Run the full frontend suite**
 
-Run: `cd frontend && npm test`
+Run: `cd frontend && PATH="/home/gus/.nvm/versions/node/v20.20.2/bin:$PATH" /home/gus/.nvm/versions/node/v20.20.2/bin/npm test`
 Expected: PASS — including the pre-existing AppShell tests (sidebar/map slots, collapse toggle, mobile sheet), which must not regress.
 
 - [ ] **Step 6: Commit**
@@ -204,7 +210,7 @@ Add the test inside `describe("AppShell", ...)`:
 
 - [ ] **Step 2: Run the test to verify it fails**
 
-Run: `cd frontend && npm test -- src/components/AppShell.test.tsx`
+Run: `cd frontend && PATH="/home/gus/.nvm/versions/node/v20.20.2/bin:$PATH" /home/gus/.nvm/versions/node/v20.20.2/bin/npm test -- src/components/AppShell.test.tsx`
 Expected: FAIL — two "CA" buttons found (navbar + sidebar), so `toHaveLength(1)` fails with received length 2.
 
 - [ ] **Step 3: Drop the switcher and the title from DesktopSidebar**
@@ -298,12 +304,12 @@ In `frontend/src/components/SafetyDisclaimerDialog.tsx`, change `<LanguageSwitch
 
 - [ ] **Step 7: Run the full frontend suite**
 
-Run: `cd frontend && npm test`
+Run: `cd frontend && PATH="/home/gus/.nvm/versions/node/v20.20.2/bin:$PATH" /home/gus/.nvm/versions/node/v20.20.2/bin/npm test`
 Expected: PASS — the new guard passes, and the existing App, i18n, and disclaimer tests are unchanged.
 
 - [ ] **Step 8: Typecheck and build**
 
-Run: `cd frontend && npm run build`
+Run: `cd frontend && PATH="/home/gus/.nvm/versions/node/v20.20.2/bin:$PATH" /home/gus/.nvm/versions/node/v20.20.2/bin/npm run build`
 Expected: exit 0. This catches any leftover `compact` prop usage or now-unused import (`tsc -b` runs before the Vite build).
 
 - [ ] **Step 9: Commit**

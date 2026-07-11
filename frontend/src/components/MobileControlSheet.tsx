@@ -2,7 +2,6 @@ import type { ReactNode } from "react";
 import { SlidersHorizontal } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { useI18n } from "@/lib/i18n";
-import { LanguageSwitcher } from "./LanguageSwitcher";
 
 interface MobileControlSheetProps {
   summary: string;
@@ -55,7 +54,6 @@ export function MobileControlSheet(props: MobileControlSheetProps) {
           <p className="rounded-md border border-destructive/25 bg-destructive/5 p-3 text-xs leading-5 text-destructive">
             {props.caveat}
           </p>
-          <LanguageSwitcher compact />
         </div>
       </SheetContent>
     </Sheet>

@@ -4,31 +4,24 @@ import { cn } from "@/lib/utils";
 
 const LABELS: Record<Lang, string> = { ca: "CA", es: "ES", en: "EN" };
 
-export function LanguageSwitcher({ compact = false }: { compact?: boolean }) {
+export function LanguageSwitcher() {
   const { lang, setLang, t } = useI18n();
 
   return (
-    <div className="space-y-2">
-      {!compact && (
-        <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-          {t("language")}
-        </div>
-      )}
-      <div className="flex gap-1" role="group" aria-label={t("language")}>
-        {LANGS.map((item) => (
-          <Button
-            key={item}
-            type="button"
-            size="sm"
-            variant={item === lang ? "default" : "outline"}
-            className={cn("h-8 px-3 text-xs", item === lang && "shadow-sm")}
-            aria-pressed={item === lang}
-            onClick={() => setLang(item)}
-          >
-            {LABELS[item]}
-          </Button>
-        ))}
-      </div>
+    <div className="flex gap-1" role="group" aria-label={t("language")}>
+      {LANGS.map((item) => (
+        <Button
+          key={item}
+          type="button"
+          size="sm"
+          variant={item === lang ? "default" : "outline"}
+          className={cn("h-8 px-3 text-xs", item === lang && "shadow-sm")}
+          aria-pressed={item === lang}
+          onClick={() => setLang(item)}
+        >
+          {LABELS[item]}
+        </Button>
+      ))}
     </div>
   );
 }

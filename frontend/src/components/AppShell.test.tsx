@@ -4,6 +4,7 @@ import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { I18nProvider, useI18n } from "@/lib/i18n";
 import { AppShell } from "./AppShell";
+import { DesktopSidebar } from "./DesktopSidebar";
 import { MobileControlSheet } from "./MobileControlSheet";
 import { Dialog, DialogContent } from "./ui/dialog";
 
@@ -196,5 +197,45 @@ describe("AppShell", () => {
     );
 
     expect(document.body.style.pointerEvents).toBe("");
+  });
+
+  it("renders a top navbar with the brand and the language switcher", () => {
+    renderShell();
+
+    expect(screen.getByRole("banner")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Highline Scout" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "CA" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "ES" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "EN" })).toBeInTheDocument();
+  });
+
+  it("renders exactly one language switcher across the navbar, sidebar, and mobile sheet", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <I18nProvider>
+        <AppShell
+          sidebar={
+            <DesktopSidebar
+              filters={<div>sidebar filters</div>}
+              statuses={<div>sidebar status</div>}
+              restrictions={<div>sidebar restrictions</div>}
+              caveat="Zones to scout"
+            />
+          }
+          mobileControls={<ControlledMobileControlSheet />}
+          map={<div>map area</div>}
+        />
+      </I18nProvider>,
+    );
+
+    // The sheet body only mounts once open, so open it before counting —
+    // otherwise a duplicate switcher inside the sheet is invisible to getAllByRole.
+    await user.click(screen.getByRole("button", { name: /obre controls|open controls|abrir controles/i }));
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+
+    // The open (modal) sheet marks the rest of the page aria-hidden, so the query
+    // must opt in to hidden elements to still see the navbar and sidebar switchers.
+    expect(screen.getAllByRole("button", { name: "CA", hidden: true })).toHaveLength(1);
   });
 });

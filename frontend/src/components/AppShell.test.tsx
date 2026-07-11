@@ -204,9 +204,7 @@ describe("AppShell", () => {
 
     expect(screen.getByRole("banner")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Highline Scout" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "CA" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "ES" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "EN" })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Idioma" })).toBeInTheDocument();
   });
 
   it("renders exactly one language switcher across the navbar, sidebar, and mobile sheet", async () => {
@@ -236,6 +234,6 @@ describe("AppShell", () => {
 
     // The open (modal) sheet marks the rest of the page aria-hidden, so the query
     // must opt in to hidden elements to still see the navbar and sidebar switchers.
-    expect(screen.getAllByRole("button", { name: "CA", hidden: true })).toHaveLength(1);
+    expect(screen.getAllByRole("combobox", { name: "Idioma", hidden: true })).toHaveLength(1);
   });
 });

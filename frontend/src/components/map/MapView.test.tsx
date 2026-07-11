@@ -149,6 +149,7 @@ function renderMapView(props?: Partial<React.ComponentProps<typeof MapView>>) {
   return render(
     <I18nProvider>
       <MapView
+        minLen={props?.minLen ?? 20}
         maxLen={props?.maxLen ?? 150}
         minExposure={props?.minExposure ?? 30}
         showAnchors={props?.showAnchors ?? true}
@@ -178,6 +179,7 @@ function renderMapViewWithLanguageControl(props?: Partial<React.ComponentProps<t
     <I18nProvider>
       <LanguageControl />
       <MapView
+        minLen={props?.minLen ?? 20}
         maxLen={props?.maxLen ?? 150}
         minExposure={props?.minExposure ?? 30}
         showAnchors={props?.showAnchors ?? true}
@@ -492,6 +494,7 @@ describe("MapView", () => {
     view.rerender(
       <I18nProvider>
         <MapView
+          minLen={20}
           maxLen={200}
           minExposure={30}
           showAnchors

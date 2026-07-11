@@ -3,12 +3,14 @@ import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { useI18n } from "@/lib/i18n";
 
+export type LengthRange = [min: number, max: number];
+
 interface FilterControlsProps {
-  maxLen: number;
+  lengthRange: LengthRange;
   minExposure: number;
   showAnchors: boolean;
-  onMaxLenChange: (value: number) => void;
-  onMaxLenCommit: (value: number) => void;
+  onLengthRangeChange: (value: LengthRange) => void;
+  onLengthRangeCommit: (value: LengthRange) => void;
   onMinExposureChange: (value: number) => void;
   onMinExposureCommit: (value: number) => void;
   onShowAnchorsChange: (value: boolean) => void;
@@ -16,21 +18,25 @@ interface FilterControlsProps {
 
 export function FilterControls(props: FilterControlsProps) {
   const { t } = useI18n();
+  const [minLen, maxLen] = props.lengthRange;
 
   return (
     <div className="space-y-4">
       <div className="space-y-2">
         <div className="flex items-center justify-between text-sm">
-          <Label>{t("maxLength")}</Label>
-          <span className="text-muted-foreground">{props.maxLen} m</span>
+          <Label>{t("lineLength")}</Label>
+          <span className="text-muted-foreground">
+            {minLen}–{maxLen} m
+          </span>
         </div>
         <Slider
           min={20}
           max={500}
           step={1}
-          value={[props.maxLen]}
-          onValueChange={([value]) => props.onMaxLenChange(value)}
-          onValueCommit={([value]) => props.onMaxLenCommit(value)}
+          minStepsBetweenThumbs={1}
+          value={props.lengthRange}
+          onValueChange={([min, max]) => props.onLengthRangeChange([min, max])}
+          onValueCommit={([min, max]) => props.onLengthRangeCommit([min, max])}
         />
       </div>
       <div className="space-y-2">

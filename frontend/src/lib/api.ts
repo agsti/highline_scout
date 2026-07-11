@@ -22,6 +22,7 @@ export interface ViewportQuery {
 }
 
 export interface ZoneQuery extends ViewportQuery {
+  minLen: number;
   maxLen: number;
   minExposure: number;
 }
@@ -57,6 +58,7 @@ export function fetchZones(params: ZoneQuery, signal?: AbortSignal): Promise<Zon
   return fetchJson(
     `/zones?${query({
       bbox_lonlat: params.bboxLonLat,
+      min_len: params.minLen,
       max_len: params.maxLen,
       min_exposure: params.minExposure,
     })}`,

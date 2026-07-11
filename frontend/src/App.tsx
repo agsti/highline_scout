@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type L from "leaflet";
 import { AppShell } from "./components/AppShell";
 import { DesktopSidebar } from "./components/DesktopSidebar";
-import { FilterControls } from "./components/FilterControls";
+import { FilterControls, type LengthRange } from "./components/FilterControls";
 import { MobileControlSheet } from "./components/MobileControlSheet";
 import { MapView } from "./components/map/MapView";
 import { RestrictionLayerControls } from "./components/RestrictionLayerControls";
@@ -19,7 +19,7 @@ export function App() {
   const [mapStatus, setMapStatus] = useState(() => t("searching"));
   const [mapErrorDetail, setMapErrorDetail] = useState("");
   const [, setViewportBbox] = useState("");
-  const [maxLen, setMaxLen] = useState(150);
+  const [lengthRange, setLengthRange] = useState<LengthRange>([20, 150]);
   const [minExposure, setMinExposure] = useState(30);
   const [showAnchors, setShowAnchors] = useState(true);
   const [anchorStatus, setAnchorStatus] = useState("");
@@ -44,9 +44,9 @@ export function App() {
 
   // Analytics hang off the *commit* callbacks only. onValueChange fires per drag
   // frame; binding events there would record one gesture dozens of times.
-  const handleMaxLenCommit = useCallback((value: number) => {
-    setMaxLen(value);
-    capture("filter_changed", { filter: "max_len", value });
+  const handleLengthRangeCommit = useCallback((value: LengthRange) => {
+    setLengthRange(value);
+    capture("filter_changed", { filter: "length", min: value[0], max: value[1] });
   }, []);
 
   const handleMinExposureCommit = useCallback((value: number) => {
@@ -70,11 +70,11 @@ export function App() {
 
   const filters = (
     <FilterControls
-      maxLen={maxLen}
+      lengthRange={lengthRange}
       minExposure={minExposure}
       showAnchors={showAnchors}
-      onMaxLenChange={setMaxLen}
-      onMaxLenCommit={handleMaxLenCommit}
+      onLengthRangeChange={setLengthRange}
+      onLengthRangeCommit={handleLengthRangeCommit}
       onMinExposureChange={setMinExposure}
       onMinExposureCommit={handleMinExposureCommit}
       onShowAnchorsChange={setShowAnchors}
@@ -98,8 +98,9 @@ export function App() {
   );
 
   const summary = useMemo(
-    () => `${t("maxLength")} ${maxLen} m - ${t("minExposure")} ${minExposure} m`,
-    [t, maxLen, minExposure],
+    () =>
+      `${t("lineLength")} ${lengthRange[0]}–${lengthRange[1]} m - ${t("minExposure")} ${minExposure} m`,
+    [t, lengthRange, minExposure],
   );
 
   return (
@@ -124,7 +125,8 @@ export function App() {
         }
         map={
           <MapView
-            maxLen={maxLen}
+            minLen={lengthRange[0]}
+            maxLen={lengthRange[1]}
             minExposure={minExposure}
             showAnchors={showAnchors}
             enabledRestrictions={enabledRestrictions}

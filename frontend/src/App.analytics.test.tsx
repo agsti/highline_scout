@@ -42,7 +42,24 @@ describe("App analytics", () => {
 
     const filterEvents = captureMock.mock.calls.filter(([event]) => event === "filter_changed");
     expect(filterEvents).toHaveLength(1);
-    expect(filterEvents[0][1]).toEqual({ filter: "max_len", value: 151 });
+    expect(filterEvents[0][1]).toEqual({ filter: "length", min: 21, max: 150 });
+  });
+
+  it("emits one filter_changed carrying both ends when the length max commits", async () => {
+    const user = userEvent.setup();
+    render(
+      <I18nProvider>
+        <App />
+      </I18nProvider>,
+    );
+
+    const sliders = screen.getAllByRole("slider");
+    sliders[1].focus();
+    await user.keyboard("{ArrowLeft}");
+
+    const filterEvents = captureMock.mock.calls.filter(([event]) => event === "filter_changed");
+    expect(filterEvents).toHaveLength(1);
+    expect(filterEvents[0][1]).toEqual({ filter: "length", min: 20, max: 149 });
   });
 
   it("emits restriction_layer_toggled when a layer is enabled", async () => {

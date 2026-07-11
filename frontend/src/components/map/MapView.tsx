@@ -22,6 +22,7 @@ const DEFAULT_VIEW: MapViewState = { center: [41.6, 1.83], zoom: 13 };
 const MOBILE_QUERY = "(max-width: 767px)";
 
 interface MapViewProps {
+  minLen: number;
   maxLen: number;
   minExposure: number;
   showAnchors: boolean;
@@ -55,6 +56,7 @@ interface ContextMenuState {
 }
 
 export function MapView({
+  minLen,
   maxLen,
   minExposure,
   showAnchors,
@@ -264,7 +266,7 @@ export function MapView({
 
         densityLayerRef.current?.clearLayers();
         shownDensityRef.current = null;
-        const fc = await fetchZones({ bboxLonLat, maxLen, minExposure }, controller.signal);
+        const fc = await fetchZones({ bboxLonLat, minLen, maxLen, minExposure }, controller.signal);
         if (requestId !== requestIdRef.current) return;
         const fresh = fc.features.filter((feature) => {
           const key = zoneKey(feature);
@@ -292,7 +294,7 @@ export function MapView({
 
     void load();
     return () => controller.abort();
-  }, [maxLen, minExposure, onMapStatus, viewportTick]);
+  }, [minLen, maxLen, minExposure, onMapStatus, viewportTick]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -357,7 +359,7 @@ export function MapView({
     zoneLayerRef.current?.clearLayers();
     shownZoneKeysRef.current.clear();
     shownZoneFeaturesRef.current = [];
-  }, [maxLen, minExposure]);
+  }, [minLen, maxLen, minExposure]);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => mapRef.current?.invalidateSize(), 250);

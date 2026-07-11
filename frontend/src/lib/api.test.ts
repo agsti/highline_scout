@@ -17,12 +17,13 @@ describe("api client", () => {
 
     await fetchZones({
       bboxLonLat: "1,2,3,4",
+      minLen: 20,
       maxLen: 150,
       minExposure: 30,
     });
 
     expect(fetch).toHaveBeenCalledWith(
-      "/zones?bbox_lonlat=1%2C2%2C3%2C4&max_len=150&min_exposure=30",
+      "/zones?bbox_lonlat=1%2C2%2C3%2C4&min_len=20&max_len=150&min_exposure=30",
       { signal: undefined },
     );
   });
@@ -38,7 +39,7 @@ describe("api client", () => {
     );
 
     await expect(
-      fetchZones({ bboxLonLat: "1,2,3,4", maxLen: 150, minExposure: 30 }),
+      fetchZones({ bboxLonLat: "1,2,3,4", minLen: 20, maxLen: 150, minExposure: 30 }),
     ).rejects.toMatchObject(new ApiError(413, "too many"));
   });
 });

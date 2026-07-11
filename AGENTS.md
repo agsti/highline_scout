@@ -60,6 +60,14 @@ nothing and needs no setup.
   and a debounced `map_settled`. Never bind analytics to a slider's
   `onValueChange` or to a raw `moveend` — those fire per drag frame, and one
   gesture would be recorded dozens of times.
+- **Analytics is deliberately cookieless, and must stay that way.**
+  `persistence: "memory"` writes nothing to the visitor's device and
+  `person_profiles: "identified_only"` keeps events anonymous, which is why the
+  app needs no cookie consent banner. The price is that there is no cross-session
+  identity: **read "users" in PostHog as "visits"** — a returning visitor counts
+  again each time, and retention/cohort analysis is meaningless. Restoring
+  `person_profiles: "always"` would fix those counts and silently make the app
+  non-compliant. Don't.
 - **Backend** (`highliner/core/telemetry.py`) — deliberately thin. The server
   only sees viewport reads, so it emits **no per-request events**: just a
   `slow_request` when a handler exceeds `HIGHLINER_SLOW_REQUEST_MS` (default

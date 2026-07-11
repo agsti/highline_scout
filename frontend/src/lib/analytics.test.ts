@@ -56,7 +56,12 @@ describe("capture", () => {
     initAnalytics(true, "highlinescout.com");
     expect(initMock).toHaveBeenCalledWith(
       "phc_qwCr7DcdFB5HZPeRWjaSajQKjRD7j2ARr7ECSKTtyLst",
-      { api_host: "https://eu.i.posthog.com", person_profiles: "always" },
+      {
+        api_host: "https://eu.i.posthog.com",
+        persistence: "memory",
+        person_profiles: "identified_only",
+        disable_session_recording: true,
+      },
     );
     capture("zone_opened", { n_pairs: 3 });
     expect(captureMock).toHaveBeenCalledWith("zone_opened", { n_pairs: 3 });
@@ -82,5 +87,21 @@ describe("captureMapSettled", () => {
       lon: 1.85,
     });
     vi.useRealTimers();
+  });
+});
+
+describe("cookieless persistence", () => {
+  it("stores nothing on the device, so no consent banner is required", async () => {
+    const { initAnalytics } = await loadModule();
+    initAnalytics(true, "highlinescout.com");
+
+    const options = initMock.mock.calls[0]?.[1] as Record<string, unknown>;
+    // No cookie, no localStorage: distinct_id lives in memory for the page's life.
+    expect(options.persistence).toBe("memory");
+    // We never call identify(), so no person profiles are created.
+    expect(options.person_profiles).toBe("identified_only");
+    // Session replay is dashboard-toggleable; pinning it off keeps DOM content
+    // (which would need consent) from ever being recorded.
+    expect(options.disable_session_recording).toBe(true);
   });
 });

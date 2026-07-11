@@ -23,9 +23,20 @@ export function initAnalytics(
   hostname: string = window.location.hostname,
 ): void {
   if (!shouldEnableAnalytics(isProd, hostname)) return;
+  // Cookieless by design: "memory" persistence writes nothing to the device, so
+  // no ePrivacy consent — and therefore no cookie banner — is required.
+  // `identified_only` keeps events anonymous (we never call identify()). Session
+  // replay is pinned off here because it is otherwise toggleable from the PostHog
+  // dashboard, and recording DOM content would need consent.
+  // The cost is cross-session identity: "users" in PostHog means "visits".
+  // Do not restore `person_profiles: "always"` to fix the unique-user counts —
+  // that reintroduces the consent obligation. See
+  // docs/superpowers/specs/2026-07-11-cookieless-analytics-design.md
   posthog.init(POSTHOG_KEY, {
     api_host: POSTHOG_HOST,
-    person_profiles: "always",
+    persistence: "memory",
+    person_profiles: "identified_only",
+    disable_session_recording: true,
   });
   enabled = true;
 }

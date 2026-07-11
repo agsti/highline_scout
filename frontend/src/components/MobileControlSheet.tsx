@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
-import { ChevronUp, SlidersHorizontal } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { SlidersHorizontal } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { useI18n } from "@/lib/i18n";
 import { LanguageSwitcher } from "./LanguageSwitcher";
@@ -23,27 +22,22 @@ export function MobileControlSheet(props: MobileControlSheetProps) {
       <div
         data-testid="mobile-summary-card"
         onClick={() => props.onOpenChange(true)}
-        className="fixed inset-x-3 bottom-3 z-[1100] cursor-pointer rounded-xl border bg-card/95 p-3 shadow-xl backdrop-blur"
+        className="fixed inset-x-0 bottom-0 z-[1100] cursor-pointer rounded-t-xl border border-b-0 bg-card/95 p-3 pb-4 shadow-xl backdrop-blur"
       >
-        <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-border" />
-        <div className="flex items-center gap-3">
-          <div className="flex min-w-0 flex-1 items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            <SlidersHorizontal className="h-3.5 w-3.5 shrink-0" />
-            {t("filters")}
-          </div>
-          <SheetTrigger asChild>
-            <Button
-              type="button"
-              size="icon"
-              variant="ghost"
-              className="h-7 w-7 shrink-0"
-              aria-label={t("openControls")}
-            >
-              <ChevronUp className="h-4 w-4" />
-            </Button>
-          </SheetTrigger>
+        <SheetTrigger asChild>
+          <button
+            type="button"
+            aria-label={t("openControls")}
+            className="mb-1 flex w-full items-center justify-center rounded-md py-1 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          >
+            <span className="h-1 w-10 rounded-full bg-border" />
+          </button>
+        </SheetTrigger>
+        <div className="flex items-center gap-2 text-sm font-semibold">
+          <SlidersHorizontal className="h-4 w-4 shrink-0" />
+          {t("filters")}
         </div>
-        <div className="mt-1 text-sm font-medium">{props.summary}</div>
+        <div className="mt-1 text-sm text-muted-foreground">{props.summary}</div>
         {props.legend}
       </div>
       <SheetContent

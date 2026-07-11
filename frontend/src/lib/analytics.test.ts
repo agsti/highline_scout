@@ -61,6 +61,9 @@ describe("capture", () => {
         persistence: "memory",
         person_profiles: "identified_only",
         disable_session_recording: true,
+        disable_surveys: true,
+        disable_product_tours: true,
+        disable_conversations: true,
       },
     );
     capture("zone_opened", { n_pairs: 3 });
@@ -103,5 +106,10 @@ describe("cookieless persistence", () => {
     // Session replay is dashboard-toggleable; pinning it off keeps DOM content
     // (which would need consent) from ever being recorded.
     expect(options.disable_session_recording).toBe(true);
+    // Surveys, product tours, and conversations are also dashboard-toggleable
+    // and each writes its own raw localStorage key if enabled there.
+    expect(options.disable_surveys).toBe(true);
+    expect(options.disable_product_tours).toBe(true);
+    expect(options.disable_conversations).toBe(true);
   });
 });

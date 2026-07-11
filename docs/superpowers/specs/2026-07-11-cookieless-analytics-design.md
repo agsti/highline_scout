@@ -94,9 +94,12 @@ visually subordinate so it does not compete with the safety warning itself.
 **`AGENTS.md`** — the Telemetry section states that analytics is deliberately
 cookieless and anonymous, and why. This is the durable part of the change: the
 config is three lines, but the *reason it must stay that way* is what gets lost.
-`person_profiles: "always"` is precisely what a future contributor would restore
-to "fix" the inflated unique-user counts, silently reintroducing a consent
-obligation.
+Switching `persistence` back to `localStorage+cookie` is precisely what a
+future contributor would restore to "fix" the inflated unique-user counts,
+silently reintroducing the cookie and the consent obligation. (`person_profiles:
+"always"` would not even fix the counts — with `persistence: "memory"` the
+`distinct_id` is regenerated every page load regardless — it would just mint a
+person profile per pageview.)
 
 ## Testing
 

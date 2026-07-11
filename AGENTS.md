@@ -65,9 +65,11 @@ nothing and needs no setup.
   `person_profiles: "identified_only"` keeps events anonymous, which is why the
   app needs no cookie consent banner. The price is that there is no cross-session
   identity: **read "users" in PostHog as "visits"** — a returning visitor counts
-  again each time, and retention/cohort analysis is meaningless. Restoring
-  `person_profiles: "always"` would fix those counts and silently make the app
-  non-compliant. Don't.
+  again each time, and retention/cohort analysis is meaningless. The tempting fix
+  is to switch `persistence` back to `localStorage+cookie`: that is exactly what
+  reintroduces the cookie, and with it the consent obligation. Don't. (Nor
+  `person_profiles: "always"` — it would not fix the counts anyway, it would just
+  create a person profile per pageview.)
 - **Backend** (`highliner/core/telemetry.py`) — deliberately thin. The server
   only sees viewport reads, so it emits **no per-request events**: just a
   `slow_request` when a handler exceeds `HIGHLINER_SLOW_REQUEST_MS` (default

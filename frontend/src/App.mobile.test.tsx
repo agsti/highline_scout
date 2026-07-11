@@ -92,6 +92,9 @@ describe("mobile control sheet", () => {
     const sheet = await screen.findByRole("dialog");
     await user.click(await within(sheet).findByRole("checkbox", { name: /ZEPA/ }));
 
+    await user.click(within(sheet).getByRole("button", { name: /close controls/i }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+
     expect(within(card).getByText("ZEPA (Aves)")).toBeInTheDocument();
   });
 });

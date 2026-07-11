@@ -12,7 +12,7 @@ function ControlledMobileControlSheet() {
   const [open, setOpen] = useState(false);
   return (
     <MobileControlSheet
-      summary="Longitud maxima 150 m"
+      summary="20–150 m · exp ≥30 m"
       legend={null}
       filters={<div>sheet filters</div>}
       statuses={<div>sheet status</div>}

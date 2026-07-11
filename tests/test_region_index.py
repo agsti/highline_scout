@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+from typing import Any
 
 from highliner.router import deps
 
@@ -9,7 +10,7 @@ def _write_grid(data_dir: Path, name: str,
                 crs: str | None = None) -> None:
     rdir = data_dir / name
     rdir.mkdir(parents=True)
-    grid: dict = {"bbox": list(bbox), "chunk_m": 10000.0}
+    grid: dict[str, Any] = {"bbox": list(bbox), "chunk_m": 10000.0}
     if crs is not None:
         grid["crs"] = crs
     (rdir / "grid.json").write_text(json.dumps(grid))

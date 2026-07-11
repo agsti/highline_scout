@@ -13,8 +13,10 @@ frontend") deleted `web/` when the Vite/React app replaced it, and
 `posthog-js` in `frontend/package.json`, no init in `main.tsx`.
 
 Separately, the 2026-07-04 spec asserted backend errors were "already handled
-elsewhere (GlitchTip)". No `sentry_sdk` dependency or init exists in this
-repository, so a `/zones` 500 in production is currently invisible.
+elsewhere (GlitchTip)". A self-hosted GlitchTip does exist on the VPS
+(`glitch.vps.agustibau.com`), but highliner is not wired to it: no `sentry_sdk`
+dependency or init exists in this repository, and its compose service sets no
+DSN. A `/zones` 500 in production is currently invisible.
 
 ## Goals
 
@@ -117,8 +119,9 @@ no separate dev/prod branch to get wrong.
 Cross-cutting, so `core/` per the existing layering.
 
 - `init_sentry(settings)` — no-op unless `sentry_dsn` is set. Starlette/FastAPI
-  integration, `traces_sample_rate=0` (GlitchTip's tracing support is thin;
-  errors are the point), `environment` tag.
+  integration, `environment` tag, and `traces_sample_rate=0` — errors are the
+  point, and tracing a per-pan endpoint would flood the self-hosted GlitchTip
+  (see Deployment).
 - `init_posthog(settings)` — no-op unless `posthog_key` is set.
 - `SlowRequestMiddleware` — times each request; emits **only** when the duration
   exceeds `slow_request_ms`:
@@ -141,12 +144,34 @@ In `create_app()`: call the two inits, add `SlowRequestMiddleware`, and register
 
 ## Deployment
 
-The runtime needs `HIGHLINER_POSTHOG_KEY`, `HIGHLINER_SENTRY_DSN`, and
-`HIGHLINER_ENVIRONMENT=production`. The Dockerfile passes no env today and there
-is no compose file in the repo, so **where these are set is an open question for
-the operator** — this spec documents the required variables rather than guessing
-a deployment target. If a GlitchTip project already exists for this app, reuse
-its DSN instead of creating a second one.
+Production is `highlinescout.com`, served from
+`~/projects/vps/highliner/docker-compose.yaml` (a **separate repository** —
+that edit lands outside this repo, as its own commit).
+
+GlitchTip is self-hosted at `https://glitch.vps.agustibau.com`. The established
+convention on that VPS, set by `gplay_scrap`, is to put the ingestion DSN in the
+compose file as a plain env var; sops+age (`secrets.enc.env` + `env_file`) is
+reserved for genuine secrets. A GlitchTip ingestion DSN and a PostHog `phc_`
+project key are both write-only ingestion credentials, so **highliner needs no
+secrets file** — both go in compose in plaintext.
+
+Add to the `highliner` service `environment:` block:
+
+    HIGHLINER_ENVIRONMENT: production
+    HIGHLINER_POSTHOG_KEY: phc_...          # same project key as the frontend
+    HIGHLINER_SENTRY_DSN: https://...@glitch.vps.agustibau.com/N
+
+**Blocked on the operator:** a GlitchTip project for highliner must be created to
+obtain `N` and the DSN. Project `/1` belongs to `gplay_scrap`.
+
+Note the env-var names differ from `gplay_scrap`'s (`GLITCHTIP_DSN` etc.) because
+highliner's `Settings` uses the `HIGHLINER_` prefix throughout; that convention
+wins inside this app.
+
+`traces_sample_rate=0` deliberately diverges from `gplay_scrap`'s `1`: `/zones`
+fires on every map pan and slider commit, so full tracing would flood the
+self-hosted instance with transactions that add nothing over the `slow_request`
+event.
 
 ## Testing
 

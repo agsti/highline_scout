@@ -8,6 +8,7 @@ import { MapView } from "./components/map/MapView";
 import { RestrictionLayerControls } from "./components/RestrictionLayerControls";
 import { SafetyDisclaimerDialog } from "./components/SafetyDisclaimerDialog";
 import { StatusLine } from "./components/StatusLine";
+import { capture } from "./lib/analytics";
 import { fetchRestrictionLayers } from "./lib/api";
 import { bboxLonLatParam } from "./lib/geo";
 import { useI18n } from "./lib/i18n";
@@ -41,15 +42,41 @@ export function App() {
     setViewportBbox(bboxLonLatParam(map.getBounds()));
   }, []);
 
+  // Analytics hang off the *commit* callbacks only. onValueChange fires per drag
+  // frame; binding events there would record one gesture dozens of times.
+  const handleMaxLenCommit = useCallback((value: number) => {
+    setMaxLen(value);
+    capture("filter_changed", { filter: "max_len", value });
+  }, []);
+
+  const handleMinExposureCommit = useCallback((value: number) => {
+    setMinExposure(value);
+    capture("filter_changed", { filter: "min_exposure", value });
+  }, []);
+
+  const handleEnabledRestrictionsChange = useCallback((next: string[]) => {
+    setEnabledRestrictions((previous) => {
+      const before = new Set(previous);
+      const after = new Set(next);
+      for (const layer of next) {
+        if (!before.has(layer)) capture("restriction_layer_toggled", { layer, enabled: true });
+      }
+      for (const layer of previous) {
+        if (!after.has(layer)) capture("restriction_layer_toggled", { layer, enabled: false });
+      }
+      return next;
+    });
+  }, []);
+
   const filters = (
     <FilterControls
       maxLen={maxLen}
       minExposure={minExposure}
       showAnchors={showAnchors}
       onMaxLenChange={setMaxLen}
-      onMaxLenCommit={setMaxLen}
+      onMaxLenCommit={handleMaxLenCommit}
       onMinExposureChange={setMinExposure}
-      onMinExposureCommit={setMinExposure}
+      onMinExposureCommit={handleMinExposureCommit}
       onShowAnchorsChange={setShowAnchors}
     />
   );
@@ -66,7 +93,7 @@ export function App() {
     <RestrictionLayerControls
       layers={restrictionLayers}
       enabled={enabledRestrictions}
-      onEnabledChange={setEnabledRestrictions}
+      onEnabledChange={handleEnabledRestrictionsChange}
     />
   );
 

@@ -361,3 +361,35 @@ def test_zones_cross_crs_duplicate_collapses_to_one_pair(tmp_path: Path) -> None
     assert len(fc["features"]) == 1
     props = fc["features"][0]["properties"]
     assert props["n_pairs"] == 1 and props["n_anchors"] == 2
+
+
+def test_app_installs_slow_request_middleware() -> None:
+    from typing import cast
+
+    from highliner.core.telemetry import SlowRequestMiddleware
+
+    app = create_app()
+
+    # Starlette types .cls as a middleware factory, so compare through object.
+    installed = [cast(object, m.cls) for m in app.user_middleware]
+    assert SlowRequestMiddleware in installed
+
+
+def test_app_sends_nothing_without_credentials(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The default (unconfigured) app must not attempt any telemetry IO.
+
+    Threshold is forced to 0 so every request crosses it — if the disabled-state
+    guard were missing, this would call into an unarmed PostHog client.
+    """
+    import posthog
+
+    monkeypatch.setattr(config.settings, "slow_request_ms", 0.0)
+    calls: list[object] = []
+    monkeypatch.setattr(posthog, "capture", lambda **kwargs: calls.append(kwargs))
+
+    client = TestClient(create_app(tmp_path))
+    client.get("/regions")
+
+    assert calls == []

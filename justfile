@@ -80,3 +80,17 @@ precompute-spain *args:
 # Precompute Spain one region at a time, with 8 chunks in parallel per region.
 precompute-spain-8 *args:
     uv run python scripts/precompute_spain.py --jobs 1 --chunk-workers 8 {{args}}
+
+# rsync data/ to the prod machine, skipping the huge raw-DTM temp folders
+# (mdt05_tiles/, mdt05_sheet_index/) that prod doesn't serve.
+# Override target on the CLI, e.g.:
+#   just deploy-data PROD_HOST=me@1.2.3.4 PROD_DATA_DIR=/srv/highliner/data
+# Preview first with `just deploy-data --dry-run`.
+PROD_HOST := "root@192.168.1.70"
+PROD_DATA_DIR := "/mnt/data/highliner"
+
+deploy-data ARGS="":
+    rsync -avz --partial --progress --delete {{ARGS}} \
+      --exclude 'mdt05_tiles/' \
+      --exclude 'mdt05_sheet_index/' \
+      data/ {{PROD_HOST}}:{{PROD_DATA_DIR}}/

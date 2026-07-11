@@ -14,13 +14,18 @@ import { bboxLonLatParam } from "./lib/geo";
 import { useI18n } from "./lib/i18n";
 import type { RestrictionLayerMeta } from "./types/highliner";
 
+const DEFAULT_LENGTH_RANGE: LengthRange = [20, 150];
+const DEFAULT_MIN_EXPOSURE = 30;
+
 export function App() {
   const { t } = useI18n();
   const [mapStatus, setMapStatus] = useState(() => t("searching"));
   const [mapErrorDetail, setMapErrorDetail] = useState("");
   const [, setViewportBbox] = useState("");
-  const [lengthRange, setLengthRange] = useState<LengthRange>([20, 150]);
-  const [minExposure, setMinExposure] = useState(30);
+  const [draftLengthRange, setDraftLengthRange] = useState<LengthRange>(DEFAULT_LENGTH_RANGE);
+  const [draftMinExposure, setDraftMinExposure] = useState(DEFAULT_MIN_EXPOSURE);
+  const [appliedLengthRange, setAppliedLengthRange] = useState<LengthRange>(DEFAULT_LENGTH_RANGE);
+  const [appliedMinExposure, setAppliedMinExposure] = useState(DEFAULT_MIN_EXPOSURE);
   const [showAnchors, setShowAnchors] = useState(true);
   const [anchorStatus, setAnchorStatus] = useState("");
   const [restrictionLayers, setRestrictionLayers] = useState<RestrictionLayerMeta[]>([]);
@@ -42,17 +47,20 @@ export function App() {
     setViewportBbox(bboxLonLatParam(map.getBounds()));
   }, []);
 
-  // Analytics hang off the *commit* callbacks only. onValueChange fires per drag
-  // frame; binding events there would record one gesture dozens of times.
-  const handleLengthRangeCommit = useCallback((value: LengthRange) => {
-    setLengthRange(value);
-    capture("filter_changed", { filter: "length", min: value[0], max: value[1] });
-  }, []);
+  const canApply =
+    draftLengthRange[0] !== appliedLengthRange[0] ||
+    draftLengthRange[1] !== appliedLengthRange[1] ||
+    draftMinExposure !== appliedMinExposure;
 
-  const handleMinExposureCommit = useCallback((value: number) => {
-    setMinExposure(value);
-    capture("filter_changed", { filter: "min_exposure", value });
-  }, []);
+  const handleApply = useCallback(() => {
+    setAppliedLengthRange(draftLengthRange);
+    setAppliedMinExposure(draftMinExposure);
+    capture("filters_applied", {
+      min_len: draftLengthRange[0],
+      max_len: draftLengthRange[1],
+      min_exposure: draftMinExposure,
+    });
+  }, [draftLengthRange, draftMinExposure]);
 
   const handleEnabledRestrictionsChange = useCallback((next: string[]) => {
     setEnabledRestrictions((previous) => {
@@ -70,14 +78,14 @@ export function App() {
 
   const filters = (
     <FilterControls
-      lengthRange={lengthRange}
-      minExposure={minExposure}
+      lengthRange={draftLengthRange}
+      minExposure={draftMinExposure}
       showAnchors={showAnchors}
-      onLengthRangeChange={setLengthRange}
-      onLengthRangeCommit={handleLengthRangeCommit}
-      onMinExposureChange={setMinExposure}
-      onMinExposureCommit={handleMinExposureCommit}
+      canApply={canApply}
+      onLengthRangeChange={setDraftLengthRange}
+      onMinExposureChange={setDraftMinExposure}
       onShowAnchorsChange={setShowAnchors}
+      onApply={handleApply}
     />
   );
 
@@ -99,8 +107,8 @@ export function App() {
 
   const summary = useMemo(
     () =>
-      `${t("lineLength")} ${lengthRange[0]}–${lengthRange[1]} m - ${t("minExposure")} ${minExposure} m`,
-    [t, lengthRange, minExposure],
+      `${t("lineLength")} ${appliedLengthRange[0]}–${appliedLengthRange[1]} m - ${t("minExposure")} ${appliedMinExposure} m`,
+    [t, appliedLengthRange, appliedMinExposure],
   );
 
   return (
@@ -125,9 +133,9 @@ export function App() {
         }
         map={
           <MapView
-            minLen={lengthRange[0]}
-            maxLen={lengthRange[1]}
-            minExposure={minExposure}
+            minLen={appliedLengthRange[0]}
+            maxLen={appliedLengthRange[1]}
+            minExposure={appliedMinExposure}
             showAnchors={showAnchors}
             enabledRestrictions={enabledRestrictions}
             restrictionLayers={restrictionLayers}

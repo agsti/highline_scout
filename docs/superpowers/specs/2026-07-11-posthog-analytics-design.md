@@ -148,21 +148,33 @@ Production is `highlinescout.com`, served from
 `~/projects/vps/highliner/docker-compose.yaml` (a **separate repository** —
 that edit lands outside this repo, as its own commit).
 
-GlitchTip is self-hosted at `https://glitch.vps.agustibau.com`. The established
-convention on that VPS, set by `gplay_scrap`, is to put the ingestion DSN in the
-compose file as a plain env var; sops+age (`secrets.enc.env` + `env_file`) is
-reserved for genuine secrets. A GlitchTip ingestion DSN and a PostHog `phc_`
-project key are both write-only ingestion credentials, so **highliner needs no
-secrets file** — both go in compose in plaintext.
+GlitchTip is self-hosted at `https://glitch.vps.agustibau.com`.
 
-Add to the `highliner` service `environment:` block:
+`gplay_scrap` puts its ingestion DSN in compose as a plain env var, but **we do
+not follow that precedent**: both credentials go through sops+age like every
+other service's env vars. They are write-only ingestion credentials rather than
+true secrets, so this is defence-in-depth, not a strict requirement — but it
+keeps one uniform way of handling credentials on the VPS.
 
-    HIGHLINER_ENVIRONMENT: production
-    HIGHLINER_POSTHOG_KEY: phc_...          # same project key as the frontend
-    HIGHLINER_SENTRY_DSN: https://...@glitch.vps.agustibau.com/N
+New `~/projects/vps/highliner/secrets.enc.env` (sops+age, dotenv):
+
+    HIGHLINER_POSTHOG_KEY=phc_...           # same project key as the frontend
+    HIGHLINER_SENTRY_DSN=https://...@glitch.vps.agustibau.com/N
+
+Encryption needs only the age **public** key, which `.sops.yaml` already pins, so
+the file can be created without the private key. The deploy workflow decrypts
+every `*/secrets.enc.env` to `secrets.env` using the `SOPS_AGE_KEY` repo secret.
+
+`docker-compose.yaml` gains `env_file: [./secrets.env]` on the `highliner`
+service, and `HIGHLINER_ENVIRONMENT: production` in the existing `environment:`
+block alongside `HIGHLINER_DATA_DIR` — it names the deployment, it is not a
+credential, so it stays in the clear.
 
 **Blocked on the operator:** a GlitchTip project for highliner must be created to
-obtain `N` and the DSN. Project `/1` belongs to `gplay_scrap`.
+obtain `N` and the DSN. Project `/1` belongs to `gplay_scrap`. Because
+`sentry_dsn` is optional and absent-means-disabled, everything builds, tests, and
+deploys green before the DSN exists; adding it later is an edit to the encrypted
+file alone.
 
 Note the env-var names differ from `gplay_scrap`'s (`GLITCHTIP_DSN` etc.) because
 highliner's `Settings` uses the `HIGHLINER_` prefix throughout; that convention

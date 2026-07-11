@@ -59,6 +59,7 @@ describe("capture", () => {
       {
         api_host: "https://eu.i.posthog.com",
         persistence: "memory",
+        cookieless_mode: "always",
         person_profiles: "identified_only",
         disable_session_recording: true,
         disable_surveys: true,
@@ -101,6 +102,9 @@ describe("cookieless persistence", () => {
     const options = initMock.mock.calls[0]?.[1] as Record<string, unknown>;
     // No cookie, no localStorage: distinct_id lives in memory for the page's life.
     expect(options.persistence).toBe("memory");
+    // Recovers same-day unique visitors via a server-side daily-rotating hash
+    // instead of a device-held distinct_id — still zero device storage.
+    expect(options.cookieless_mode).toBe("always");
     // We never call identify(), so no person profiles are created.
     expect(options.person_profiles).toBe("identified_only");
     // Session replay is dashboard-toggleable; pinning it off keeps DOM content

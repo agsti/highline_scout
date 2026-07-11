@@ -31,6 +31,23 @@ banner is built.
   cookie, no `localStorage`. `distinct_id` lives in memory for the page's life.
   This is the option that removes the ePrivacy consent trigger; everything else
   here is secondary.
+- **Same-day unique visitors are recovered via `cookieless_mode: "always"`.**
+  Instead of a client-held `distinct_id`, every event carries a
+  `$posthog_cookieless` sentinel; PostHog's server hashes IP + User-Agent + a
+  salt that rotates daily into a visitor ID, stable across that visitor's
+  events for the day, changing the next. This recovers same-day unique-visitor
+  counts while writing nothing to the device. It is layered on top of
+  `persistence: "memory"`, not a substitute for it: `cookieless_mode` disables
+  PostHog's persistence I/O (load/save/remove all become no-ops), but
+  `persistence: "memory"` independently governs which storage backend gets
+  *constructed* — including in the brief pre-disable window during `init()`
+  and for the explicit `remove()`/cookie-expiry calls disabling triggers — so
+  those paths only ever touch a plain in-process object. Keep both; they are
+  complementary, not redundant. Cross-*day* identity is still lost — a
+  visitor's hashed ID changes daily, so retention/cohort analysis spanning days
+  remains meaningless. (PostHog's project settings must also have cookieless
+  mode enabled server-side, or cookieless events are dropped at ingestion —
+  this is a dashboard setting, out of scope for this repo.)
 - **Events are anonymous.** `person_profiles: "identified_only"`. The code never
   calls `posthog.identify()`, so no person profiles are created. (Also cheaper
   on PostHog's anonymous-event pricing.)
@@ -55,18 +72,23 @@ banner is built.
 ## Cost: goal 2 of the previous spec is partly sacrificed
 
 `2026-07-11-posthog-analytics-design.md` listed as goal 2: *"Traffic & reach —
-visitors, sessions, referrers."* Cookieless persistence damages this and the
-tradeoff is accepted deliberately:
+visitors, sessions, referrers."* Cookieless persistence damages this; adding
+`cookieless_mode: "always"` claws back same-day unique-visitor counts, but the
+remaining tradeoff is accepted deliberately:
 
 | Still works | Broken |
 |---|---|
-| Event counts, trends, property breakdowns | **Unique-visitor counts** — inflated; a returning user counts again on every visit |
-| Autocapture, referrers | Retention and cohort analysis |
-| Within-session funnels | Any funnel spanning sessions |
+| Event counts, trends, property breakdowns | Any funnel or analysis spanning multiple days |
+| Autocapture, referrers | Retention and cohort analysis (inherently cross-day) |
+| Within-session funnels | |
+| **Same-day unique-visitor counts** (server-hashed, daily-rotating ID) | |
 
 The four committed events (`filter_changed`, `zone_opened`,
 `restriction_layer_toggled`, `map_settled`) are all within-session behaviours
-and are unaffected. Read "users" in PostHog as "visits" from now on.
+and are unaffected. What's lost is narrower than the previous cut: a returning
+visitor is no longer double-counted *within a day*, but their hashed ID changes
+every day, so anything that needs to recognize the same visitor across days —
+retention, cohorts, multi-day funnels — is still meaningless.
 
 ## Changes
 

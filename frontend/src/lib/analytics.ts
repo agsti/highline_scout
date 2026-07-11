@@ -33,6 +33,24 @@ export function initAnalytics(
   // mint a person profile per pageview.) See
   // docs/superpowers/specs/2026-07-11-cookieless-analytics-design.md
   //
+  // `cookieless_mode: "always"` buys back *same-day* unique-visitor counts
+  // without writing anything to the device: instead of a client-held
+  // distinct_id, every event carries a `$posthog_cookieless` sentinel, and the
+  // PostHog server hashes IP + User-Agent + a daily-rotating salt into a
+  // visitor ID that stays stable across that visitor's events for the day and
+  // changes the next day. It is layered on top of `persistence: "memory"`,
+  // not a replacement for it: `cookieless_mode` disables PostHog's own
+  // persistence I/O (loads/saves/removes all become no-ops), but
+  // `persistence: "memory"` independently controls which storage backend gets
+  // *constructed* in the first place — including in the brief window during
+  // init before that disable takes effect, and for the explicit
+  // remove()/cookie-expiry calls disabling triggers. Keeping `persistence:
+  // "memory"` set means that construction and those calls only ever touch a
+  // plain in-process object, never a real cookie or localStorage key,
+  // regardless of what `cookieless_mode` does or how it evolves. What is still
+  // lost: cross-DAY identity — retention and cohort analysis spanning days
+  // remain meaningless, since a visitor's hashed ID changes every day.
+  //
   // The four `disable_*` flags below are all pinned off in code because each
   // is independently toggleable from the PostHog dashboard and, if enabled,
   // writes to the device (session recording: DOM content; the other three:
@@ -40,6 +58,7 @@ export function initAnalytics(
   posthog.init(POSTHOG_KEY, {
     api_host: POSTHOG_HOST,
     persistence: "memory",
+    cookieless_mode: "always",
     person_profiles: "identified_only",
     disable_session_recording: true,
     disable_surveys: true,

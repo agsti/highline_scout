@@ -32,6 +32,7 @@ export function App() {
   const [restrictionStatus, setRestrictionStatus] = useState("");
   const [enabledRestrictions, setEnabledRestrictions] = useState<string[]>([]);
   const [disclaimerOpen, setDisclaimerOpen] = useState(true);
+  const [sheetOpen, setSheetOpen] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -55,6 +56,7 @@ export function App() {
   const handleApply = useCallback(() => {
     setAppliedLengthRange(draftLengthRange);
     setAppliedMinExposure(draftMinExposure);
+    setSheetOpen(false);
     capture("filters_applied", {
       min_len: draftLengthRange[0],
       max_len: draftLengthRange[1],
@@ -129,6 +131,8 @@ export function App() {
             statuses={statuses}
             restrictions={restrictions}
             caveat={t("caveat")}
+            open={sheetOpen}
+            onOpenChange={setSheetOpen}
           />
         }
         map={

@@ -11,13 +11,14 @@ interface MobileControlSheetProps {
   restrictions: ReactNode;
   statuses: ReactNode;
   caveat: string;
-  actions?: ReactNode;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 }
 
 export function MobileControlSheet(props: MobileControlSheetProps) {
   const { t } = useI18n();
   return (
-    <Sheet>
+    <Sheet open={props.open} onOpenChange={props.onOpenChange}>
       <div className="fixed inset-x-3 bottom-3 z-[1100] rounded-xl border bg-card/95 p-3 shadow-xl backdrop-blur">
         <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-border" />
         <div className="flex items-center gap-3">
@@ -44,7 +45,6 @@ export function MobileControlSheet(props: MobileControlSheetProps) {
         <div className="mt-4 space-y-5">
           {props.filters}
           {props.statuses}
-          {props.actions ? props.actions : null}
           {props.restrictions}
           <p className="rounded-md border border-destructive/25 bg-destructive/5 p-3 text-xs leading-5 text-destructive">
             {props.caveat}

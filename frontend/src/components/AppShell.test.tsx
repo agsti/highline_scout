@@ -1,10 +1,27 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { I18nProvider, useI18n } from "@/lib/i18n";
 import { AppShell } from "./AppShell";
 import { MobileControlSheet } from "./MobileControlSheet";
 import { Dialog, DialogContent } from "./ui/dialog";
+
+// The sheet is controlled by App, so these tests supply the open state it owns.
+function ControlledMobileControlSheet() {
+  const [open, setOpen] = useState(false);
+  return (
+    <MobileControlSheet
+      summary="Longitud maxima 150 m"
+      filters={<div>sheet filters</div>}
+      statuses={<div>sheet status</div>}
+      restrictions={<div>sheet restrictions</div>}
+      caveat="Zones to scout"
+      open={open}
+      onOpenChange={setOpen}
+    />
+  );
+}
 
 const originalLocalStorageDescriptor = Object.getOwnPropertyDescriptor(window, "localStorage");
 
@@ -101,14 +118,7 @@ describe("AppShell", () => {
     setTestLanguage("es");
     render(
       <I18nProvider>
-        <MobileControlSheet
-          summary="Longitud maxima 150 m"
-          filters={<div>sheet filters</div>}
-          statuses={<div>sheet status</div>}
-          restrictions={<div>sheet restrictions</div>}
-          caveat="Zones to scout"
-          actions={<div>sheet actions</div>}
-        />
+        <ControlledMobileControlSheet />
       </I18nProvider>,
     );
 
@@ -124,14 +134,7 @@ describe("AppShell", () => {
 
     render(
       <I18nProvider>
-        <MobileControlSheet
-          summary="Longitud maxima 150 m"
-          filters={<div>sheet filters</div>}
-          statuses={<div>sheet status</div>}
-          restrictions={<div>sheet restrictions</div>}
-          caveat="Zones to scout"
-          actions={<div>sheet actions</div>}
-        />
+        <ControlledMobileControlSheet />
       </I18nProvider>,
     );
 
@@ -187,14 +190,7 @@ describe("AppShell", () => {
   it("does not leave the document body non-interactive when the mobile sheet is closed", () => {
     render(
       <I18nProvider>
-        <MobileControlSheet
-          summary="Longitud maxima 150 m"
-          filters={<div>sheet filters</div>}
-          statuses={<div>sheet status</div>}
-          restrictions={<div>sheet restrictions</div>}
-          caveat="Zones to scout"
-          actions={<div>sheet actions</div>}
-        />
+        <ControlledMobileControlSheet />
       </I18nProvider>,
     );
 

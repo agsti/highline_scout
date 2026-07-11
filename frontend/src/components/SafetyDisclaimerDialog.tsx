@@ -41,6 +41,7 @@ export function SafetyDisclaimerDialog({ open, onAccept }: SafetyDisclaimerDialo
             <p className="font-semibold text-destructive">{t("disclaimerLead")}</p>
             <p>{t("disclaimerBody")}</p>
             <p>{t("disclaimerResponsibility")}</p>
+            <p className="text-xs">{t("disclaimerPrivacy")}</p>
           </div>
         </div>
         <Button type="button" onClick={onAccept} autoFocus>

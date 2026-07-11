@@ -34,4 +34,14 @@ describe("SafetyDisclaimerDialog", () => {
     await user.click(screen.getByRole("button", { name: /ho entenc|i understand|lo entiendo/i }));
     expect(onAccept).toHaveBeenCalledTimes(1);
   });
+
+  it("discloses the anonymous, cookieless analytics", () => {
+    render(
+      <I18nProvider>
+        <SafetyDisclaimerDialog open onAccept={vi.fn()} />
+      </I18nProvider>,
+    );
+
+    expect(screen.getByText(/sense galetes|sin cookies|no cookies/i)).toBeInTheDocument();
+  });
 });

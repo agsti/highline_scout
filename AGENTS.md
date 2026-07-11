@@ -49,6 +49,27 @@ CLI (`highliner` entry point, `highliner/cli.py`):
     .venv/bin/highliner precompute-density --region NAME
     .venv/bin/highliner serve
 
+## Telemetry
+
+Analytics and error reporting are **off unless configured**, so local dev sends
+nothing and needs no setup.
+
+- **Frontend** (`frontend/src/lib/analytics.ts`) — PostHog, initialized only in a
+  production build on a non-local hostname. Autocapture plus four events bound to
+  committed actions: `filter_changed`, `zone_opened`, `restriction_layer_toggled`,
+  and a debounced `map_settled`. Never bind analytics to a slider's
+  `onValueChange` or to a raw `moveend` — those fire per drag frame, and one
+  gesture would be recorded dozens of times.
+- **Backend** (`highliner/core/telemetry.py`) — deliberately thin. The server
+  only sees viewport reads, so it emits **no per-request events**: just a
+  `slow_request` when a handler exceeds `HIGHLINER_SLOW_REQUEST_MS` (default
+  1000). Errors go to GlitchTip via `sentry_sdk`, never to PostHog, so nothing is
+  double-counted.
+- **Config** — `HIGHLINER_POSTHOG_KEY`, `HIGHLINER_SENTRY_DSN`,
+  `HIGHLINER_ENVIRONMENT`, `HIGHLINER_SLOW_REQUEST_MS`. In production these come
+  from sops-encrypted secrets in the separate `vps` repo
+  (`highliner/secrets.enc.env`).
+
 ## Package layout
 
 The package is organized into layers (MVC-ish). Each module is one domain's

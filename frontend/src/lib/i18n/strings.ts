@@ -19,6 +19,8 @@ export const STRINGS = {
       "Trobar i valorar un lloc és la part més perillosa de l'highlining: aquesta eina només assenyala terreny que podria admetre una línia — mai no confirma ancoratges sòlids, accessos segurs, la qualitat de la roca ni que una línia es pugui equipar.",
     disclaimerResponsibility:
       "Ets l'únic responsable de valorar qualsevol lloc i de la teva pròpia seguretat. Highline Scout no es fa responsable de cap lesió, mort o dany derivat del seu ús.",
+    disclaimerPrivacy:
+      "Recollim estadístiques d'ús anònimes per millorar l'eina. Sense galetes ni seguiment entre visites.",
     disclaimerAccept: "Ho entenc",
     searching: "cercant…",
     mapLoading: "Carregant mapa",
@@ -68,6 +70,8 @@ export const STRINGS = {
       "Encontrar y valorar un sitio es la parte más peligrosa del highlining: esta herramienta solo señala terreno que podría admitir una línea — nunca confirma anclajes sólidos, accesos seguros, la calidad de la roca ni que una línea se pueda montar.",
     disclaimerResponsibility:
       "Eres el único responsable de valorar cualquier sitio y de tu propia seguridad. Highline Scout no se hace responsable de ninguna lesión, muerte o daño derivado de su uso.",
+    disclaimerPrivacy:
+      "Recogemos estadísticas de uso anónimas para mejorar la herramienta. Sin cookies ni seguimiento entre visitas.",
     disclaimerAccept: "Lo entiendo",
     searching: "buscando…",
     mapLoading: "Cargando mapa",
@@ -117,6 +121,8 @@ export const STRINGS = {
       "Finding and assessing a spot is the most dangerous part of highlining: this tool only points to terrain that might hold a line — it never confirms solid anchors, safe access, rock quality, or that a line can be rigged.",
     disclaimerResponsibility:
       "You alone are responsible for assessing any spot and for your own safety. Highline Scout accepts no liability for any injury, death, or damage arising from its use.",
+    disclaimerPrivacy:
+      "We collect anonymous usage stats to improve the tool. No cookies, no tracking across visits.",
     disclaimerAccept: "I understand",
     searching: "searching…",
     mapLoading: "Map loading",

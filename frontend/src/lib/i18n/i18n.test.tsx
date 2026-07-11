@@ -33,6 +33,12 @@ describe("catalog parity", () => {
     expect(STRINGS.en.mapLoading).toBe("Map loading");
     expect(STRINGS.en.densityTooltip).toBe("{n} candidate lines · up to {max} m{lenHint}");
   });
+
+  it("discloses cookieless analytics in every language", () => {
+    expect(STRINGS.ca.disclaimerPrivacy).toMatch(/sense galetes/i);
+    expect(STRINGS.es.disclaimerPrivacy).toMatch(/sin cookies/i);
+    expect(STRINGS.en.disclaimerPrivacy).toMatch(/no cookies/i);
+  });
 });
 
 describe("useI18n", () => {

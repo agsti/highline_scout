@@ -60,6 +60,32 @@ nothing and needs no setup.
   and a debounced `map_settled`. Never bind analytics to a slider's
   `onValueChange` or to a raw `moveend` — those fire per drag frame, and one
   gesture would be recorded dozens of times.
+- **Analytics is deliberately cookieless, and must stay that way.**
+  `persistence: "memory"` writes nothing to the visitor's device and
+  `person_profiles: "identified_only"` keeps events anonymous, which is why the
+  app needs no cookie consent banner. `cookieless_mode: "always"` recovers
+  *same-day* unique-visitor counts on top of that: PostHog hashes IP +
+  User-Agent + a salt that rotates daily into a visitor ID server-side, so
+  same-day counts are meaningful again — with **zero** additional device
+  storage. What is still lost is cross-*day* identity: a visitor's hashed ID
+  changes every day, so **retention and cohort analysis spanning days remain
+  meaningless**. The tempting fix is to switch `persistence` back to
+  `localStorage+cookie`: that is exactly what reintroduces the cookie, and with
+  it the consent obligation. Don't. (Nor `person_profiles: "always"` — it would
+  not fix that anyway, it would just create a person profile per pageview.)
+- **Cookieless mode must be enabled in the PostHog project settings, or every
+  event is silently discarded at ingestion.** This is a hard dependency on
+  dashboard state that nothing in this repo can enforce and no test can catch —
+  the suite is green either way, and the only symptom is that production
+  analytics reads zero. If cookieless mode is ever turned off in the project
+  settings, or the project is recreated, `cookieless_mode: "always"` in
+  `analytics.ts` must go too. The safe order when changing either: enable the
+  project setting **first**, deploy the code **second**.
+- The four `disable_*` flags in `analytics.ts` (session recording, surveys,
+  product tours, conversations) are pinned off because each is independently
+  toggleable from the PostHog dashboard and each would otherwise write to the
+  device — with no code change and no failing test. Enabling any of them from
+  the dashboard would silently falsify the privacy disclosure users are shown.
 - **Backend** (`highliner/core/telemetry.py`) — deliberately thin. The server
   only sees viewport reads, so it emits **no per-request events**: just a
   `slow_request` when a handler exceeds `HIGHLINER_SLOW_REQUEST_MS` (default

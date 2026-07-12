@@ -30,8 +30,8 @@ export function FilterControls(props: FilterControlsProps) {
       }}
     >
       <div className="space-y-2">
-        <div className="flex items-center justify-between text-sm">
-          <Label>{t("lineLength")}</Label>
+        <div className="flex items-center justify-between text-sm md:text-xs">
+          <Label className="md:font-semibold">{t("lineLength")}</Label>
           <span className="text-muted-foreground">
             {minLen}–{maxLen} m
           </span>
@@ -46,8 +46,8 @@ export function FilterControls(props: FilterControlsProps) {
         />
       </div>
       <div className="space-y-2">
-        <div className="flex items-center justify-between text-sm">
-          <Label>{t("minExposure")}</Label>
+        <div className="flex items-center justify-between text-sm md:text-xs">
+          <Label className="md:font-semibold">{t("minExposure")}</Label>
           <span className="text-muted-foreground">{props.minExposure} m</span>
         </div>
         <Slider
@@ -58,14 +58,14 @@ export function FilterControls(props: FilterControlsProps) {
           onValueChange={([value]) => props.onMinExposureChange(value)}
         />
       </div>
-      <label className="flex items-center gap-2 text-sm">
+      <label className="flex items-center gap-2 text-sm md:text-[13px]">
         <Checkbox
           checked={props.showAnchors}
           onCheckedChange={(value) => props.onShowAnchorsChange(value === true)}
         />
         <span>{t("showAnchors")}</span>
       </label>
-      <Button type="submit" className="w-full" disabled={!props.canApply}>
+      <Button type="submit" className="w-full md:h-9 md:rounded-lg md:text-[13px] md:font-bold" disabled={!props.canApply}>
         {t("applyFilters")}
       </Button>
     </form>

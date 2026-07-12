@@ -4,24 +4,27 @@ import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { I18nProvider, useI18n } from "@/lib/i18n";
 import { AppShell } from "./AppShell";
-import { DesktopSidebar } from "./DesktopSidebar";
+import { FilterPill } from "./FilterPill";
+import { FloatingNav } from "./FloatingNav";
 import { MobileControlSheet } from "./MobileControlSheet";
 import { Dialog, DialogContent } from "./ui/dialog";
 
-// The sheet is controlled by App, so these tests supply the open state it owns.
+// The sheet is controlled by App, so these tests supply the open state it owns —
+// and the filter pill is the only thing that opens it.
 function ControlledMobileControlSheet() {
   const [open, setOpen] = useState(false);
   return (
-    <MobileControlSheet
-      summary="20–150 m · exp ≥30 m"
-      legend={null}
-      filters={<div>sheet filters</div>}
-      statuses={<div>sheet status</div>}
-      restrictions={<div>sheet restrictions</div>}
-      caveat="Zones to scout"
-      open={open}
-      onOpenChange={setOpen}
-    />
+    <>
+      <FilterPill summary="20–150 m · exp ≥30 m" onClick={() => setOpen(true)} />
+      <MobileControlSheet
+        filters={<div>sheet filters</div>}
+        statuses={<div>sheet status</div>}
+        restrictions={<div>sheet restrictions</div>}
+        caveat="Zones to scout"
+        open={open}
+        onOpenChange={setOpen}
+      />
+    </>
   );
 }
 
@@ -89,32 +92,19 @@ afterEach(() => {
 function renderShell() {
   return render(
     <I18nProvider>
-      <AppShell
-        sidebar={<div>sidebar controls</div>}
-        mobileControls={<div>mobile controls</div>}
-        map={<div>map area</div>}
-      />
+      <AppShell map={<div>map area</div>} chrome={<div>floating chrome</div>} />
     </I18nProvider>,
   );
 }
 
 describe("AppShell", () => {
-  it("renders desktop sidebar, mobile controls, and map slots", () => {
+  it("renders the full-bleed map under the floating chrome", () => {
     renderShell();
-    expect(screen.getByText("sidebar controls")).toBeInTheDocument();
-    expect(screen.getByText("mobile controls")).toBeInTheDocument();
     expect(screen.getByText("map area")).toBeInTheDocument();
+    expect(screen.getByText("floating chrome")).toBeInTheDocument();
   });
 
-  it("toggles desktop sidebar collapsed state", async () => {
-    const user = userEvent.setup();
-    renderShell();
-    const button = screen.getByRole("button", { name: /minimize|minimitza|minimizar/i });
-    await user.click(button);
-    expect(button).toHaveAttribute("aria-expanded", "false");
-  });
-
-  it("opens the mobile peek-card sheet and exposes the localized close label", async () => {
+  it("opens the filter sheet from the filter pill and exposes the localized close label", async () => {
     const user = userEvent.setup();
 
     setTestLanguage("es");
@@ -131,7 +121,7 @@ describe("AppShell", () => {
     expect(screen.getByRole("button", { name: "Cerrar controles" })).toBeInTheDocument();
   });
 
-  it("renders the opened mobile sheet above the fixed mobile controls", async () => {
+  it("renders the opened mobile sheet above the floating chrome", async () => {
     const user = userEvent.setup();
 
     render(
@@ -148,13 +138,7 @@ describe("AppShell", () => {
   it("localizes the map placeholder through the app i18n catalog", async () => {
     function LocalizedMapShell() {
       const { t } = useI18n();
-      return (
-        <AppShell
-          sidebar={<div>sidebar controls</div>}
-          mobileControls={<div>mobile controls</div>}
-          map={<div>{t("mapLoading")}</div>}
-        />
-      );
+      return <AppShell map={<div>{t("mapLoading")}</div>} chrome={null} />;
     }
 
     setTestLanguage("en");
@@ -199,30 +183,19 @@ describe("AppShell", () => {
     expect(document.body.style.pointerEvents).toBe("");
   });
 
-  it("renders a top navbar with the brand and the language switcher", () => {
-    renderShell();
-
-    expect(screen.getByRole("banner")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Highline Scout" })).toBeInTheDocument();
-    expect(screen.getByRole("combobox", { name: "Idioma" })).toBeInTheDocument();
-  });
-
-  it("renders exactly one language switcher across the navbar, sidebar, and mobile sheet", async () => {
+  it("renders exactly one language switcher across the nav and the mobile sheet", async () => {
     const user = userEvent.setup();
 
     render(
       <I18nProvider>
         <AppShell
-          sidebar={
-            <DesktopSidebar
-              filters={<div>sidebar filters</div>}
-              statuses={<div>sidebar status</div>}
-              restrictions={<div>sidebar restrictions</div>}
-              caveat="Zones to scout"
-            />
-          }
-          mobileControls={<ControlledMobileControlSheet />}
           map={<div>map area</div>}
+          chrome={
+            <>
+              <FloatingNav onAbout={() => {}} />
+              <ControlledMobileControlSheet />
+            </>
+          }
         />
       </I18nProvider>,
     );
@@ -233,7 +206,7 @@ describe("AppShell", () => {
     expect(screen.getByRole("dialog")).toBeInTheDocument();
 
     // The open (modal) sheet marks the rest of the page aria-hidden, so the query
-    // must opt in to hidden elements to still see the navbar and sidebar switchers.
-    expect(screen.getAllByRole("combobox", { name: "Idioma", hidden: true })).toHaveLength(1);
+    // must opt in to hidden elements to still see the nav switcher.
+    expect(screen.getAllByRole("group", { name: "Idioma", hidden: true })).toHaveLength(1);
   });
 });

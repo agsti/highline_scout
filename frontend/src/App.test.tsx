@@ -39,30 +39,28 @@ vi.mock("./components/map/MapView", () => ({
 }));
 
 vi.mock("./components/AppShell", () => ({
-  AppShell: ({ sidebar, mobileControls, map }: { sidebar: ReactNode; mobileControls: ReactNode; map: ReactNode }) => (
+  AppShell: ({ chrome, map }: { chrome: ReactNode; map: ReactNode }) => (
     <div>
-      <div>{sidebar}</div>
-      <div>{mobileControls}</div>
+      <div>{chrome}</div>
       <div>{map}</div>
     </div>
   ),
 }));
 
-vi.mock("./components/DesktopSidebar", () => ({
-  DesktopSidebar: ({ filters, statuses }: { filters: ReactNode; statuses: ReactNode }) => (
+vi.mock("./components/MapChrome", () => ({
+  MapChrome: ({
+    filters,
+    statuses,
+    restrictions,
+  }: {
+    filters: ReactNode;
+    statuses: ReactNode;
+    restrictions: ReactNode;
+  }) => (
     <div>
       {filters}
       {statuses}
-    </div>
-  ),
-}));
-
-vi.mock("./components/MobileControlSheet", () => ({
-  MobileControlSheet: ({ filters, statuses, actions }: { filters: ReactNode; statuses: ReactNode; actions?: ReactNode }) => (
-    <div>
-      {filters}
-      {statuses}
-      {actions ? <div data-testid="mobile-actions-slot">{actions}</div> : null}
+      {restrictions}
     </div>
   ),
 }));
@@ -122,18 +120,10 @@ describe("App", () => {
     vi.restoreAllMocks();
   });
 
-  it("shows the map status in both desktop and mobile status areas", async () => {
+  it("shows the map status in the chrome", async () => {
     renderApp();
 
-    await screen.findAllByText("3 zones");
-    expect(screen.getAllByText("3 zones")).toHaveLength(2);
-  });
-
-  it("does not show map actions in the mobile filter controls", async () => {
-    renderApp();
-
-    await screen.findAllByTestId("filter-controls");
-    expect(screen.queryByTestId("mobile-actions-slot")).not.toBeInTheDocument();
+    expect(await screen.findByText("3 zones")).toBeInTheDocument();
   });
 
   it("loads restriction layer metadata and passes it into the map", async () => {

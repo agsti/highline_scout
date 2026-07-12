@@ -13,12 +13,19 @@ export function RestrictionLegend({ layers, enabled }: RestrictionLegendProps) {
   if (visible.length === 0) return null;
 
   return (
-    <ul aria-label={t("restrictions")} className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
+    <ul
+      aria-label={t("restrictions")}
+      data-testid="legend-chip"
+      className="pointer-events-auto flex items-center gap-3 rounded-full bg-card/[0.92] px-3.5 py-1.5 shadow-pill backdrop-blur-[8px]"
+    >
       {visible.map((layer) => (
-        <li key={layer.id} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+        <li
+          key={layer.id}
+          className="flex items-center gap-1.5 whitespace-nowrap text-[11px] text-muted-foreground"
+        >
           <span
             aria-hidden
-            className="h-2.5 w-2.5 shrink-0 rounded-sm border"
+            className="h-2.5 w-2.5 shrink-0 rounded-sm"
             style={{ backgroundColor: layer.color }}
           />
           {restrictionText(layer.id, lang, layer).label}

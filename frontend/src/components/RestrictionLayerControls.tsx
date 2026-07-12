@@ -28,9 +28,13 @@ export function RestrictionLayerControls({
 }: RestrictionLayerControlsProps) {
   const { lang, t } = useI18n();
 
+  // Inside the desktop panel the disclosure row already frames and titles this
+  // section, so the fieldset drops its own border and legend there.
   return (
-    <fieldset className="space-y-3 rounded-md border p-3">
-      <legend className="px-1 text-xs font-medium text-muted-foreground">{t("restrictions")}</legend>
+    <fieldset className="space-y-3 rounded-md border p-3 md:rounded-none md:border-0 md:p-0">
+      <legend className="px-1 text-xs font-medium text-muted-foreground md:sr-only">
+        {t("restrictions")}
+      </legend>
       {layers.map((layer) => {
         const checked = enabled.includes(layer.id);
         const tx = restrictionText(layer.id, lang, layer);

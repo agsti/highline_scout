@@ -39,6 +39,16 @@ describe("catalog parity", () => {
     expect(STRINGS.es.disclaimerPrivacy).toMatch(/sin cookies/i);
     expect(STRINGS.en.disclaimerPrivacy).toMatch(/no cookies/i);
   });
+
+  it("carries the floating-chrome copy in every language", () => {
+    expect(STRINGS.ca.caveatShort).toBe("Zones sense verificar — valora el terreny tu mateix");
+    expect(STRINGS.es.caveatShort).toBe("Zonas sin verificar — valora el terreno tú mismo");
+    expect(STRINGS.en.caveatShort).toBe("Unverified zones — assess the terrain yourself");
+
+    expect(STRINGS.es.densityHint).toBe("Amplía para ver zonas");
+    expect(STRINGS.en.about).toBe("About Highline Scout");
+    expect(STRINGS.ca.zoomIn).toBe("Amplia");
+  });
 });
 
 describe("useI18n", () => {

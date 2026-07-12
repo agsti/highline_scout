@@ -12,11 +12,11 @@ import {
   DENSITY_TILE_MAX,
   DENSITY_TILE_MIN,
   DENSITY_ZOOM_OFFSET,
-  tealShade,
   zoneKey,
 } from "@/lib/map-style";
 import type { DensityFeatureCollection, RestrictionLayerMeta, ZoneFeatureCollection } from "@/types/highliner";
 import { createDensityLayer, createRestrictionLayer, createZoneLayer, renderAnchors } from "./leafletLayers";
+import { ZoomControls } from "./ZoomControls";
 
 const DEFAULT_VIEW: MapViewState = { center: [41.6, 1.83], zoom: 13 };
 const MOBILE_QUERY = "(max-width: 767px)";
@@ -33,6 +33,7 @@ interface MapViewProps {
   onAnchorStatus: (status: string) => void;
   onRestrictionStatus: (status: string) => void;
   onViewStateChange?: (view: MapViewState) => void;
+  onDensityModeChange?: (dense: boolean) => void;
 }
 
 export async function copyViewportLink(lat: number, lng: number, zoom: number, t: T) {
@@ -67,6 +68,7 @@ export function MapView({
   onAnchorStatus,
   onRestrictionStatus,
   onViewStateChange,
+  onDensityModeChange,
 }: MapViewProps) {
   const { lang, t } = useI18n();
   const elRef = useRef<HTMLDivElement | null>(null);
@@ -86,7 +88,6 @@ export function MapView({
   const keepContextMenuForMoveRef = useRef(false);
   const statusRef = useRef<{ kind: "idle" | "loading-zones" | "loading-density" | "zones" | "density" | "zoom" | "error"; count?: number; detail?: string; noun?: "nounZones" | "nounHotspots" }>({ kind: "idle" });
   const [viewportTick, setViewportTick] = useState(0);
-  const [showDensityLegend, setShowDensityLegend] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
 
@@ -171,7 +172,7 @@ export function MapView({
     if (!elRef.current || mapRef.current) return;
     const urlView = initialViewFromSearch(window.location.search);
     const view = urlView ?? DEFAULT_VIEW;
-    const map = L.map(elRef.current).setView(view.center, view.zoom);
+    const map = L.map(elRef.current, { zoomControl: false }).setView(view.center, view.zoom);
     L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
       maxZoom: 19,
       attribution: "(c) OpenStreetMap",
@@ -240,7 +241,7 @@ export function MapView({
     async function load() {
       const zoom = activeMap.getZoom();
       const densityMode = zoom <= DENSITY_MAX_ZOOM;
-      setShowDensityLegend(densityMode);
+      onDensityModeChange?.(densityMode);
       pushStatus(densityMode ? { kind: "loading-density" } : { kind: "loading-zones" });
       setIsLoading(true);
       try {
@@ -294,7 +295,7 @@ export function MapView({
 
     void load();
     return () => controller.abort();
-  }, [minLen, maxLen, minExposure, onMapStatus, viewportTick]);
+  }, [minLen, maxLen, minExposure, onMapStatus, onDensityModeChange, viewportTick]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -453,24 +454,10 @@ export function MapView({
           </div>
         </div>
       ) : null}
-      {showDensityLegend ? (
-        <div className="pointer-events-none absolute bottom-3 right-3 z-[1100] rounded-md border bg-background/95 px-3 py-2 text-xs shadow">
-          <div className="mb-1 font-medium">{t("lineDensity")}</div>
-          <div className="flex gap-px">
-            {[0, 0.25, 0.5, 0.75, 1].map((value) => (
-              <span
-                key={value}
-                className="block h-2 w-6"
-                style={{ backgroundColor: tealShade(value) }}
-              />
-            ))}
-          </div>
-          <div className="mt-1 flex justify-between text-[11px] text-muted-foreground">
-            <span>{t("sparse")}</span>
-            <span>{t("dense")}</span>
-          </div>
-        </div>
-      ) : null}
+      <ZoomControls
+        onZoomIn={() => mapRef.current?.zoomIn()}
+        onZoomOut={() => mapRef.current?.zoomOut()}
+      />
     </div>
   );
 }

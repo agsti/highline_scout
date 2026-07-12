@@ -13,6 +13,12 @@ export const STRINGS = {
     restrictionCredit: "Dades d'espais protegits © MITECO",
     caveat:
       "Zones per explorar — no s'ha confirmat que es puguin equipar. No s'han verificat ancoratges, arbres, roca solta, accessos ni permisos.",
+    caveatShort: "Zones sense verificar — valora el terreny tu mateix",
+    about: "Sobre Highline Scout",
+    close: "Tanca",
+    zoomIn: "Amplia",
+    zoomOut: "Redueix",
+    densityHint: "Amplia per veure zones",
     disclaimerTitle: "Abans de començar",
     disclaimerLead: "Muntar una highline és perillós i pot ser mortal.",
     disclaimerBody:
@@ -66,6 +72,12 @@ export const STRINGS = {
     restrictionCredit: "Datos de espacios protegidos © MITECO",
     caveat:
       "Zonas para explorar — no se ha confirmado que se puedan montar. No se han verificado anclajes, árboles, roca suelta, accesos ni permisos.",
+    caveatShort: "Zonas sin verificar — valora el terreno tú mismo",
+    about: "Acerca de Highline Scout",
+    close: "Cerrar",
+    zoomIn: "Acercar",
+    zoomOut: "Alejar",
+    densityHint: "Amplía para ver zonas",
     disclaimerTitle: "Antes de empezar",
     disclaimerLead: "Montar una highline es peligroso y puede ser mortal.",
     disclaimerBody:
@@ -119,6 +131,12 @@ export const STRINGS = {
     restrictionCredit: "Protected-area data © MITECO",
     caveat:
       "Zones to scout — not confirmed-riggable. No bolts, trees, loose rock, access or permissions are verified.",
+    caveatShort: "Unverified zones — assess the terrain yourself",
+    about: "About Highline Scout",
+    close: "Close",
+    zoomIn: "Zoom in",
+    zoomOut: "Zoom out",
+    densityHint: "Zoom in to see zones",
     disclaimerTitle: "Before you scout",
     disclaimerLead: "Rigging a highline is dangerous and can be fatal.",
     disclaimerBody:

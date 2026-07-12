@@ -26,6 +26,13 @@
     --input: 150 18% 82%;
     --ring: 176 70% 28%;
     --radius: 0.45rem;
+    /* #114B45 — deep brand, for the wordmark and panel titles */
+    --primary-deep: 174 63% 18%;
+    /* #112B26 — dark floating surface (filter pill, zoom hint) */
+    --ink: 168 43% 12%;
+    /* #DCE7E0 / #E3ECE6 — hairlines, lighter than --border */
+    --hairline: 142 19% 88%;
+    --hairline-soft: 140 19% 91%;
   }
 
   * {

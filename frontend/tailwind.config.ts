@@ -15,6 +15,12 @@ const config = {
         primary: {
           DEFAULT: "hsl(var(--primary))",
           foreground: "hsl(var(--primary-foreground))",
+          deep: "hsl(var(--primary-deep))",
+        },
+        ink: "hsl(var(--ink))",
+        hairline: {
+          DEFAULT: "hsl(var(--hairline))",
+          soft: "hsl(var(--hairline-soft))",
         },
         secondary: {
           DEFAULT: "hsl(var(--secondary))",
@@ -45,6 +51,13 @@ const config = {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
+      },
+      boxShadow: {
+        pill: "0 2px 10px rgba(22,48,42,0.14)",
+        "pill-lg": "0 2px 12px rgba(22,48,42,0.16)",
+        zoom: "0 2px 8px rgba(22,48,42,0.16)",
+        panel: "0 8px 32px rgba(22,48,42,0.2)",
+        "filter-pill": "0 8px 24px rgba(22,48,42,0.35)",
       },
     },
   },

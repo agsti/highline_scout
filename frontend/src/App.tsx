@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type L from "leaflet";
+import { AboutDialog } from "./components/AboutDialog";
 import { AppShell } from "./components/AppShell";
-import { DesktopSidebar } from "./components/DesktopSidebar";
 import { FilterControls, type LengthRange } from "./components/FilterControls";
-import { MobileControlSheet } from "./components/MobileControlSheet";
+import { MapChrome } from "./components/MapChrome";
 import { MapView } from "./components/map/MapView";
 import { RestrictionLayerControls } from "./components/RestrictionLayerControls";
 import { RestrictionLegend } from "./components/RestrictionLegend";
@@ -33,7 +33,9 @@ export function App() {
   const [restrictionStatus, setRestrictionStatus] = useState("");
   const [enabledRestrictions, setEnabledRestrictions] = useState<string[]>([]);
   const [disclaimerOpen, setDisclaimerOpen] = useState(true);
+  const [aboutOpen, setAboutOpen] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [densityMode, setDensityMode] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -110,6 +112,14 @@ export function App() {
 
   const legend = <RestrictionLegend layers={restrictionLayers} enabled={enabledRestrictions} />;
 
+  const swatches = useMemo(
+    () =>
+      restrictionLayers
+        .filter((layer) => enabledRestrictions.includes(layer.id))
+        .map((layer) => layer.color),
+    [restrictionLayers, enabledRestrictions],
+  );
+
   const summary = useMemo(
     () =>
       t("filterSummary", {
@@ -123,26 +133,6 @@ export function App() {
   return (
     <>
       <AppShell
-        sidebar={
-          <DesktopSidebar
-            filters={filters}
-            statuses={statuses}
-            restrictions={restrictions}
-            caveat={t("caveat")}
-          />
-        }
-        mobileControls={
-          <MobileControlSheet
-            summary={summary}
-            legend={legend}
-            filters={filters}
-            statuses={statuses}
-            restrictions={restrictions}
-            caveat={t("caveat")}
-            open={sheetOpen}
-            onOpenChange={setSheetOpen}
-          />
-        }
         map={
           <MapView
             minLen={appliedLengthRange[0]}
@@ -155,9 +145,26 @@ export function App() {
             onMapStatus={setMapStatus}
             onAnchorStatus={setAnchorStatus}
             onRestrictionStatus={setRestrictionStatus}
+            onDensityModeChange={setDensityMode}
+          />
+        }
+        chrome={
+          <MapChrome
+            summary={summary}
+            caveat={t("caveat")}
+            legend={legend}
+            filters={filters}
+            statuses={statuses}
+            restrictions={restrictions}
+            swatches={swatches}
+            densityMode={densityMode}
+            sheetOpen={sheetOpen}
+            onSheetOpenChange={setSheetOpen}
+            onAbout={() => setAboutOpen(true)}
           />
         }
       />
+      <AboutDialog open={aboutOpen} onOpenChange={setAboutOpen} />
       <SafetyDisclaimerDialog open={disclaimerOpen} onAccept={() => setDisclaimerOpen(false)} />
     </>
   );

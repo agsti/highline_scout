@@ -56,8 +56,8 @@ describe("mobile control sheet", () => {
 
     await user.click(screen.getByRole("button", { name: /i understand/i }));
 
-    const card = screen.getByTestId("mobile-summary-card");
-    expect(within(card).getByText("20–150 m · exp ≥30 m")).toBeInTheDocument();
+    const pill = screen.getByTestId("filter-pill");
+    expect(within(pill).getByText("20–150 m · exp ≥30 m")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /open controls/i }));
     const sheet = await screen.findByRole("dialog");
@@ -65,13 +65,13 @@ describe("mobile control sheet", () => {
     sliders[0].focus();
     await user.keyboard("{ArrowRight}");
 
-    // Dragging a slider is only a draft — the card must still describe the map.
-    expect(within(card).getByText("20–150 m · exp ≥30 m")).toBeInTheDocument();
+    // Dragging a slider is only a draft — the pill must still describe the map.
+    expect(within(pill).getByText("20–150 m · exp ≥30 m")).toBeInTheDocument();
 
     await user.click(within(sheet).getByRole("button", { name: /apply filters/i }));
 
     await waitFor(() =>
-      expect(within(card).getByText("21–150 m · exp ≥30 m")).toBeInTheDocument(),
+      expect(within(pill).getByText("21–150 m · exp ≥30 m")).toBeInTheDocument(),
     );
   });
 
@@ -85,8 +85,7 @@ describe("mobile control sheet", () => {
 
     await user.click(screen.getByRole("button", { name: /i understand/i }));
 
-    const card = screen.getByTestId("mobile-summary-card");
-    expect(within(card).queryByText("ZEPA (Aves)")).toBeNull();
+    expect(screen.queryByTestId("legend-chip")).toBeNull();
 
     await user.click(screen.getByRole("button", { name: /open controls/i }));
     const sheet = await screen.findByRole("dialog");
@@ -95,10 +94,10 @@ describe("mobile control sheet", () => {
     await user.click(within(sheet).getByRole("button", { name: /close controls/i }));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
 
-    expect(within(card).getByText("ZEPA (Aves)")).toBeInTheDocument();
+    expect(within(screen.getByTestId("legend-chip")).getByText("ZEPA (Aves)")).toBeInTheDocument();
   });
 
-  it("expands the sheet when the card body is tapped", async () => {
+  it("opens the sheet when the pill summary is tapped", async () => {
     const user = userEvent.setup();
     render(
       <I18nProvider>
@@ -109,10 +108,10 @@ describe("mobile control sheet", () => {
     await user.click(screen.getByRole("button", { name: /i understand/i }));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
 
-    const card = screen.getByTestId("mobile-summary-card");
+    const pill = screen.getByTestId("filter-pill");
 
-    // The summary text is not a button — tapping it must still open the sheet.
-    await user.click(within(card).getByText("20–150 m · exp ≥30 m"));
+    // Tapping the summary inside the pill must open the sheet, not just the icon.
+    await user.click(within(pill).getByText("20–150 m · exp ≥30 m"));
 
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
   });

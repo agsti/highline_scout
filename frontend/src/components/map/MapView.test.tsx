@@ -27,6 +27,8 @@ const leafletMocks = vi.hoisted(() => ({
   setView: vi.fn(),
   tileLayer: vi.fn(),
   zoneLayerAddData: vi.fn(),
+  zoomIn: vi.fn(),
+  zoomOut: vi.fn(),
   bindPopup: vi.fn(),
   bindTooltip: vi.fn(),
   domCreate: vi.fn(),
@@ -87,6 +89,8 @@ vi.mock("leaflet", () => {
     getCenter: () => leafletState.center,
     getBounds: () => leafletState.bounds,
     getZoom: () => leafletState.zoom,
+    zoomIn: leafletMocks.zoomIn,
+    zoomOut: leafletMocks.zoomOut,
   };
 
   const zoneLayer = {
@@ -160,6 +164,7 @@ function renderMapView(props?: Partial<React.ComponentProps<typeof MapView>>) {
         onAnchorStatus={props?.onAnchorStatus ?? vi.fn()}
         onRestrictionStatus={props?.onRestrictionStatus ?? vi.fn()}
         onViewStateChange={props?.onViewStateChange ?? vi.fn()}
+        onDensityModeChange={props?.onDensityModeChange ?? vi.fn()}
       />
     </I18nProvider>,
   );
@@ -190,6 +195,7 @@ function renderMapViewWithLanguageControl(props?: Partial<React.ComponentProps<t
         onAnchorStatus={props?.onAnchorStatus ?? vi.fn()}
         onRestrictionStatus={props?.onRestrictionStatus ?? vi.fn()}
         onViewStateChange={props?.onViewStateChange ?? vi.fn()}
+        onDensityModeChange={props?.onDensityModeChange ?? vi.fn()}
       />
     </I18nProvider>,
   );
@@ -275,6 +281,8 @@ describe("MapView", () => {
       getCenter: () => leafletState.center,
       getBounds: () => leafletState.bounds,
       getZoom: () => leafletState.zoom,
+      zoomIn: leafletMocks.zoomIn,
+      zoomOut: leafletMocks.zoomOut,
     });
     leafletMocks.layerGroup.mockReturnValue({
       addTo: vi.fn().mockReturnThis(),
@@ -390,7 +398,8 @@ describe("MapView", () => {
     });
 
     const onMapStatus = vi.fn();
-    renderMapView({ onMapStatus });
+    const onDensityModeChange = vi.fn();
+    renderMapView({ onMapStatus, onDensityModeChange });
 
     await waitFor(() =>
       expect(apiMocks.fetchDensity).toHaveBeenCalledWith(
@@ -404,12 +413,9 @@ describe("MapView", () => {
     );
     expect(onMapStatus).toHaveBeenCalledWith("carregant punts d'interès…");
     expect(onMapStatus).toHaveBeenLastCalledWith("2 cel·les de punts d'interès (amplia per veure zones)");
-    expect(screen.getByText("Probabilitat de línies")).toBeInTheDocument();
-    expect(screen.getByText("baixa")).toBeInTheDocument();
-    expect(screen.getByText("alta")).toBeInTheDocument();
   });
 
-  it("renders the density legend above the Leaflet panes", async () => {
+  it("reports density mode to the chrome instead of drawing its own legend", async () => {
     leafletState.zoom = 12;
     apiMocks.fetchDensity.mockResolvedValue({
       type: "FeatureCollection",
@@ -422,13 +428,22 @@ describe("MapView", () => {
       ],
     });
 
+    const onDensityModeChange = vi.fn();
+    renderMapView({ onDensityModeChange });
+
+    await waitFor(() => expect(onDensityModeChange).toHaveBeenCalledWith(true));
+    expect(screen.queryByText("Probabilitat de línies")).toBeNull();
+  });
+
+  it("zooms the map from the floating zoom controls", async () => {
+    const user = userEvent.setup();
     renderMapView();
 
-    const legend = (await screen.findByText("Probabilitat de línies")).closest("div.absolute");
-    expect(legend).not.toBeNull();
-    // Without an explicit stacking index the card renders behind Leaflet's
-    // positive-z panes (tile pane z-200 … control container z-1000).
-    expect(legend).toHaveClass("z-[1100]");
+    await user.click(screen.getByRole("button", { name: "Amplia" }));
+    expect(leafletMocks.zoomIn).toHaveBeenCalledTimes(1);
+
+    await user.click(screen.getByRole("button", { name: "Redueix" }));
+    expect(leafletMocks.zoomOut).toHaveBeenCalledTimes(1);
   });
 
   it("shows a loading spinner over the map while a request is in flight, then hides it", async () => {
@@ -547,7 +562,7 @@ describe("MapView", () => {
     expect(apiMocks.fetchZones).toHaveBeenCalledTimes(1);
   });
 
-  it("rebinds cached density tooltips in the new language and hides the legend outside density mode", async () => {
+  it("rebinds cached density tooltips in the new language and leaves density mode on zoom in", async () => {
     leafletState.zoom = 12;
     apiMocks.fetchDensity.mockResolvedValue({
       type: "FeatureCollection",
@@ -560,10 +575,12 @@ describe("MapView", () => {
       ],
     });
 
-    renderMapViewWithLanguageControl();
+    const onDensityModeChange = vi.fn();
+    renderMapViewWithLanguageControl({ onDensityModeChange });
 
     await waitFor(() => expect(apiMocks.fetchDensity).toHaveBeenCalledTimes(1));
     expect(leafletMocks.bindTooltip).toHaveBeenCalledWith("4 línies candidates · fins a 55 m · 80–120 m de llarg");
+    expect(onDensityModeChange).toHaveBeenLastCalledWith(true);
 
     await act(async () => {
       screen.getByRole("button", { name: "set english" }).click();
@@ -573,14 +590,13 @@ describe("MapView", () => {
       expect(leafletMocks.bindTooltip).toHaveBeenCalledWith("4 candidate lines · up to 55 m · 80–120 m long"),
     );
     expect(apiMocks.fetchDensity).toHaveBeenCalledTimes(1);
-    expect(screen.getByText("Line chance")).toBeInTheDocument();
 
     leafletState.zoom = 13;
     await act(async () => {
       leafletState.moveend?.();
     });
 
-    await waitFor(() => expect(screen.queryByText("Line chance")).not.toBeInTheDocument());
+    await waitFor(() => expect(onDensityModeChange).toHaveBeenLastCalledWith(false));
   });
 
   it("loads anchors above the zoom threshold and reports the anchor count", async () => {

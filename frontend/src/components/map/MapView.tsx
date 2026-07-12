@@ -29,9 +29,10 @@ interface MapViewProps {
   enabledRestrictions: string[];
   restrictionLayers: RestrictionLayerMeta[];
   onViewportChange: (map: L.Map) => void;
-  onMapStatus: (status: string) => void;
-  onAnchorStatus: (status: string) => void;
-  onRestrictionStatus: (status: string) => void;
+  onMapStatus?: (status: string) => void;
+  onAnchorStatus?: (status: string) => void;
+  onRestrictionStatus?: (status: string) => void;
+  onError?: (message: string) => void;
   onViewStateChange?: (view: MapViewState) => void;
   onDensityModeChange?: (dense: boolean) => void;
 }
@@ -67,6 +68,7 @@ export function MapView({
   onMapStatus,
   onAnchorStatus,
   onRestrictionStatus,
+  onError,
   onViewStateChange,
   onDensityModeChange,
 }: MapViewProps) {
@@ -112,7 +114,7 @@ export function MapView({
 
   function pushStatus(next: typeof statusRef.current) {
     statusRef.current = next;
-    onMapStatus(renderStatus());
+    onMapStatus?.(renderStatus());
   }
 
   function publishViewState(map: L.Map) {
@@ -223,7 +225,7 @@ export function MapView({
     const map = mapRef.current;
     if (!map) return;
     rebuildDynamicLayers(map);
-    onMapStatus(renderStatus());
+    onMapStatus?.(renderStatus());
   }, [lang, onMapStatus]);
 
   useEffect(() => {
@@ -284,7 +286,11 @@ export function MapView({
         if (error instanceof ApiError && error.status === 413) {
           pushStatus({ kind: "zoom", noun: activeMap.getZoom() <= DENSITY_MAX_ZOOM ? "nounHotspots" : "nounZones" });
         } else {
-          pushStatus({ kind: "error", detail: error instanceof Error ? error.message : String(error) });
+          const detail = error instanceof Error ? error.message : String(error);
+          const message = tRef.current("error", { detail });
+          statusRef.current = { kind: "error", detail };
+          onMapStatus?.(message);
+          onError?.(message);
         }
       } finally {
         // Only the newest request owns the spinner; a superseded one that lost
@@ -295,7 +301,7 @@ export function MapView({
 
     void load();
     return () => controller.abort();
-  }, [minLen, maxLen, minExposure, onMapStatus, onDensityModeChange, viewportTick]);
+  }, [minLen, maxLen, minExposure, onMapStatus, onError, onDensityModeChange, viewportTick]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -303,27 +309,29 @@ export function MapView({
     if (!map || !layer) return;
     if (!showAnchors) {
       layer.clearLayers();
-      onAnchorStatus("");
+      onAnchorStatus?.("");
       return;
     }
     if (map.getZoom() < ANCHOR_MIN_ZOOM) {
       layer.clearLayers();
-      onAnchorStatus(t("zoomInToSee", { noun: t("nounAnchors") }));
+      onAnchorStatus?.(t("zoomInToSee", { noun: t("nounAnchors") }));
       return;
     }
     const controller = new AbortController();
     fetchAnchors({ bboxLonLat: bboxLonLatParam(map.getBounds()) }, controller.signal)
       .then((fc) => {
         renderAnchors(layer, fc, t);
-        onAnchorStatus(t("anchorsCount", { n: fc.features.length }));
+        onAnchorStatus?.(t("anchorsCount", { n: fc.features.length }));
       })
       .catch((error) => {
         if (controller.signal.aborted) return;
         layer.clearLayers();
-        onAnchorStatus(t("anchorError", { detail: error instanceof Error ? error.message : String(error) }));
+        const message = t("anchorError", { detail: error instanceof Error ? error.message : String(error) });
+        onAnchorStatus?.(message);
+        onError?.(message);
       });
     return () => controller.abort();
-  }, [showAnchors, t, onAnchorStatus, viewportTick]);
+  }, [showAnchors, t, onAnchorStatus, onError, viewportTick]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -331,7 +339,7 @@ export function MapView({
     if (!map || !layer) return;
     if (enabledRestrictions.length === 0) {
       layer.clearLayers();
-      onRestrictionStatus("");
+      onRestrictionStatus?.("");
       return;
     }
     const controller = new AbortController();
@@ -342,19 +350,21 @@ export function MapView({
       .then((fc) => {
         layer.clearLayers();
         layer.addData(fc);
-        onRestrictionStatus(t("protectedAreasCount", { n: fc.features.length }));
+        onRestrictionStatus?.(t("protectedAreasCount", { n: fc.features.length }));
       })
       .catch((error) => {
         if (controller.signal.aborted) return;
         layer.clearLayers();
         if (error instanceof ApiError && error.status === 413) {
-          onRestrictionStatus(t("zoomInToSee", { noun: t("nounProtectedAreas") }));
+          onRestrictionStatus?.(t("zoomInToSee", { noun: t("nounProtectedAreas") }));
         } else {
-          onRestrictionStatus(t("error", { detail: error instanceof Error ? error.message : String(error) }));
+          const message = t("error", { detail: error instanceof Error ? error.message : String(error) });
+          onRestrictionStatus?.(message);
+          onError?.(message);
         }
       });
     return () => controller.abort();
-  }, [enabledRestrictions, t, onRestrictionStatus, viewportTick]);
+  }, [enabledRestrictions, t, onRestrictionStatus, onError, viewportTick]);
 
   useEffect(() => {
     zoneLayerRef.current?.clearLayers();

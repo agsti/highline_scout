@@ -163,6 +163,7 @@ function renderMapView(props?: Partial<React.ComponentProps<typeof MapView>>) {
         onMapStatus={props?.onMapStatus ?? vi.fn()}
         onAnchorStatus={props?.onAnchorStatus ?? vi.fn()}
         onRestrictionStatus={props?.onRestrictionStatus ?? vi.fn()}
+        onError={props?.onError ?? vi.fn()}
         onViewStateChange={props?.onViewStateChange ?? vi.fn()}
         onDensityModeChange={props?.onDensityModeChange ?? vi.fn()}
       />
@@ -194,6 +195,7 @@ function renderMapViewWithLanguageControl(props?: Partial<React.ComponentProps<t
         onMapStatus={props?.onMapStatus ?? vi.fn()}
         onAnchorStatus={props?.onAnchorStatus ?? vi.fn()}
         onRestrictionStatus={props?.onRestrictionStatus ?? vi.fn()}
+        onError={props?.onError ?? vi.fn()}
         onViewStateChange={props?.onViewStateChange ?? vi.fn()}
         onDensityModeChange={props?.onDensityModeChange ?? vi.fn()}
       />
@@ -377,6 +379,37 @@ describe("MapView", () => {
       configurable: true,
       value: originalMatchMedia,
     });
+  });
+
+  it("reports zone loading failures through the error callback", async () => {
+    const onError = vi.fn();
+    apiMocks.fetchZones.mockRejectedValue(new Error("zones unavailable"));
+
+    renderMapView({ onError });
+
+    await waitFor(() => expect(onError).toHaveBeenCalledWith("Error: zones unavailable"));
+  });
+
+  it("reports anchor loading failures through the error callback", async () => {
+    const onError = vi.fn();
+    apiMocks.fetchZones.mockResolvedValue({ type: "FeatureCollection", features: [] });
+    apiMocks.fetchAnchors.mockRejectedValue(new Error("anchors unavailable"));
+
+    renderMapView({ onError });
+
+    await waitFor(() =>
+      expect(onError).toHaveBeenCalledWith("Error carregant ancoratges: anchors unavailable"),
+    );
+  });
+
+  it("reports restriction loading failures through the error callback", async () => {
+    const onError = vi.fn();
+    apiMocks.fetchZones.mockResolvedValue({ type: "FeatureCollection", features: [] });
+    apiMocks.fetchRestrictions.mockRejectedValue(new Error("restrictions unavailable"));
+
+    renderMapView({ enabledRestrictions: ["zepa"], onError });
+
+    await waitFor(() => expect(onError).toHaveBeenCalledWith("Error: restrictions unavailable"));
   });
 
   it("loads density cells at low zoom and reports hotspot status", async () => {

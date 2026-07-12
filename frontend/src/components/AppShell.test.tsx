@@ -18,7 +18,6 @@ function ControlledMobileControlSheet() {
       <FilterPill summary="20–150 m · exp ≥30 m" onClick={() => setOpen(true)} />
       <MobileControlSheet
         filters={<div>sheet filters</div>}
-        statuses={<div>sheet status</div>}
         restrictions={<div>sheet restrictions</div>}
         caveat="Zones to scout"
         open={open}

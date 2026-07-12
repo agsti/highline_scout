@@ -5,7 +5,6 @@ import { useI18n } from "@/lib/i18n";
 interface MobileControlSheetProps {
   filters: ReactNode;
   restrictions: ReactNode;
-  statuses: ReactNode;
   caveat: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -26,7 +25,6 @@ export function MobileControlSheet(props: MobileControlSheetProps) {
         </SheetHeader>
         <div className="mt-4 space-y-5">
           {props.filters}
-          {props.statuses}
           {props.restrictions}
           <p className="rounded-md border border-destructive/25 bg-destructive/5 p-3 text-xs leading-5 text-destructive">
             {props.caveat}

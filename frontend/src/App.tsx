@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type L from "leaflet";
 import { AboutDialog } from "./components/AboutDialog";
 import { AppShell } from "./components/AppShell";
@@ -8,7 +8,6 @@ import { MapView } from "./components/map/MapView";
 import { RestrictionLayerControls } from "./components/RestrictionLayerControls";
 import { RestrictionLegend } from "./components/RestrictionLegend";
 import { SafetyDisclaimerDialog } from "./components/SafetyDisclaimerDialog";
-import { StatusLine } from "./components/StatusLine";
 import { capture } from "./lib/analytics";
 import { fetchRestrictionLayers } from "./lib/api";
 import { bboxLonLatParam } from "./lib/geo";
@@ -20,32 +19,38 @@ const DEFAULT_MIN_EXPOSURE = 30;
 
 export function App() {
   const { t } = useI18n();
-  const [mapStatus, setMapStatus] = useState(() => t("searching"));
-  const [mapErrorDetail, setMapErrorDetail] = useState("");
+  const tRef = useRef(t);
+  const [error, setError] = useState<{ id: number; message: string } | null>(null);
   const [, setViewportBbox] = useState("");
   const [draftLengthRange, setDraftLengthRange] = useState<LengthRange>(DEFAULT_LENGTH_RANGE);
   const [draftMinExposure, setDraftMinExposure] = useState(DEFAULT_MIN_EXPOSURE);
   const [appliedLengthRange, setAppliedLengthRange] = useState<LengthRange>(DEFAULT_LENGTH_RANGE);
   const [appliedMinExposure, setAppliedMinExposure] = useState(DEFAULT_MIN_EXPOSURE);
   const [showAnchors, setShowAnchors] = useState(true);
-  const [anchorStatus, setAnchorStatus] = useState("");
   const [restrictionLayers, setRestrictionLayers] = useState<RestrictionLayerMeta[]>([]);
-  const [restrictionStatus, setRestrictionStatus] = useState("");
   const [enabledRestrictions, setEnabledRestrictions] = useState<string[]>([]);
   const [disclaimerOpen, setDisclaimerOpen] = useState(true);
   const [aboutOpen, setAboutOpen] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [densityMode, setDensityMode] = useState(false);
 
+  const handleError = useCallback((message: string) => {
+    setError((previous) => ({ id: (previous?.id ?? 0) + 1, message }));
+  }, []);
+
+  useEffect(() => {
+    tRef.current = t;
+  }, [t]);
+
   useEffect(() => {
     const controller = new AbortController();
     fetchRestrictionLayers(controller.signal)
       .then(setRestrictionLayers)
       .catch((error) => {
-        if (error.name !== "AbortError") setRestrictionStatus(t("error", { detail: error.detail ?? String(error) }));
+        if (error.name !== "AbortError") handleError(tRef.current("error", { detail: error.detail ?? String(error) }));
       });
     return () => controller.abort();
-  }, [t]);
+  }, [handleError]);
 
   const handleViewportChange = useCallback((map: L.Map) => {
     setViewportBbox(bboxLonLatParam(map.getBounds()));
@@ -94,14 +99,6 @@ export function App() {
     />
   );
 
-  const statuses = (
-    <div className="space-y-1">
-      <StatusLine>{mapErrorDetail ? t("error", { detail: mapErrorDetail }) : mapStatus}</StatusLine>
-      {anchorStatus ? <StatusLine>{anchorStatus}</StatusLine> : null}
-      {restrictionStatus ? <StatusLine>{restrictionStatus}</StatusLine> : null}
-    </div>
-  );
-
   const restrictions = (
     <RestrictionLayerControls
       layers={restrictionLayers}
@@ -134,9 +131,7 @@ export function App() {
             enabledRestrictions={enabledRestrictions}
             restrictionLayers={restrictionLayers}
             onViewportChange={handleViewportChange}
-            onMapStatus={setMapStatus}
-            onAnchorStatus={setAnchorStatus}
-            onRestrictionStatus={setRestrictionStatus}
+            onError={handleError}
             onDensityModeChange={setDensityMode}
           />
         }
@@ -146,12 +141,14 @@ export function App() {
             caveat={t("caveat")}
             legend={legend}
             filters={filters}
-            statuses={statuses}
             restrictions={restrictions}
+            errorMessage={error?.message ?? ""}
+            errorEventId={error?.id ?? 0}
             densityMode={densityMode}
             sheetOpen={sheetOpen}
             onSheetOpenChange={setSheetOpen}
             onAbout={() => setAboutOpen(true)}
+            onErrorDismiss={() => setError(null)}
           />
         }
       />

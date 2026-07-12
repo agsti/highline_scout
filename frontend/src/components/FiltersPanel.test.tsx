@@ -29,7 +29,6 @@ function renderPanel() {
       <FiltersPanel
         filters={<div>panel filters</div>}
         restrictions={<div>panel restrictions</div>}
-        statuses={<div>panel statuses</div>}
       />
     </I18nProvider>,
   );
@@ -45,7 +44,6 @@ describe("FiltersPanel", () => {
     renderPanel();
 
     expect(screen.getByText("panel filters")).toBeInTheDocument();
-    expect(screen.getByText("panel statuses")).toBeInTheDocument();
 
     const toggle = screen.getByRole("button", { name: "Minimize panel" });
     expect(toggle).toHaveAttribute("aria-expanded", "true");
@@ -99,7 +97,6 @@ describe("FiltersPanel", () => {
               onEnabledChange={vi.fn()}
             />
           }
-          statuses={<div>panel statuses</div>}
         />
       </I18nProvider>,
     );

@@ -1,13 +1,17 @@
 import { useEffect, type ReactNode } from "react";
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
+import { ErrorToast } from "./components/ErrorToast";
 import { I18nProvider, useI18n } from "./lib/i18n";
 
 const apiMocks = vi.hoisted(() => ({
   fetchRestrictionLayers: vi.fn(),
 }));
+
+let publishMapStatus: ((status: string) => void) | undefined;
+let publishMapError: ((message: string) => void) | undefined;
 
 vi.mock("./lib/api", () => ({
   fetchRestrictionLayers: apiMocks.fetchRestrictionLayers,
@@ -19,12 +23,16 @@ vi.mock("./components/map/MapView", () => ({
     enabledRestrictions,
     restrictionLayers,
     onMapStatus,
+    onError,
   }: {
     showAnchors?: boolean;
     enabledRestrictions?: string[];
     restrictionLayers?: Array<{ id: string }>;
     onMapStatus?: (status: string) => void;
+    onError?: (message: string) => void;
   }) => {
+    publishMapStatus = onMapStatus;
+    publishMapError = onError;
     useEffect(() => {
       onMapStatus?.("3 zones");
     }, [onMapStatus]);
@@ -50,17 +58,21 @@ vi.mock("./components/AppShell", () => ({
 vi.mock("./components/MapChrome", () => ({
   MapChrome: ({
     filters,
-    statuses,
     restrictions,
+    errorMessage,
+    errorEventId,
+    onErrorDismiss,
   }: {
     filters: ReactNode;
-    statuses: ReactNode;
     restrictions: ReactNode;
+    errorMessage: string;
+    errorEventId: number;
+    onErrorDismiss: () => void;
   }) => (
     <div>
       {filters}
-      {statuses}
       {restrictions}
+      <ErrorToast message={errorMessage} eventId={errorEventId} onDismiss={onErrorDismiss} />
     </div>
   ),
 }));
@@ -117,13 +129,39 @@ describe("App", () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     vi.restoreAllMocks();
   });
 
-  it("shows the map status in the chrome", async () => {
+  it("does not show the map status in the chrome", async () => {
     renderApp();
 
-    expect(await screen.findByText("3 zones")).toBeInTheDocument();
+    await screen.findByText("restrictions");
+    await act(async () => {});
+    expect(screen.queryByText("3 zones")).not.toBeInTheDocument();
+  });
+
+  it("shows map errors in a toast and dismisses them automatically", async () => {
+    vi.useFakeTimers();
+    renderApp();
+
+    await act(async () => {});
+    act(() => publishMapError?.("Error: zones unavailable"));
+    expect(screen.getByRole("alert")).toHaveTextContent("Error: zones unavailable");
+
+    act(() => vi.advanceTimersByTime(5000));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("shows restriction metadata errors in the shared toast", async () => {
+    window.localStorage.setItem("lang", "ca");
+    apiMocks.fetchRestrictionLayers.mockRejectedValue({
+      name: "RequestError",
+      detail: "metadata unavailable",
+    });
+    renderApp();
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Error: metadata unavailable");
   });
 
   it("loads restriction layer metadata and passes it into the map", async () => {

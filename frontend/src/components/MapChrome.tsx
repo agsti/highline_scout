@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { CaveatChip } from "./CaveatChip";
+import { ErrorToast } from "./ErrorToast";
 import { FilterPill } from "./FilterPill";
 import { FiltersPanel } from "./FiltersPanel";
 import { FloatingNav } from "./FloatingNav";
@@ -13,11 +14,13 @@ interface MapChromeProps {
   legend: ReactNode;
   filters: ReactNode;
   restrictions: ReactNode;
-  statuses: ReactNode;
+  errorMessage: string;
+  errorEventId: number;
   densityMode: boolean;
   sheetOpen: boolean;
   onSheetOpenChange: (open: boolean) => void;
   onAbout: () => void;
+  onErrorDismiss: () => void;
 }
 
 export function MapChrome(props: MapChromeProps) {
@@ -27,10 +30,14 @@ export function MapChrome(props: MapChromeProps) {
       <FiltersPanel
         filters={props.filters}
         restrictions={props.restrictions}
-        statuses={props.statuses}
       />
       <CaveatChip />
       <ZoomHintToast active={props.densityMode} />
+      <ErrorToast
+        message={props.errorMessage}
+        eventId={props.errorEventId}
+        onDismiss={props.onErrorDismiss}
+      />
 
       {props.densityMode ? (
         <div className="pointer-events-none absolute bottom-3 left-1/2 z-[1000] hidden -translate-x-1/2 md:block">
@@ -51,7 +58,6 @@ export function MapChrome(props: MapChromeProps) {
       <MobileControlSheet
         filters={props.filters}
         restrictions={props.restrictions}
-        statuses={props.statuses}
         caveat={props.caveat}
         open={props.sheetOpen}
         onOpenChange={props.onSheetOpenChange}

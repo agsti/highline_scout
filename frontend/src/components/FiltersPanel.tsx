@@ -6,10 +6,9 @@ import { cn } from "@/lib/utils";
 interface FiltersPanelProps {
   filters: ReactNode;
   restrictions: ReactNode;
-  statuses: ReactNode;
 }
 
-export function FiltersPanel({ filters, restrictions, statuses }: FiltersPanelProps) {
+export function FiltersPanel({ filters, restrictions }: FiltersPanelProps) {
   const { t } = useI18n();
   const [collapsed, setCollapsed] = useState(false);
 
@@ -53,7 +52,6 @@ export function FiltersPanel({ filters, restrictions, statuses }: FiltersPanelPr
           >
             <div className="flex flex-col gap-3.5 p-3.5">
               {filters}
-              {statuses}
             </div>
 
             <div className="relative border-t border-hairline-soft">

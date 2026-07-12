@@ -10,6 +10,8 @@ from highliner.models.candidate import Candidate
 from highliner.repositories.anchors import save_anchors
 from highliner.repositories.candidates import save_candidates
 
+from tests.helpers import to_utm
+
 # (centre_x, centre_y, anchor_a, anchor_b, candidate) for one facing pair.
 _Pair = tuple[float, float, Anchor, Anchor, Candidate]
 
@@ -41,8 +43,7 @@ def _gap_region(data_dir: Path, region: str = "test") -> None:
 
 def _facing_pair(lon: float, lat: float) -> _Pair:
     """Two facing anchors 80 m apart, centred on the UTM projection of (lon, lat)."""
-    from highliner.core import geo
-    cx, cy = geo.to_utm(lon, lat)
+    cx, cy = to_utm(lon, lat)
     a = Anchor(x=cx - 40, y=cy, elev=100.0, sectors=((80.0, 100.0, 60.0),))
     b = Anchor(x=cx + 40, y=cy, elev=100.0, sectors=((260.0, 280.0, 60.0),))
     c = Candidate(a=a, b=b, length=80.0, exposure=80.0, height_diff=0.0)
@@ -90,8 +91,7 @@ def test_candidates_route_removed(tmp_path: Path) -> None:
 def test_zones_bbox_lonlat(tmp_path: Path) -> None:
     # Place the region's anchors at real Catalan UTM coords and query with a
     # lon/lat bbox that covers them, exercising the WGS84 -> UTM conversion.
-    from highliner.core import geo
-    cx, cy = geo.to_utm(1.83, 41.59)  # near Montserrat
+    cx, cy = to_utm(1.83, 41.59)  # near Montserrat
     a = Anchor(x=cx - 40, y=cy, elev=100.0, sectors=((80.0, 100.0, 60.0),))
     b = Anchor(x=cx + 40, y=cy, elev=100.0, sectors=((260.0, 280.0, 60.0),))
     c = Candidate(a=a, b=b, length=80.0, exposure=80.0, height_diff=0.0)

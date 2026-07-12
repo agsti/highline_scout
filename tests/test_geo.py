@@ -2,6 +2,8 @@ import math
 
 from highliner.core import geo
 
+from tests.helpers import to_utm
+
 
 def test_bearing_cardinals() -> None:
     # bearing measured clockwise from north (0=N, 90=E, 180=S, 270=W)
@@ -38,7 +40,7 @@ def test_bearing_in_full_circle_sector_with_tol() -> None:
 def test_roundtrip_crs() -> None:
     # A point near Montserrat, Catalonia
     lon, lat = 1.83, 41.59
-    x, y = geo.to_utm(lon, lat)
+    x, y = to_utm(lon, lat)
     lon2, lat2 = geo.to_lonlat(x, y)
     assert math.isclose(lon, lon2, abs_tol=1e-6)
     assert math.isclose(lat, lat2, abs_tol=1e-6)

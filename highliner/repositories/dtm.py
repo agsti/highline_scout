@@ -326,19 +326,6 @@ def _fetch_cnig_tiles(bbox: Bbox, tiles_dir: Path, crs: str) -> list[Path]:
     return out
 
 
-def estimate_tiles(bbox: Bbox, res: float = NATIVE_RES,
-                   tile_px: int = MAX_TILE_PX) -> int:
-    minx, miny, maxx, maxy = (float(v) for v in bbox)
-    minx = math.floor(minx / res) * res
-    miny = math.floor(miny / res) * res
-    maxx = math.ceil(maxx / res) * res
-    maxy = math.ceil(maxy / res) * res
-    step = tile_px * res
-    nx = math.ceil((maxx - minx) / step)
-    ny = math.ceil((maxy - miny) / step)
-    return int(nx * ny)
-
-
 def _snap(bbox: Bbox, res: float) -> Bbox:
     minx, miny, maxx, maxy = (float(v) for v in bbox)
     return (math.floor(minx / res) * res, math.floor(miny / res) * res,

@@ -1,11 +1,13 @@
 import json
 from pathlib import Path
 
-from highliner.core import config, geo, tiles
+from highliner.core import config, tiles
 from highliner.models.anchor import Anchor
 from highliner.models.candidate import Candidate
 from highliner.repositories.candidates import save_candidates
 from highliner.services import density
+
+from tests.helpers import to_utm
 
 
 def _pair(mx: float, my: float, exposure: float, spread: float = 40.0) -> Candidate:
@@ -25,8 +27,8 @@ def _write_region(tmp_path: Path, pairs: list[Candidate]) -> Path:
 
 def test_two_pairs_share_a_cell_third_apart(tmp_path: Path) -> None:
     # Two pairs at the same midpoint (Montserrat area, UTM), one ~5 km away.
-    near = geo.to_utm(1.83, 41.59)
-    far = geo.to_utm(1.90, 41.59)
+    near = to_utm(1.83, 41.59)
+    far = to_utm(1.90, 41.59)
     p1 = _pair(near[0], near[1], exposure=40.0, spread=40.0)   # length 80
     p2 = _pair(near[0], near[1], exposure=70.0, spread=25.0)   # length 50
     p3 = _pair(far[0], far[1], exposure=25.0)
@@ -45,7 +47,7 @@ def test_two_pairs_share_a_cell_third_apart(tmp_path: Path) -> None:
 
 
 def test_report_and_default_zooms(tmp_path: Path) -> None:
-    near = geo.to_utm(1.83, 41.59)
+    near = to_utm(1.83, 41.59)
     region = _write_region(tmp_path, [_pair(near[0], near[1], exposure=50.0)])
     seen: list[tuple[int, int]] = []
 

@@ -64,20 +64,6 @@ def _group_sectors(azimuths: np.ndarray, drops: np.ndarray, min_drop: float
     return tuple(sectors)
 
 
-def drop_sectors(raster: Raster, x: float, y: float, radius: float,  # noqa: PLR0913
-                 n_azimuths: int, min_drop: float
-                 ) -> tuple[tuple[float, float, float], ...]:
-    """Sweep azimuths around (x, y); group consecutive dropping directions
-    into sectors. Returns tuple of (start_deg, end_deg, max_drop)."""
-    base = raster.value_at(x, y)
-    if math.isnan(base):
-        return ()
-    az, dx, dy = _azimuth_offsets(radius, n_azimuths)
-    far = raster.values_at(x + dx, y + dy)
-    drops = np.where(np.isnan(far), 0.0, base - far)
-    return _group_sectors(az, drops, min_drop)
-
-
 def _thin(points: list[_ThinPoint], thin_dist: float) -> list[Anchor]:
     """Greedy non-max suppression by descending drop; keep points >= thin_dist
     apart. Spatial-hash grid with thin_dist cells: a conflicting kept point can

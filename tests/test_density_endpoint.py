@@ -5,6 +5,8 @@ from fastapi.testclient import TestClient
 from highliner.app import create_app
 from highliner.core import tiles
 
+from tests.helpers import to_utm
+
 
 def _write_density(data_dir: Path, region: str, z: int) -> tuple[int, int]:
     """Write a one-cell z-layer near Montserrat; return its (xtile, ytile)."""
@@ -86,9 +88,8 @@ def _write_grid(data_dir: Path, region: str,
 
 
 def test_density_merges_regions_when_region_omitted(tmp_path: Path) -> None:
-    from highliner.core import geo
     # Two indexed regions near Montserrat, each with one density cell at z12.
-    cx, cy = geo.to_utm(1.83, 41.59)
+    cx, cy = to_utm(1.83, 41.59)
     _write_grid(tmp_path, "one", (cx - 500, cy - 500, cx + 500, cy + 500))
     _write_grid(tmp_path, "two", (cx - 500, cy - 500, cx + 500, cy + 500))
     _write_density(tmp_path, "one", 12)

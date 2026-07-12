@@ -4,6 +4,8 @@ from typing import Any
 
 from highliner.router import deps
 
+from tests.helpers import to_utm
+
 
 def _write_grid(data_dir: Path, name: str,
                 bbox: tuple[float, float, float, float],
@@ -17,8 +19,7 @@ def _write_grid(data_dir: Path, name: str,
 
 
 def test_build_index_skips_dirs_without_grid(tmp_path: Path) -> None:
-    from highliner.core import geo
-    cx, cy = geo.to_utm(1.83, 41.59)
+    cx, cy = to_utm(1.83, 41.59)
     _write_grid(tmp_path, "cat", (cx - 500, cy - 500, cx + 500, cy + 500))
     (tmp_path / "not_a_region").mkdir()  # no grid.json
 
@@ -30,9 +31,8 @@ def test_build_index_skips_dirs_without_grid(tmp_path: Path) -> None:
 
 
 def test_regions_in_view_filters_by_overlap(tmp_path: Path) -> None:
-    from highliner.core import geo
-    cx, cy = geo.to_utm(1.83, 41.59)       # Catalonia
-    gx, gy = geo.to_utm(-8.0, 42.8)        # Galicia (far west)
+    cx, cy = to_utm(1.83, 41.59)       # Catalonia
+    gx, gy = to_utm(-8.0, 42.8)        # Galicia (far west)
     _write_grid(tmp_path, "cat", (cx - 500, cy - 500, cx + 500, cy + 500))
     _write_grid(tmp_path, "gal", (gx - 500, gy - 500, gx + 500, gy + 500))
 
@@ -48,8 +48,7 @@ def test_build_index_empty_when_data_dir_missing(tmp_path: Path) -> None:
 def test_get_region_index_is_cached(tmp_path: Path) -> None:
     from types import SimpleNamespace
 
-    from highliner.core import geo
-    cx, cy = geo.to_utm(1.83, 41.59)
+    cx, cy = to_utm(1.83, 41.59)
     _write_grid(tmp_path, "cat", (cx - 500, cy - 500, cx + 500, cy + 500))
 
     request = SimpleNamespace(

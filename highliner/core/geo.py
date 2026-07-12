@@ -16,10 +16,6 @@ def to_lonlat(x: float, y: float) -> tuple[float, float]:
     return _transformer(config.UTM_CRS, config.WGS84_CRS).transform(x, y)
 
 
-def to_utm(lon: float, lat: float) -> tuple[float, float]:
-    return _transformer(config.WGS84_CRS, config.UTM_CRS).transform(lon, lat)
-
-
 def to_lonlat_crs(x: float, y: float, crs: str) -> tuple[float, float]:
     return _transformer(crs, config.WGS84_CRS).transform(x, y)
 

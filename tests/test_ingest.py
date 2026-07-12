@@ -97,13 +97,6 @@ def test_cnig_query_sheets_retries_throttled_page(
     assert sleeps == [3.0]
 
 
-def test_estimate_tiles_matches_grid() -> None:
-    # 2000 x 1500 m at 5 m, 175 px tiles (875 m) -> 3 x 2 = 6
-    n = ingest.estimate_tiles((484000, 4646000, 486000, 4647500),
-                              res=5.0, tile_px=175)
-    assert n == 6
-
-
 def test_tile_specs_covers_grid() -> None:
     specs = list(ingest.tile_specs((484000, 4646000, 486000, 4647500),
                                    res=5.0, tile_px=175))

@@ -44,7 +44,7 @@ describe("AboutDialog", () => {
     window.localStorage.setItem("lang", "en");
   });
 
-  it("shows the safety caveat and the restriction credit", () => {
+  it("shows what the app is and credits the data sources", () => {
     render(
       <I18nProvider>
         <AboutDialog open onOpenChange={vi.fn()} />
@@ -52,8 +52,8 @@ describe("AboutDialog", () => {
     );
 
     const dialog = screen.getByRole("dialog");
-    expect(dialog).toHaveTextContent("Rigging a highline is dangerous and can be fatal.");
-    expect(dialog).toHaveTextContent("Protected-area data © MITECO");
+    expect(dialog).toHaveTextContent("Highline Scout helps you find spots.");
+    expect(dialog).toHaveTextContent("Elevation data © ICGC");
     expect(screen.getByRole("button", { name: "Close" })).toBeInTheDocument();
   });
 });

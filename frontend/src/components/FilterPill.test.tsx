@@ -22,6 +22,7 @@ describe("FilterPill", () => {
     const pill = screen.getByTestId("filter-pill");
     expect(pill).toHaveTextContent("Filters");
     expect(pill).toHaveTextContent("20–150 m · exp ≥30 m");
+    expect(pill).toHaveClass("bg-primary");
 
     await user.click(screen.getByRole("button", { name: "Open controls" }));
 

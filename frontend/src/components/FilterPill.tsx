@@ -15,7 +15,7 @@ export function FilterPill({ summary, onClick }: FilterPillProps) {
       data-testid="filter-pill"
       aria-label={t("openControls")}
       onClick={onClick}
-      className="pointer-events-auto flex min-h-[44px] items-center gap-2.5 whitespace-nowrap rounded-full bg-ink/[0.94] px-5 py-[13px] text-primary-foreground shadow-filter-pill backdrop-blur-[8px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+      className="pointer-events-auto flex min-h-[44px] items-center gap-2.5 whitespace-nowrap rounded-full bg-primary px-5 py-[13px] text-primary-foreground shadow-filter-pill focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
     >
       <SlidersHorizontal className="h-4 w-4 shrink-0" aria-hidden />
       <span className="text-sm font-bold">{t("filters")}</span>

@@ -23,3 +23,12 @@ repos:
         language: system
         types: [python]
         pass_filenames: false
+
+      # Whole-tree analysis: the paths come from [tool.vulture], not from the
+      # staged files, so pass_filenames stays off like mypy's.
+      - id: vulture
+        name: vulture (dead code)
+        entry: uv run vulture
+        language: system
+        types: [python]
+        pass_filenames: false

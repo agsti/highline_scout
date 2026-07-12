@@ -28,6 +28,9 @@ jobs:
       - name: Type check (mypy)
         run: uv run mypy
 
+      - name: Dead code (vulture)
+        run: uv run vulture
+
       - name: Run tests
         run: uv run pytest
 

@@ -36,8 +36,8 @@ serve host="127.0.0.1" port="8000":
 test *args:
     uv run pytest {{args}}
 
-# Lint (ruff + file-length cap) and type check (strict mypy) the whole codebase.
-check: lint typecheck
+# Lint (ruff + file-length cap), type check (strict mypy), and dead-code scan.
+check: lint typecheck deadcode
 
 # Lint with ruff, then enforce the 500-line file cap ruff can't express.
 # Pass extra ruff args, e.g. just lint --fix
@@ -48,6 +48,13 @@ lint *args:
 # Static type checking (strict mypy) across the codebase.
 typecheck:
     uv run mypy
+
+# Report definitions nothing references (uncalled functions, unread constants).
+# Scans highliner/ and scripts/ only: code reachable solely from its own test is
+# dead product code and should show up here. Framework hooks that only look dead
+# are excused in [tool.vulture]; add to that list rather than to the source.
+deadcode:
+    uv run vulture
 
 # Re-resolve every dependency to its latest allowed version and sync.
 update:

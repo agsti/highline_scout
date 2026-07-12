@@ -19,7 +19,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest", "httpx", "mypy", "types-requests", "ruff"]
+dev = ["pytest", "httpx", "mypy", "types-requests", "ruff", "vulture"]
 
 [project.scripts]
 highliner = "highliner.cli:main"
@@ -49,6 +49,28 @@ max-complexity = 10
 max-branches = 12
 max-args = 5
 max-statements = 50
+
+[tool.vulture]
+# Dead-code report: names defined but never referenced. Ruff's F rules only see
+# within a scope (unused imports/locals); vulture diffs definitions against uses
+# across the whole tree, which is what catches an uncalled function.
+# Tests are deliberately NOT scanned: a symbol that only its own test calls is
+# dead product code, and including tests here would hide exactly that.
+paths = ["highliner", "scripts"]
+# 60 is the floor for unused functions/variables/attributes. Anything higher
+# only reports unused imports, which ruff (F401) already covers.
+min_confidence = 60
+
+# Vulture resolves references statically, so anything a framework reaches by
+# convention reads as dead. Each entry below is called, just not by our code.
+ignore_decorators = ["@router.*"]  # FastAPI dispatches route handlers by decorator
+ignore_names = [
+    "model_config",     # pydantic-settings reads it off the Settings class
+    "dispatch",         # Starlette's BaseHTTPMiddleware entry point
+    "project_api_key",  # set on the posthog module, consumed inside the library
+    # LayerSpec TypedDict keys: declared for typing, read as dict subscripts.
+    "label", "color", "name_field", "tooltip", "highlight",
+]
 
 [tool.mypy]
 python_version = "3.11"

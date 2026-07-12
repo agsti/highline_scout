@@ -22,15 +22,25 @@ system interpreter's plain `venv` is known-broken here.
 
     just test                      # full suite (uv run pytest)
     uv run pytest tests/test_pairing.py::test_name   # single test
-    just check                     # lint (ruff) + type check (strict mypy)
+    just check                     # lint (ruff) + types (strict mypy) + dead code
     just lint --fix                # ruff, applying safe autofixes
+    just deadcode                  # vulture, on its own
     just dev                       # FastAPI dev server, auto-reload, :8000
     just fetch-restrictions        # download protected-area layers -> data/restrictions/
 
-CI runs `ruff check`, the file-length cap, `mypy` and `pytest`; `pre-commit
-install` runs everything but the tests on commit. Ruff is lint-only (rules
-`E,F,I,UP,B,C90,PLR09xx` at 88 columns) — there is no autoformatter, so match
-the surrounding style by hand.
+CI runs `ruff check`, the file-length cap, `mypy`, `vulture` and `pytest`;
+`pre-commit install` runs everything but the tests on commit. Ruff is lint-only
+(rules `E,F,I,UP,B,C90,PLR09xx` at 88 columns) — there is no autoformatter, so
+match the surrounding style by hand.
+
+Vulture (`[tool.vulture]`) reports definitions nothing references. It scans
+`highliner/` and `scripts/` but **not** `tests/`, so a function only its own
+test calls is reported as dead — that's deliberate, since a green test over an
+uncalled function proves nothing about the product. When it fires, delete the
+code and the test together, or re-point the test at whatever superseded it.
+Names a framework reaches by convention (pydantic's `model_config`, Starlette's
+`dispatch`, `@router.*` handlers) are excused in `ignore_names` /
+`ignore_decorators`; extend that list rather than working around it in source.
 
 Complexity is capped: cyclomatic complexity 10 per function, 12 branches, 50
 statements, 5 arguments, and 500 lines per file (the last has no ruff rule, so

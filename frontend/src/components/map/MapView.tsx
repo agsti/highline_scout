@@ -3,13 +3,12 @@ import { CopyIcon, ExternalLink, Loader2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { captureMapSettled } from "@/lib/analytics";
-import { ApiError, fetchAnchors, fetchRestrictions } from "@/lib/api";
 import { bboxLonLatParam, type MapViewState } from "@/lib/geo";
 import { useI18n } from "@/lib/i18n";
-import { ANCHOR_MIN_ZOOM } from "@/lib/map-style";
 import type { RestrictionLayerMeta } from "@/types/highliner";
-import { createRestrictionLayer, renderAnchors } from "./leafletLayers";
+import { useAnchorLayer } from "./useAnchorLayer";
 import { useLeafletMap } from "./useLeafletMap";
+import { useRestrictionLayer } from "./useRestrictionLayer";
 import { useZoneDensityLayer } from "./useZoneDensityLayer";
 import { ZoomControls } from "./ZoomControls";
 
@@ -69,9 +68,6 @@ export function MapView({
   const { lang, t } = useI18n();
   const [mapElement, setMapElement] = useState<HTMLDivElement | null>(null);
   const mapForContextRef = useRef<L.Map | null>(null);
-  const anchorLayerRef = useRef<L.LayerGroup | null>(null);
-  const restrictionLayerRef = useRef<L.GeoJSON | null>(null);
-  const restrictionMetaRef = useRef(new Map<string, RestrictionLayerMeta>());
   const contextMenuRootRef = useRef<HTMLDivElement | null>(null);
   const keepContextMenuForMoveRef = useRef(false);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
@@ -140,6 +136,25 @@ export function MapView({
     onDensityModeChange,
   });
 
+  useAnchorLayer({
+    mapRef,
+    viewportRevision,
+    showAnchors,
+    t,
+    onAnchorStatus,
+    onError,
+  });
+
+  useRestrictionLayer({
+    mapRef,
+    viewportRevision,
+    enabledRestrictions,
+    restrictionLayers,
+    t,
+    onRestrictionStatus,
+    onError,
+  });
+
   useEffect(() => {
     if (!contextMenu) return;
 
@@ -160,84 +175,6 @@ export function MapView({
       document.removeEventListener("keydown", onKeyDown);
     };
   }, [contextMenu]);
-
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map) return;
-    anchorLayerRef.current = L.layerGroup().addTo(map);
-    restrictionLayerRef.current = createRestrictionLayer(() => restrictionMetaRef.current).addTo(map);
-    return () => {
-      anchorLayerRef.current = null;
-      restrictionLayerRef.current = null;
-    };
-  }, [mapElement, mapRef]);
-
-  useEffect(() => {
-    restrictionMetaRef.current = new Map(restrictionLayers.map((layer) => [layer.id, layer]));
-  }, [restrictionLayers]);
-
-  useEffect(() => {
-    const map = mapRef.current;
-    const layer = anchorLayerRef.current;
-    if (!map || !layer) return;
-    if (!showAnchors) {
-      layer.clearLayers();
-      onAnchorStatus?.("");
-      return;
-    }
-    if (map.getZoom() < ANCHOR_MIN_ZOOM) {
-      layer.clearLayers();
-      onAnchorStatus?.(t("zoomInToSee", { noun: t("nounAnchors") }));
-      return;
-    }
-    const controller = new AbortController();
-    fetchAnchors({ bboxLonLat: bboxLonLatParam(map.getBounds()) }, controller.signal)
-      .then((fc) => {
-        renderAnchors(layer, fc);
-        onAnchorStatus?.(t("anchorsCount", { n: fc.features.length }));
-      })
-      .catch((error) => {
-        if (controller.signal.aborted) return;
-        layer.clearLayers();
-        const message = t("anchorError", { detail: error instanceof Error ? error.message : String(error) });
-        onAnchorStatus?.(message);
-        onError?.(message);
-      });
-    return () => controller.abort();
-  }, [mapElement, showAnchors, t, onAnchorStatus, onError, viewportRevision]);
-
-  useEffect(() => {
-    const map = mapRef.current;
-    const layer = restrictionLayerRef.current;
-    if (!map || !layer) return;
-    if (enabledRestrictions.length === 0) {
-      layer.clearLayers();
-      onRestrictionStatus?.("");
-      return;
-    }
-    const controller = new AbortController();
-    fetchRestrictions(
-      { bboxLonLat: bboxLonLatParam(map.getBounds()), layers: enabledRestrictions },
-      controller.signal,
-    )
-      .then((fc) => {
-        layer.clearLayers();
-        layer.addData(fc);
-        onRestrictionStatus?.(t("protectedAreasCount", { n: fc.features.length }));
-      })
-      .catch((error) => {
-        if (controller.signal.aborted) return;
-        layer.clearLayers();
-        if (error instanceof ApiError && error.status === 413) {
-          onRestrictionStatus?.(t("zoomInToSee", { noun: t("nounProtectedAreas") }));
-        } else {
-          const message = t("error", { detail: error instanceof Error ? error.message : String(error) });
-          onRestrictionStatus?.(message);
-          onError?.(message);
-        }
-      });
-    return () => controller.abort();
-  }, [enabledRestrictions, mapElement, t, onRestrictionStatus, onError, viewportRevision]);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => mapRef.current?.invalidateSize(), 250);

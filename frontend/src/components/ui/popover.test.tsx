@@ -33,7 +33,11 @@ describe("Popover", () => {
 
     await user.click(screen.getByRole("button", { name: "Open" }));
 
-    expect(screen.getByText("panel")).toHaveAttribute("data-align", "end");
+    const panel = screen.getByText("panel");
+    expect(panel).toHaveAttribute("data-align", "end");
+    expect(panel.parentElement).toHaveStyle({
+      transform: "translate(0px, 8px)",
+    });
   });
 
   it("closes on Escape", async () => {

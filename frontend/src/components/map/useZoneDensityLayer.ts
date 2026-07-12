@@ -77,10 +77,16 @@ export function useZoneDensityLayer(options: {
   useEffect(() => {
     const map = options.mapRef.current;
     if (!map) return;
-    if (layerLanguageRef.current === options.lang && zoneLayerRef.current && densityLayerRef.current) return;
+    if (
+      layerMapRef.current === map
+      && layerLanguageRef.current === options.lang
+      && zoneLayerRef.current
+      && densityLayerRef.current
+    ) return;
 
-    if (zoneLayerRef.current) map.removeLayer(zoneLayerRef.current);
-    if (densityLayerRef.current) map.removeLayer(densityLayerRef.current);
+    const previousMap = layerMapRef.current;
+    if (zoneLayerRef.current) previousMap?.removeLayer(zoneLayerRef.current);
+    if (densityLayerRef.current) previousMap?.removeLayer(densityLayerRef.current);
 
     zoneLayerRef.current = createZoneLayer(options.t).addTo(map);
     densityLayerRef.current = createDensityLayer(options.t, () => densitySortedRef.current).addTo(map);

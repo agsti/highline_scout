@@ -1,6 +1,6 @@
 import L from "leaflet";
 import { act, render, screen, waitFor } from "@testing-library/react";
-import { useRef } from "react";
+import { useRef, type MutableRefObject } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fetchDensity, fetchZones } from "@/lib/api";
 import { I18nProvider, useI18n } from "@/lib/i18n";
@@ -75,9 +75,16 @@ const zoneB: ZoneFeature = {
   geometry: { type: "Polygon", coordinates: [[[4, 5], [4, 6], [5, 6], [4, 5]]] },
 };
 
-function Harness({ viewportRevision = 0 }: { viewportRevision?: number }) {
+function Harness({
+  viewportRevision = 0,
+  providedMapRef,
+}: {
+  viewportRevision?: number;
+  providedMapRef?: MutableRefObject<L.Map | null>;
+}) {
   const { lang, t } = useI18n();
-  const mapRef = useRef<L.Map | null>(map);
+  const fallbackMapRef = useRef<L.Map | null>(map);
+  const mapRef = providedMapRef ?? fallbackMapRef;
   const { isLoading } = useZoneDensityLayer({
     mapRef,
     viewportRevision,
@@ -90,10 +97,10 @@ function Harness({ viewportRevision = 0 }: { viewportRevision?: number }) {
   return <output data-testid="loading">{String(isLoading)}</output>;
 }
 
-function renderHarness(viewportRevision = 0) {
+function renderHarness(viewportRevision = 0, providedMapRef?: MutableRefObject<L.Map | null>) {
   return render(
     <I18nProvider>
-      <Harness viewportRevision={viewportRevision} />
+      <Harness viewportRevision={viewportRevision} providedMapRef={providedMapRef} />
     </I18nProvider>,
   );
 }
@@ -156,5 +163,30 @@ describe("useZoneDensityLayer", () => {
     expect(screen.getByTestId("loading")).toHaveTextContent("true");
     await act(async () => second.resolve(featureCollection([])));
     await waitFor(() => expect(screen.getByTestId("loading")).toHaveTextContent("false"));
+  });
+
+  it("recreates cached overlays when the map instance is replaced", async () => {
+    mocks.fetchZones.mockResolvedValue(featureCollection([zoneA]));
+    const mapRef: MutableRefObject<L.Map | null> = { current: map };
+    const replacementMap = { ...map, removeLayer: vi.fn() } as unknown as L.Map;
+
+    const view = renderHarness(0, mapRef);
+    await waitFor(() => expect(mocks.zoneLayer.addData).toHaveBeenCalledWith(featureCollection([zoneA])));
+
+    mapRef.current = replacementMap;
+    view.rerender(
+      <I18nProvider>
+        <Harness viewportRevision={0} providedMapRef={mapRef} />
+      </I18nProvider>,
+    );
+
+    await waitFor(() => expect(mocks.zoneLayer.addTo).toHaveBeenCalledTimes(2));
+    expect(mocks.geoJSON).toHaveBeenCalledTimes(4);
+    expect(mocks.removeLayer).toHaveBeenCalledWith(mocks.zoneLayer);
+    expect(mocks.removeLayer).toHaveBeenCalledWith(mocks.densityLayer);
+    expect(mocks.zoneLayer.addTo).toHaveBeenLastCalledWith(replacementMap);
+    expect(mocks.densityLayer.addTo).toHaveBeenLastCalledWith(replacementMap);
+    expect(mocks.zoneLayer.addData).toHaveBeenLastCalledWith(featureCollection([zoneA]));
+    expect(fetchZones).toHaveBeenCalledTimes(1);
   });
 });

@@ -60,7 +60,12 @@ export function FiltersPanel({ filters, restrictions, statuses }: FiltersPanelPr
               <div className="px-3.5 pt-[11px] text-[13px] font-bold text-primary-deep">
                 {t("restrictions")}
               </div>
-              <div className="px-3.5 pb-3.5 pt-3">{restrictions}</div>
+              <div
+                key={collapsed ? "restrictions-collapsed" : "restrictions-expanded"}
+                className="px-3.5 pb-3.5 pt-3"
+              >
+                {restrictions}
+              </div>
             </div>
           </div>
         </div>

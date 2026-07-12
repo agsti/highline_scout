@@ -36,3 +36,34 @@ describe("LanguageSwitcher", () => {
     expect(screen.getByRole("group", { name: "Language" })).toBeInTheDocument();
   });
 });
+
+describe("LanguageSwitcher segmented variant", () => {
+  beforeEach(() => {
+    window.localStorage.setItem("lang", "ca");
+  });
+
+  it("wraps the segments in an accent track and lifts the active one", () => {
+    render(
+      <I18nProvider>
+        <LanguageSwitcher variant="segmented" />
+      </I18nProvider>,
+    );
+
+    expect(screen.getByRole("group", { name: "Idioma" })).toHaveClass("bg-accent");
+    expect(screen.getByRole("button", { name: "Català" })).toHaveClass("bg-card");
+    expect(screen.getByRole("button", { name: "Español" })).not.toHaveClass("bg-card");
+  });
+
+  it("still switches language in the segmented variant", async () => {
+    const user = userEvent.setup();
+    render(
+      <I18nProvider>
+        <LanguageSwitcher variant="segmented" />
+      </I18nProvider>,
+    );
+
+    await user.click(screen.getByRole("button", { name: "English" }));
+
+    expect(screen.getByRole("button", { name: "English" })).toHaveAttribute("aria-pressed", "true");
+  });
+});

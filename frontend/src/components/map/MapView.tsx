@@ -3,21 +3,14 @@ import { CopyIcon, ExternalLink, Loader2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { captureMapSettled } from "@/lib/analytics";
-import { ApiError, fetchAnchors, fetchDensity, fetchRestrictions, fetchZones } from "@/lib/api";
+import { ApiError, fetchAnchors, fetchRestrictions } from "@/lib/api";
 import { bboxLonLatParam, type MapViewState } from "@/lib/geo";
 import { useI18n } from "@/lib/i18n";
-import type { Lang } from "@/lib/i18n/strings";
-import {
-  ANCHOR_MIN_ZOOM,
-  DENSITY_MAX_ZOOM,
-  DENSITY_TILE_MAX,
-  DENSITY_TILE_MIN,
-  DENSITY_ZOOM_OFFSET,
-  zoneKey,
-} from "@/lib/map-style";
-import type { DensityFeatureCollection, RestrictionLayerMeta, ZoneFeatureCollection } from "@/types/highliner";
-import { createDensityLayer, createRestrictionLayer, createZoneLayer, renderAnchors } from "./leafletLayers";
+import { ANCHOR_MIN_ZOOM } from "@/lib/map-style";
+import type { RestrictionLayerMeta } from "@/types/highliner";
+import { createRestrictionLayer, renderAnchors } from "./leafletLayers";
 import { useLeafletMap } from "./useLeafletMap";
+import { useZoneDensityLayer } from "./useZoneDensityLayer";
 import { ZoomControls } from "./ZoomControls";
 
 const MOBILE_QUERY = "(max-width: 767px)";
@@ -76,22 +69,11 @@ export function MapView({
   const { lang, t } = useI18n();
   const [mapElement, setMapElement] = useState<HTMLDivElement | null>(null);
   const mapForContextRef = useRef<L.Map | null>(null);
-  const zoneLayerRef = useRef<L.GeoJSON | null>(null);
-  const densityLayerRef = useRef<L.GeoJSON | null>(null);
   const anchorLayerRef = useRef<L.LayerGroup | null>(null);
   const restrictionLayerRef = useRef<L.GeoJSON | null>(null);
   const restrictionMetaRef = useRef(new Map<string, RestrictionLayerMeta>());
-  const shownZoneKeysRef = useRef(new Set<string>());
-  const shownZoneFeaturesRef = useRef<ZoneFeatureCollection["features"]>([]);
-  const shownDensityRef = useRef<DensityFeatureCollection | null>(null);
-  const densitySortedRef = useRef<number[]>([]);
-  const layerLanguageRef = useRef<Lang | null>(null);
-  const requestIdRef = useRef(0);
-  const tRef = useRef(t);
   const contextMenuRootRef = useRef<HTMLDivElement | null>(null);
   const keepContextMenuForMoveRef = useRef(false);
-  const statusRef = useRef<{ kind: "idle" | "loading-zones" | "loading-density" | "zones" | "density" | "zoom" | "error"; count?: number; detail?: string; noun?: "nounZones" | "nounHotspots" }>({ kind: "idle" });
-  const [isLoading, setIsLoading] = useState(false);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
 
   const setMapElementRef = useCallback((element: HTMLDivElement | null) => {
@@ -107,49 +89,6 @@ export function MapView({
     }
     onViewportChange(map);
   }, [onViewportChange]);
-
-  function renderStatus() {
-    switch (statusRef.current.kind) {
-      case "loading-density":
-        return t("loadingHotspots");
-      case "loading-zones":
-        return t("searching");
-      case "zones":
-        return t("zonesCount", { n: statusRef.current.count ?? 0 });
-      case "density":
-        return t("hotspotCells", { n: statusRef.current.count ?? 0 });
-      case "zoom":
-        return t("zoomInToSee", { noun: t(statusRef.current.noun ?? "nounZones") });
-      case "error":
-        return t("error", { detail: statusRef.current.detail ?? "" });
-      default:
-        return t("searching");
-    }
-  }
-
-  function pushStatus(next: typeof statusRef.current) {
-    statusRef.current = next;
-    onMapStatus?.(renderStatus());
-  }
-
-  function rebuildDynamicLayers(map: L.Map) {
-    if (zoneLayerRef.current) map.removeLayer(zoneLayerRef.current);
-    if (densityLayerRef.current) map.removeLayer(densityLayerRef.current);
-
-    zoneLayerRef.current = createZoneLayer(t).addTo(map);
-    densityLayerRef.current = createDensityLayer(t, () => densitySortedRef.current).addTo(map);
-
-    if (shownZoneFeaturesRef.current.length > 0) {
-      const collection: ZoneFeatureCollection = {
-        type: "FeatureCollection",
-        features: shownZoneFeaturesRef.current,
-      };
-      zoneLayerRef.current.addData(collection);
-    }
-    if (shownDensityRef.current) {
-      densityLayerRef.current.addData(shownDensityRef.current);
-    }
-  }
 
   function isMobileViewport() {
     return typeof window.matchMedia === "function" && window.matchMedia(MOBILE_QUERY).matches;
@@ -188,9 +127,18 @@ export function MapView({
     onContextMenu: setContextMenuFromLeafletEvent,
   });
 
-  useEffect(() => {
-    tRef.current = t;
-  }, [t]);
+  const { isLoading } = useZoneDensityLayer({
+    mapRef,
+    viewportRevision,
+    minLen,
+    maxLen,
+    minExposure,
+    lang,
+    t,
+    onMapStatus,
+    onError,
+    onDensityModeChange,
+  });
 
   useEffect(() => {
     if (!contextMenu) return;
@@ -216,8 +164,6 @@ export function MapView({
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-    rebuildDynamicLayers(map);
-    layerLanguageRef.current = lang;
     anchorLayerRef.current = L.layerGroup().addTo(map);
     restrictionLayerRef.current = createRestrictionLayer(() => restrictionMetaRef.current).addTo(map);
     return () => {
@@ -227,89 +173,8 @@ export function MapView({
   }, [mapElement, mapRef]);
 
   useEffect(() => {
-    const map = mapRef.current;
-    if (!map) return;
-    if (layerLanguageRef.current !== lang) {
-      rebuildDynamicLayers(map);
-      layerLanguageRef.current = lang;
-    }
-    onMapStatus?.(renderStatus());
-  }, [lang, mapElement, onMapStatus]);
-
-  useEffect(() => {
     restrictionMetaRef.current = new Map(restrictionLayers.map((layer) => [layer.id, layer]));
   }, [restrictionLayers]);
-
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map) return;
-    const activeMap = map;
-    const requestId = (requestIdRef.current += 1);
-    const controller = new AbortController();
-    const bboxLonLat = bboxLonLatParam(activeMap.getBounds());
-
-    async function load() {
-      const zoom = activeMap.getZoom();
-      const densityMode = zoom <= DENSITY_MAX_ZOOM;
-      onDensityModeChange?.(densityMode);
-      pushStatus(densityMode ? { kind: "loading-density" } : { kind: "loading-zones" });
-      setIsLoading(true);
-      try {
-        if (densityMode) {
-          zoneLayerRef.current?.clearLayers();
-          shownZoneKeysRef.current.clear();
-          shownZoneFeaturesRef.current = [];
-          const z = Math.min(
-            Math.max(Math.round(zoom) + DENSITY_ZOOM_OFFSET, DENSITY_TILE_MIN),
-            DENSITY_TILE_MAX,
-          );
-          const fc = await fetchDensity({ z, bboxLonLat }, controller.signal);
-          if (requestId !== requestIdRef.current) return;
-          densityLayerRef.current?.clearLayers();
-          densitySortedRef.current = fc.features
-            .map((feature) => feature.properties.n_pairs)
-            .sort((a, b) => a - b);
-          shownDensityRef.current = fc;
-          densityLayerRef.current?.addData(fc);
-          pushStatus({ kind: "density", count: fc.features.length });
-          return;
-        }
-
-        densityLayerRef.current?.clearLayers();
-        shownDensityRef.current = null;
-        const fc = await fetchZones({ bboxLonLat, minLen, maxLen, minExposure }, controller.signal);
-        if (requestId !== requestIdRef.current) return;
-        const fresh = fc.features.filter((feature) => {
-          const key = zoneKey(feature);
-          if (shownZoneKeysRef.current.has(key)) return false;
-          shownZoneKeysRef.current.add(key);
-          return true;
-        });
-        shownZoneFeaturesRef.current = shownZoneFeaturesRef.current.concat(fresh);
-        const freshCollection: ZoneFeatureCollection = { type: "FeatureCollection", features: fresh };
-        zoneLayerRef.current?.addData(freshCollection);
-        pushStatus({ kind: "zones", count: shownZoneKeysRef.current.size });
-      } catch (error) {
-        if (controller.signal.aborted) return;
-        if (error instanceof ApiError && error.status === 413) {
-          pushStatus({ kind: "zoom", noun: activeMap.getZoom() <= DENSITY_MAX_ZOOM ? "nounHotspots" : "nounZones" });
-        } else {
-          const detail = error instanceof Error ? error.message : String(error);
-          const message = tRef.current("error", { detail });
-          statusRef.current = { kind: "error", detail };
-          onMapStatus?.(message);
-          onError?.(message);
-        }
-      } finally {
-        // Only the newest request owns the spinner; a superseded one that lost
-        // the requestId race must not clear a spinner the current load re-armed.
-        if (requestId === requestIdRef.current) setIsLoading(false);
-      }
-    }
-
-    void load();
-    return () => controller.abort();
-  }, [minLen, maxLen, minExposure, mapElement, onMapStatus, onError, onDensityModeChange, viewportRevision]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -373,12 +238,6 @@ export function MapView({
       });
     return () => controller.abort();
   }, [enabledRestrictions, mapElement, t, onRestrictionStatus, onError, viewportRevision]);
-
-  useEffect(() => {
-    zoneLayerRef.current?.clearLayers();
-    shownZoneKeysRef.current.clear();
-    shownZoneFeaturesRef.current = [];
-  }, [minLen, maxLen, minExposure]);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => mapRef.current?.invalidateSize(), 250);

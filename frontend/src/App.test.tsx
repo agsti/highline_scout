@@ -12,6 +12,7 @@ const apiMocks = vi.hoisted(() => ({
 
 let publishMapStatus: ((status: string) => void) | undefined;
 let publishMapError: ((message: string) => void) | undefined;
+let dismissMapError: ((eventId: number) => void) | undefined;
 
 vi.mock("./lib/api", () => ({
   fetchRestrictionLayers: apiMocks.fetchRestrictionLayers,
@@ -67,9 +68,13 @@ vi.mock("./components/MapChrome", () => ({
     restrictions: ReactNode;
     errorMessage: string;
     errorEventId: number;
-    onErrorDismiss: () => void;
+    onErrorDismiss: (eventId: number) => void;
   }) => (
     <div>
+      {(() => {
+        dismissMapError = onErrorDismiss;
+        return null;
+      })()}
       {filters}
       {restrictions}
       <ErrorToast message={errorMessage} eventId={errorEventId} onDismiss={onErrorDismiss} />
@@ -151,6 +156,33 @@ describe("App", () => {
 
     act(() => vi.advanceTimersByTime(5000));
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("does not restart the toast deadline after an unrelated App rerender", async () => {
+    vi.useFakeTimers();
+    renderApp();
+
+    await act(async () => {});
+    act(() => publishMapError?.("Error: zones unavailable"));
+    act(() => vi.advanceTimersByTime(2_000));
+    act(() => screen.getByRole("button", { name: "set english" }).click());
+
+    act(() => vi.advanceTimersByTime(2_999));
+    expect(screen.getByRole("alert")).toHaveTextContent("Error: zones unavailable");
+
+    act(() => vi.advanceTimersByTime(1));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("does not dismiss a newer error when an older event is dismissed", async () => {
+    renderApp();
+
+    await act(async () => {});
+    act(() => publishMapError?.("Error: zones unavailable"));
+    act(() => publishMapError?.("Error: anchors unavailable"));
+    act(() => dismissMapError?.(1));
+
+    expect(screen.getByRole("alert")).toHaveTextContent("Error: anchors unavailable");
   });
 
   it("shows restriction metadata errors in the shared toast", async () => {

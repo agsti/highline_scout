@@ -20,7 +20,7 @@ interface MapChromeProps {
   sheetOpen: boolean;
   onSheetOpenChange: (open: boolean) => void;
   onAbout: () => void;
-  onErrorDismiss: () => void;
+  onErrorDismiss: (eventId: number) => void;
 }
 
 export function MapChrome(props: MapChromeProps) {

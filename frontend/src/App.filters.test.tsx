@@ -100,10 +100,10 @@ describe("App filter application", () => {
       </I18nProvider>,
     );
 
-    expect(lastMapProps().showAnchors).toBe(true);
+    expect(lastMapProps().showAnchors).toBe(false);
     await user.click(screen.getByRole("checkbox", { name: /show anchors/i }));
 
-    expect(lastMapProps().showAnchors).toBe(false);
+    expect(lastMapProps().showAnchors).toBe(true);
     expect(applyButton()).toBeDisabled();
   });
 });

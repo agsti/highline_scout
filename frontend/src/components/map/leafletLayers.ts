@@ -9,7 +9,7 @@ import type {
   RestrictionLayerMeta,
   ZoneFeature,
 } from "@/types/highliner";
-import { anchorPopupHtml, densityTooltipHtml, zonePopupHtml } from "./popups";
+import { densityTooltipHtml, zonePopupHtml } from "./popups";
 import type { StringKey } from "@/lib/i18n";
 
 type T = (key: StringKey, params?: Record<string, string | number>) => string;
@@ -51,7 +51,7 @@ export function createDensityLayer(t: T, sortedCounts: () => number[]): L.GeoJSO
   });
 }
 
-export function renderAnchors(layer: L.LayerGroup, fc: AnchorFeatureCollection, t: T): void {
+export function renderAnchors(layer: L.LayerGroup, fc: AnchorFeatureCollection): void {
   layer.clearLayers();
   const detailed = fc.features.length <= ANCHOR_DETAIL_LIMIT;
   const canvas = L.canvas({ padding: 0.5 });
@@ -71,7 +71,6 @@ export function renderAnchors(layer: L.LayerGroup, fc: AnchorFeatureCollection, 
         weight: 1,
         fillOpacity: 1,
       })
-        .bindPopup(anchorPopupHtml(feature.properties, t))
         .addTo(layer);
     } else {
       L.circleMarker([lat, lon], {
@@ -81,7 +80,6 @@ export function renderAnchors(layer: L.LayerGroup, fc: AnchorFeatureCollection, 
         weight: 1,
         fillOpacity: 0.8,
       })
-        .bindPopup(anchorPopupHtml(feature.properties, t))
         .addTo(layer);
     }
   }

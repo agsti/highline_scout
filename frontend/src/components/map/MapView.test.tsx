@@ -583,14 +583,14 @@ describe("MapView", () => {
     renderMapViewWithLanguageControl();
 
     await waitFor(() => expect(apiMocks.fetchZones).toHaveBeenCalledTimes(1));
-    expect(leafletMocks.bindPopup).toHaveBeenCalledWith("alçada 30–40 m<br>longitud 80–120 m<br>2 ancoratges · 1 línies");
+    expect(leafletMocks.bindPopup).toHaveBeenCalledWith("alçada 30–40 m<br>longitud 80–120 m");
 
     await act(async () => {
       screen.getByRole("button", { name: "set english" }).click();
     });
 
     await waitFor(() =>
-      expect(leafletMocks.bindPopup).toHaveBeenCalledWith("height 30–40 m<br>length 80–120 m<br>2 anchors · 1 lines"),
+      expect(leafletMocks.bindPopup).toHaveBeenCalledWith("height 30–40 m<br>length 80–120 m"),
     );
     expect(apiMocks.fetchZones).toHaveBeenCalledTimes(1);
   });

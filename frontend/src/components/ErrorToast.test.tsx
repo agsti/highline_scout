@@ -19,7 +19,7 @@ describe("ErrorToast", () => {
       vi.advanceTimersByTime(ERROR_TOAST_MS);
     });
 
-    expect(onDismiss).toHaveBeenCalledTimes(1);
+    expect(onDismiss).toHaveBeenCalledWith(1);
   });
 
   it("restarts the dismissal timeout for a new error event", () => {
@@ -44,6 +44,6 @@ describe("ErrorToast", () => {
     act(() => {
       vi.advanceTimersByTime(1);
     });
-    expect(onDismiss).toHaveBeenCalledTimes(1);
+    expect(onDismiss).toHaveBeenCalledWith(2);
   });
 });

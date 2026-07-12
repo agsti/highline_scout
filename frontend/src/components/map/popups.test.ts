@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { STRINGS, type StringKey } from "@/lib/i18n";
-import { anchorPopupHtml, densityTooltipHtml, zonePopupHtml } from "./popups";
+import { densityTooltipHtml, zonePopupHtml } from "./popups";
 
 function t(key: StringKey, params?: Record<string, string | number>) {
   let value = STRINGS.en[key];
@@ -24,7 +24,7 @@ describe("popups", () => {
         },
         t,
       ),
-    ).toBe("height 31–48 m<br>length 101–150 m<br>4 anchors · 3 lines");
+    ).toBe("height 31–48 m<br>length 101–150 m");
   });
 
   it("includes the density length hint only when min and max lengths are present", () => {
@@ -43,12 +43,4 @@ describe("popups", () => {
     ).toBe("6 candidate lines · up to 72 m");
   });
 
-  it("builds anchor popup html with one translated line per sector", () => {
-    expect(
-      anchorPopupHtml(
-        { elev: 1337.4, sectors: [[5.2, 24.6, 32.2], [180.1, 225.4, 58.9]] },
-        t,
-      ),
-    ).toBe("anchor • elev 1337 m<br>drop 5–25° (32 m)<br>drop 180–225° (59 m)");
-  });
 });

@@ -320,7 +320,7 @@ export function MapView({
     const controller = new AbortController();
     fetchAnchors({ bboxLonLat: bboxLonLatParam(map.getBounds()) }, controller.signal)
       .then((fc) => {
-        renderAnchors(layer, fc, t);
+        renderAnchors(layer, fc);
         onAnchorStatus?.(t("anchorsCount", { n: fc.features.length }));
       })
       .catch((error) => {

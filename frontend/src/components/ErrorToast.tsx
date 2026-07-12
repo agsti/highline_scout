@@ -5,13 +5,13 @@ export const ERROR_TOAST_MS = 5000;
 interface ErrorToastProps {
   message: string;
   eventId: number;
-  onDismiss: () => void;
+  onDismiss: (eventId: number) => void;
 }
 
 export function ErrorToast({ message, eventId, onDismiss }: ErrorToastProps) {
   useEffect(() => {
     if (!message) return;
-    const timeout = window.setTimeout(onDismiss, ERROR_TOAST_MS);
+    const timeout = window.setTimeout(() => onDismiss(eventId), ERROR_TOAST_MS);
     return () => window.clearTimeout(timeout);
   }, [message, eventId, onDismiss]);
 

@@ -26,7 +26,7 @@ export function App() {
   const [draftMinExposure, setDraftMinExposure] = useState(DEFAULT_MIN_EXPOSURE);
   const [appliedLengthRange, setAppliedLengthRange] = useState<LengthRange>(DEFAULT_LENGTH_RANGE);
   const [appliedMinExposure, setAppliedMinExposure] = useState(DEFAULT_MIN_EXPOSURE);
-  const [showAnchors, setShowAnchors] = useState(true);
+  const [showAnchors, setShowAnchors] = useState(false);
   const [restrictionLayers, setRestrictionLayers] = useState<RestrictionLayerMeta[]>([]);
   const [enabledRestrictions, setEnabledRestrictions] = useState<string[]>([]);
   const [disclaimerOpen, setDisclaimerOpen] = useState(true);
@@ -148,7 +148,9 @@ export function App() {
             sheetOpen={sheetOpen}
             onSheetOpenChange={setSheetOpen}
             onAbout={() => setAboutOpen(true)}
-            onErrorDismiss={() => setError(null)}
+            onErrorDismiss={(eventId) =>
+              setError((current) => (current?.id === eventId ? null : current))
+            }
           />
         }
       />

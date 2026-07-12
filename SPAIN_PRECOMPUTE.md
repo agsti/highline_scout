@@ -32,7 +32,7 @@ shape as unvalidated until a working subset request is found.
 
 Expected code impact:
 
-- Replace `highliner/repositories/dtm.py`'s ICGC-specific ArcGrid WCS client
+- Replace `highliner/etl/repositories/dtm.py`'s ICGC-specific ArcGrid WCS client
   with an IGN MDT05 source, probably COG/subset based or local pre-tiled.
 - Replace global `config.UTM_CRS` with a per-region CRS stored in `grid.json`
   and threaded through DTM fetch, bbox parsing, serializers, and `core/geo.py`.
@@ -53,7 +53,7 @@ National protected-area source: MITECO Banco de Datos de la Naturaleza.
   `https://www.miteco.gob.es/es/cartografia-y-sig/ide/descargas/gml_enp_es_tcm30-376404.zip`
 
 This should replace, not extend, the Catalonia-specific layer derivation in
-`highliner/repositories/restrictions.py`. The national ENP schema and labels
+`highliner/etl/repositories/restrictions.py`. The national ENP schema and labels
 will not match the current `pein` / `parcs` / `fauna` assumptions.
 
 ## Region bboxes

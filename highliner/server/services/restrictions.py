@@ -1,9 +1,9 @@
 """Serving helpers for the protected-area overlays.
 
-These consume the ``LAYERS`` registry and stored parquet layers owned by
-``highliner.repositories.restrictions`` and shape them for the web boundary:
-the layer registry for the frontend (``layer_meta``) and per-viewport GeoJSON
-(``clip_to_features``).
+These consume the ``LAYERS`` registry (``highliner.core.restrictions``) and the
+stored parquet layers read by ``highliner.server.repositories.restrictions`` and
+shape them for the web boundary: the layer registry for the frontend
+(``layer_meta``) and per-viewport GeoJSON (``clip_to_features``).
 """
 import json
 from pathlib import Path
@@ -11,7 +11,8 @@ from typing import Any
 
 import geopandas as gpd
 
-from highliner.repositories.restrictions import LAYERS, load_layer
+from highliner.core.restrictions import LAYERS
+from highliner.server.repositories.restrictions import load_layer
 
 Bbox = tuple[float, float, float, float]
 

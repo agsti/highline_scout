@@ -11,7 +11,7 @@ from fastapi import HTTPException, Request
 
 from highliner.core import config, geo
 from highliner.models.anchor import Anchor
-from highliner.repositories import chunked_store
+from highliner.server.repositories import chunked_store
 
 Bbox = tuple[float, float, float, float]
 

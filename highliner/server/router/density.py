@@ -10,8 +10,12 @@ from fastapi import APIRouter, HTTPException, Request
 
 from highliner.core import config, tiles
 from highliner.core.regions import defaults_for_region
-from highliner.repositories import chunked_store
-from highliner.router.deps import get_region_index, parse_bbox_lonlat, regions_in_view
+from highliner.server.repositories import chunked_store
+from highliner.server.router.deps import (
+    get_region_index,
+    parse_bbox_lonlat,
+    regions_in_view,
+)
 
 router = APIRouter()
 

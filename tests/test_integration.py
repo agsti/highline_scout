@@ -2,15 +2,15 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
-from highliner.app import create_app
-from highliner.services import precompute
+from highliner.etl.services import precompute
+from highliner.server.app import create_app
 
 
 def _patch_gap_download(monkeypatch: pytest.MonkeyPatch) -> None:
     """Make dtm._download_tile synthesize terrain: plateau 100 m with a deep
     N-S trench (elev 20, 40 m wide) through the middle, so facing anchors exist
     across the trench (exposure ~80)."""
-    from highliner.repositories import dtm as _dtm
+    from highliner.etl.repositories import dtm as _dtm
 
     def fake(bbox: tuple[float, float, float, float], width: int, height: int,
              dest: Path) -> Path:

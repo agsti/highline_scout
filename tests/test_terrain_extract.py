@@ -1,7 +1,7 @@
 import numpy as np
 from affine import Affine
+from highliner.etl.services import terrain
 from highliner.models.raster import Raster
-from highliner.services import terrain
 
 
 def two_sided_cliff() -> Raster:

@@ -4,9 +4,13 @@ from fastapi import APIRouter, HTTPException, Request
 
 from highliner.core import config
 from highliner.models.anchor import Anchor
-from highliner.repositories import chunked_store
-from highliner.router import serializers
-from highliner.router.deps import clip_anchors, parse_bbox_utm, resolve_regions
+from highliner.server.repositories import chunked_store
+from highliner.server.router import serializers
+from highliner.server.router.deps import (
+    clip_anchors,
+    parse_bbox_utm,
+    resolve_regions,
+)
 
 router = APIRouter()
 

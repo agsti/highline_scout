@@ -15,13 +15,13 @@ from pathlib import Path
 
 from highliner.core import config
 from highliner.core.regions import defaults_for_region
+from highliner.etl.repositories import dtm
+from highliner.etl.repositories.anchors import save_anchors
+from highliner.etl.repositories.candidates import save_candidates
+from highliner.etl.services.pairing import find_candidates
+from highliner.etl.services.terrain import extract_anchors
 from highliner.models.anchor import Anchor
 from highliner.models.candidate import Candidate
-from highliner.repositories import dtm
-from highliner.repositories.anchors import save_anchors
-from highliner.repositories.candidates import save_candidates
-from highliner.services.pairing import find_candidates
-from highliner.services.terrain import extract_anchors
 
 Bbox = tuple[float, float, float, float]
 

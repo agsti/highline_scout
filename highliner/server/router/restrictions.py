@@ -3,8 +3,8 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Request
 
 from highliner.core import config
-from highliner.router.deps import get_data_dir, parse_bbox_lonlat
-from highliner.services import restrictions as restrictions_service
+from highliner.server.router.deps import get_data_dir, parse_bbox_lonlat
+from highliner.server.services import restrictions as restrictions_service
 
 router = APIRouter()
 

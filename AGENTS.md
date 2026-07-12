@@ -63,7 +63,7 @@ Local dev and production serve the frontend differently:
   routes (`/regions`, `/zones`, `/density`, `/anchors`, `/restrictions`) to
   :8000, so the backend never serves frontend assets. No `build-web` needed.
 - **Production** — the Docker build runs `build-web` and FastAPI mounts the
-  resulting `frontend/dist/` at `/` (`app.py`, guarded by the dir existing).
+  resulting `frontend/dist/` at `/` (`server/app.py`, guarded by the dir existing).
   Keep the Vite `server.proxy` list in `vite.config.ts` in sync with the API
   route prefixes.
 
@@ -122,25 +122,40 @@ nothing and needs no setup.
 
 ## Package layout
 
-The package is organized into layers (MVC-ish). Each module is one domain's
-slice of that layer:
+The package is split top-level by the two stages — `etl/` (offline precompute)
+and `server/` (serving) — over a shared `core/` + `models/` foundation. Each
+stage keeps the same layered structure (repositories / services, plus router on
+the server). `cli.py` stays at the top since it drives both stages:
 
     highliner/
-      app.py                 FastAPI factory: wires routers, CORS, and the
-                             frontend/dist/ static mount
       cli.py                 `highliner` entry point (precompute/precompute-density/serve/fetch-restrictions)
-      core/                  cross-cutting: config.py, geo.py (coord transforms)
-      models/                pure domain dataclasses: anchor, candidate, zone, raster
-      repositories/          persistence & external IO: anchors (parquet), dtm
-                             (ICGC WCS), restrictions (national MITECO files)
-      services/              domain logic: terrain, pairing, zones,
-                             restrictions (serving helpers)
-      router/                HTTP layer: one APIRouter per resource (regions,
+      core/                  shared cross-cutting: config, geo (coord transforms),
+                             regions, tiles, telemetry, restrictions (the LAYERS
+                             overlay registry both stages consume)
+      models/                shared pure domain dataclasses: anchor, candidate, zone, raster
+      etl/                   offline precompute pipeline
+        repositories/        dtm (ICGC/IGN WCS), anchors (parquet write side),
+                             candidates (parquet write side), restrictions
+                             (build national MITECO layers)
+        services/            terrain, pairing.find_candidates, precompute, density
+      server/                serving
+        app.py               FastAPI factory: wires routers, CORS, and the
+                             frontend/dist/ static mount
+        repositories/        chunked_store (viewport reads), anchors + candidates
+                             (parquet read sides), restrictions (load stored layers)
+        services/            zones, pairing.filter_candidates, restrictions
+                             (serving helpers)
+        router/              HTTP layer: one APIRouter per resource (regions,
                              zones, anchors, density, restrictions) plus
                              deps.py (bbox parsing, region cache, app.state access)
                              and serializers.py (domain → GeoJSON)
 
-Dependencies flow router → services/tasks → repositories → models/core.
+Dependencies flow router → services → repositories → models/core, and both
+stages depend only on the shared `core/` + `models/`. The one exception is the
+offline `etl/services/density.py`, which aggregates the already-precomputed
+store and so reads back through the server-side read layer
+(`server/repositories/chunked_store` + `candidates`); that dependency only ever
+points etl → server, never the reverse.
 
 ## Architecture
 
@@ -148,38 +163,38 @@ Two stages. All geospatial work is done offline by `precompute` and cached as
 parquet partitions; the server only does cheap in-viewport reads and filtering
 on every request — no DTM raster is ever touched at serve time.
 
-1. **Precompute** (`highliner precompute`, `services/precompute.py`) — tiles
+1. **Precompute** (`highliner precompute`, `etl/services/precompute.py`) — tiles
    the region's bbox into `chunk_m`-sized squares (`chunk_grid`). For each chunk
    (`process_chunk`): downloads ICGC bare-earth DTM tiles (5 m, EPSG:25831) over
-   a WCS endpoint for the chunk's core plus a halo (`repositories/dtm.py`; each
+   a WCS endpoint for the chunk's core plus a halo (`etl/repositories/dtm.py`; each
    WCS request is capped at ~140 KB, so tiles are downloaded individually and
-   merged in memory), runs `extract_anchors` (`services/terrain.py` — slope
+   merged in memory), runs `extract_anchors` (`etl/services/terrain.py` — slope
    threshold, directional drop-sector sweep, greedy non-max-suppression spacing)
-   to get anchors, then `find_candidates` (`services/pairing.py`) to get
+   to get anchors, then `find_candidates` (`etl/services/pairing.py`) to get
    candidate pairs (length / height-diff / directional / exposure gated,
    exposure computed by sampling the raster between each pair) at a loose
    envelope. Anchors owned by the chunk's core and pairs whose canonical endpoint
    falls in the core are written as `anchors/p_{cx}_{cy}.parquet` /
-   `pairs/q_{cx}_{cy}.parquet` (`repositories/anchors.py`,
-   `repositories/candidates.py`); the raw DTM tiles are deleted afterward —
+   `pairs/q_{cx}_{cy}.parquet` (`etl/repositories/anchors.py`,
+   `etl/repositories/candidates.py`); the raw DTM tiles are deleted afterward —
    nothing raster-shaped persists.
 
-2. **Serve** (`app.py` + `router/`) — FastAPI + a Vite/React frontend in
+2. **Serve** (`server/app.py` + `server/router/`) — FastAPI + a Vite/React frontend in
    `frontend/` (Leaflet map), served in production from its `frontend/dist/` build.
-   On each `GET /zones` (`router/zones.py`) it reads the precomputed pair
-   partitions overlapping the viewport (`repositories/chunked_store.py`),
+   On each `GET /zones` (`server/router/zones.py`) it reads the precomputed pair
+   partitions overlapping the viewport (`server/repositories/chunked_store.py`),
    narrows them with the live `min_len`/`max_len`/`min_exposure`/`max_dh`
-   sliders (`services/pairing.filter_candidates`), and clusters them into zones
-   (`services/zones.py`). `GET /anchors` reads the overlapping anchor partitions
+   sliders (`server/services/pairing.filter_candidates`), and clusters them into zones
+   (`server/services/zones.py`). `GET /anchors` reads the overlapping anchor partitions
    the same way.
 
-**Pairing** (`services/pairing.py`): for anchor pairs within `max_len`, gates on
+**Pairing** (`etl/services/pairing.py`): for anchor pairs within `max_len`, gates on
 length, height difference, a **directional check** (each anchor's bearing to the
 other must fall within one of its drop sectors, ± `SECTOR_TOL_DEG`), and
 **exposure** (lower anchor's elevation minus the lowest terrain point strictly
 between them, sampled along the line). Exposure is the highline's height.
 
-**Zones** (`services/zones.py`): clusters paired anchors via union-find — pair
+**Zones** (`server/services/zones.py`): clusters paired anchors via union-find — pair
 endpoints always merge (joining both rims of a gap), plus any paired anchors
 within `cluster_dist`. Each zone is the convex hull (buffered) of its anchors,
 reporting the min/max exposure across its pairs as a height range. When a
@@ -191,11 +206,12 @@ fragmented; single-region requests are unchanged.
 **Coordinate convention**: everything internal is UTM EPSG:25831 (meters) — ICGC
 native, needed for distance/slope math. Conversion to/from WGS84 lon/lat happens
 only at the web boundary, in `core/geo.py` (and the GeoJSON serializers in
-`router/serializers.py`). API bbox params accept either `bbox` (UTM) or
+`server/router/serializers.py`). API bbox params accept either `bbox` (UTM) or
 `bbox_lonlat`.
 
-**Restrictions** (`repositories/restrictions.py` for download/storage +
-`services/restrictions.py` for serving): informational protected-area overlays
+**Restrictions** (`etl/repositories/restrictions.py` builds/stores the layers,
+`server/repositories/restrictions.py` reads them, `server/services/restrictions.py`
+serves them, and the shared `LAYERS` registry lives in `core/restrictions.py`): informational protected-area overlays
 covering all of Spain, built from MITECO's (national) Banco de Datos de la
 Naturaleza files — Red Natura 2000 GML (INSPIRE ProtectedSites) and Espacios
 Naturales Protegidos GeoJSON, each shipped as a peninsula+Baleares file and a
@@ -242,9 +258,10 @@ context: `I18nProvider` wraps the app and `useI18n()` hands components
   — per-layer protected-area text (`label` / `tooltip` / `highlight`), keyed by
   layer id (`zepa`, `zec`, `enp`). **English is intentionally absent here**
   — it comes from the backend (see below) and must not be duplicated.
-- **`highliner/repositories/restrictions.py`** — the **English** restriction
-  `label` / `tooltip` / `highlight`, served via `/restrictions`. This is the
-  `en` source and the fallback for any layer without a translation.
+- **`highliner/core/restrictions.py`** (the shared `LAYERS` registry) — the
+  **English** restriction `label` / `tooltip` / `highlight`, served via
+  `/restrictions`. This is the `en` source and the fallback for any layer
+  without a translation.
 
 ### How `t()` and rendering work
 

@@ -2,7 +2,8 @@ from pathlib import Path
 
 import geopandas as gpd
 import pytest
-from highliner.repositories import restrictions as R
+from highliner.etl.repositories import restrictions as R
+from highliner.server.repositories.restrictions import load_layer
 from shapely.geometry import Polygon
 
 _SQUARE = Polygon([(0, 0), (0, 1), (1, 1), (1, 0)])
@@ -151,4 +152,4 @@ def test_fetch_all_writes_the_three_layers(
     assert set(written) == {"zepa", "zec", "enp"}
     for lid in ("zepa", "zec", "enp"):
         assert (tmp_path / "out" / f"{lid}.parquet").exists()
-    assert len(R.load_layer(str(tmp_path / "out" / "enp.parquet"))) == 1
+    assert len(load_layer(str(tmp_path / "out" / "enp.parquet"))) == 1

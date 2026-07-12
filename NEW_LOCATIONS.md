@@ -5,7 +5,7 @@ architecture (see AGENTS.md for the full picture).
 
 ## 1. A DTM (elevation) source
 
-`highliner/repositories/dtm.py` is currently written against one specific WCS
+`highliner/etl/repositories/dtm.py` is currently written against one specific WCS
 API shape (small tiled `GetCoverage` requests merged in memory per chunk). A
 new location needs a terrain source that provides:
 
@@ -24,7 +24,7 @@ new location needs a terrain source that provides:
 
 ## 2. A restrictions source (optional)
 
-`highliner/repositories/restrictions.py` is informational — protected-area
+`highliner/etl/repositories/restrictions.py` is informational — protected-area
 overlays are not required for anchor/zone detection to work, only for the
 map overlay feature. The current layers (`zepa`/`zec`/`enp`) are built from
 MITECO's national Banco de Datos de la Naturaleza files, so any new location

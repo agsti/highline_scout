@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from highliner.router import deps
+from highliner.server.router import deps
 
 from tests.helpers import to_utm
 

@@ -3,12 +3,12 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
-from highliner.app import create_app
 from highliner.core import config
+from highliner.etl.repositories.anchors import save_anchors
+from highliner.etl.repositories.candidates import save_candidates
 from highliner.models.anchor import Anchor
 from highliner.models.candidate import Candidate
-from highliner.repositories.anchors import save_anchors
-from highliner.repositories.candidates import save_candidates
+from highliner.server.app import create_app
 
 from tests.helpers import to_utm
 

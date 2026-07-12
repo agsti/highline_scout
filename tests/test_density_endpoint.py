@@ -2,8 +2,8 @@ import json
 from pathlib import Path
 
 from fastapi.testclient import TestClient
-from highliner.app import create_app
 from highliner.core import tiles
+from highliner.server.app import create_app
 
 from tests.helpers import to_utm
 

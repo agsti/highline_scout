@@ -1,9 +1,10 @@
 import numpy as np
 from affine import Affine
+from highliner.etl.services import pairing
 from highliner.models.anchor import Anchor
 from highliner.models.candidate import Candidate
 from highliner.models.raster import Raster
-from highliner.services import pairing
+from highliner.server.services.pairing import filter_candidates
 
 
 def gap_raster() -> Raster:
@@ -77,7 +78,7 @@ def _cand(length: float, exposure: float, dh: float) -> Candidate:
 
 def test_filter_candidates_narrows_by_each_slider() -> None:
     cands = [_cand(30, 50, 2), _cand(500, 50, 2), _cand(30, 15, 2), _cand(30, 50, 25)]
-    out = pairing.filter_candidates(cands, max_len=120, min_len=20,
-                                    min_exposure=40, max_dh=10)
+    out = filter_candidates(cands, max_len=120, min_len=20,
+                            min_exposure=40, max_dh=10)
     assert len(out) == 1
     assert out[0].length == 30 and out[0].exposure == 50 and out[0].height_diff == 2

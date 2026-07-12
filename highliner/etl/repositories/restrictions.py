@@ -24,22 +24,20 @@ Each derived layer is simplified (geometry detail is far finer than map scale
 needs) and written to ``data/restrictions/<id>.parquet`` with only a
 normalized ``name`` property.
 
-This module owns persistence: building/transforming the layers from the raw
-files (``fetch_all``) and reading stored layers (``load_layer``). The
-``LAYERS`` registry of overlay specifications lives here too, since the build
-is driven by it; the serving helpers that consume it (``layer_meta``,
-``clip_to_features``) live in ``highliner.services.restrictions``.
+This module owns the build side: transforming the layers from the raw files
+(``fetch_all``). The ``LAYERS`` registry that drives the build lives in the
+shared ``highliner.core.restrictions`` (the serving side reads it too), and
+reading stored layers (``load_layer``) lives in
+``highliner.server.repositories.restrictions``.
 """
 import xml.etree.ElementTree as ET
-from collections.abc import Callable, Mapping
-from functools import lru_cache
 from pathlib import Path
-from typing import Any, TypedDict
 
 import geopandas as gpd
 import pandas as pd
 
 from highliner.core import config
+from highliner.core.restrictions import LAYERS
 
 RAW_DIR = Path(config.DATA_DIR) / "restrictions" / "raw"
 SOURCE_GLOBS: dict[str, tuple[str, ...]] = {
@@ -123,74 +121,10 @@ def _load_files(raw_dir: Path, patterns: tuple[str, ...]) -> gpd.GeoDataFrame:
     return gpd.GeoDataFrame(pd.concat(frames, ignore_index=True), crs="EPSG:4326")
 
 
-ZEPA_VALUES = frozenset({"SpecialProtectionArea", "SpecialProtecionArea"})
-ZEC_VALUES = frozenset({"SpecialAreaOfConservation", "SiteOfCommunityImportance"})
-
-
-class LayerSpec(TypedDict):
-    label: str
-    color: str
-    source: str
-    name_field: str
-    keep: Callable[[Mapping[str, Any]], bool]
-    tooltip: str
-    highlight: str
-
 # Douglas-Peucker tolerance in degrees (~11 m). Source geometry is digitized at
 # 1:5,000-1:50,000, far finer than the web map renders; simplifying here cuts
 # stored size to ~15% of raw with no visible change at map zoom.
 SIMPLIFY_TOL_DEG = 0.0001
-
-# Derived overlay layers. Each pulls from a loaded source and optionally
-# filters by a predicate on properties, and renames one field to `name`.
-LAYERS: dict[str, LayerSpec] = {
-    "zepa": {
-        "label": "ZEPA (Birds)",
-        "color": "#e31a1c",
-        "source": "rn2000",
-        "name_field": "text",
-        "keep": lambda p: bool(ZEPA_VALUES & set(p.get("designations") or ())),
-        "tooltip": ("Special Protection Area for Birds - Red Natura 2000 (EU "
-                    "Birds Directive). Cliffs in these areas commonly have "
-                    "seasonal climbing and access closures for raptor nesting "
-                    "(roughly winter to summer, varies by site); check with the "
-                    "managing body before rigging."),
-        "highlight": ("Cliffs in these areas commonly have seasonal climbing and "
-                      "access closures for raptor nesting (roughly winter to "
-                      "summer, varies by site); check with the managing body "
-                      "before rigging."),
-    },
-    "zec": {
-        "label": "ZEC / LIC",
-        "color": "#ff7f00",
-        "source": "rn2000",
-        "name_field": "text",
-        "keep": lambda p: bool(ZEC_VALUES & set(p.get("designations") or ())),
-        "tooltip": ("Site of Community Importance / Special Area of Conservation "
-                    "- Red Natura 2000 (EU Habitats Directive). Activities that "
-                    "may harm the protected habitats can be regulated and may "
-                    "require an environmental impact assessment."),
-        "highlight": ("Activities that may harm the protected habitats can be "
-                      "regulated and may require an environmental impact "
-                      "assessment."),
-    },
-    "enp": {
-        "label": "Protected Natural Areas",
-        "color": "#6a3d9a",
-        "source": "enp",
-        "name_field": "SITE_NAME",
-        "keep": lambda p: True,
-        "tooltip": ("Protected Natural Area - a national or regional protection "
-                    "figure such as a national or nature park, nature reserve or "
-                    "natural monument, each with its own management plan. "
-                    "Climbing, bivouacking, drones and organized events are often "
-                    "regulated and may need authorization from the managing "
-                    "body."),
-        "highlight": ("Climbing, bivouacking, drones and organized events are "
-                      "often regulated and may need authorization from the "
-                      "managing body."),
-    },
-}
 
 
 def build_layer(layer_id: str,
@@ -232,9 +166,3 @@ def fetch_all(dest_dir: Path | None = None,
         print(f"  {layer_id:6s} {len(gdf):4d} features  "
               f"{path.stat().st_size / 1024:8.1f} KiB  -> {path}")
     return written
-
-
-@lru_cache(maxsize=32)
-def load_layer(path_str: str) -> gpd.GeoDataFrame:
-    """Read a stored layer (cached for the process); layers are small."""
-    return gpd.read_parquet(path_str)

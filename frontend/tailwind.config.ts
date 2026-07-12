@@ -58,6 +58,8 @@ const config = {
         zoom: "0 2px 8px rgba(22,48,42,0.16)",
         panel: "0 8px 32px rgba(22,48,42,0.2)",
         "filter-pill": "0 8px 24px rgba(22,48,42,0.35)",
+        "menu-button": "0 2px 10px rgba(22,48,42,0.2)",
+        menu: "0 12px 36px rgba(22,48,42,0.28)",
       },
     },
   },

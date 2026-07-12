@@ -20,13 +20,14 @@ interface MapChromeProps {
   sheetOpen: boolean;
   onSheetOpenChange: (open: boolean) => void;
   onAbout: () => void;
+  onSafety: () => void;
   onErrorDismiss: (eventId: number) => void;
 }
 
 export function MapChrome(props: MapChromeProps) {
   return (
     <>
-      <FloatingNav onAbout={props.onAbout} />
+      <FloatingNav onAbout={props.onAbout} onSafety={props.onSafety} />
       <FiltersPanel
         filters={props.filters}
         restrictions={props.restrictions}

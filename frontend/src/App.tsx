@@ -7,6 +7,7 @@ import { MapChrome } from "./components/MapChrome";
 import { MapView } from "./components/map/MapView";
 import { RestrictionLayerControls } from "./components/RestrictionLayerControls";
 import { RestrictionLegend } from "./components/RestrictionLegend";
+import { SafetyDialog } from "./components/SafetyDialog";
 import { SafetyDisclaimerDialog } from "./components/SafetyDisclaimerDialog";
 import { capture } from "./lib/analytics";
 import { fetchRestrictionLayers } from "./lib/api";
@@ -31,6 +32,7 @@ export function App() {
   const [enabledRestrictions, setEnabledRestrictions] = useState<string[]>([]);
   const [disclaimerOpen, setDisclaimerOpen] = useState(true);
   const [aboutOpen, setAboutOpen] = useState(false);
+  const [safetyOpen, setSafetyOpen] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [densityMode, setDensityMode] = useState(false);
 
@@ -148,6 +150,7 @@ export function App() {
             sheetOpen={sheetOpen}
             onSheetOpenChange={setSheetOpen}
             onAbout={() => setAboutOpen(true)}
+            onSafety={() => setSafetyOpen(true)}
             onErrorDismiss={(eventId) =>
               setError((current) => (current?.id === eventId ? null : current))
             }
@@ -155,6 +158,7 @@ export function App() {
         }
       />
       <AboutDialog open={aboutOpen} onOpenChange={setAboutOpen} />
+      <SafetyDialog open={safetyOpen} onOpenChange={setSafetyOpen} />
       <SafetyDisclaimerDialog open={disclaimerOpen} onAccept={() => setDisclaimerOpen(false)} />
     </>
   );

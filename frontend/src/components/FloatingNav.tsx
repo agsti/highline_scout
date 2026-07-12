@@ -1,31 +1,36 @@
-import { Info } from "lucide-react";
-import { useI18n } from "@/lib/i18n";
+import { useState } from "react";
+import { cn } from "@/lib/utils";
 import { BrandPill } from "./BrandPill";
-import { LanguageSwitcher } from "./LanguageSwitcher";
+import { NavMenu } from "./NavMenu";
 
 interface FloatingNavProps {
   onAbout: () => void;
+  onSafety: () => void;
 }
 
-export function FloatingNav({ onAbout }: FloatingNavProps) {
-  const { t } = useI18n();
+export function FloatingNav({ onAbout, onSafety }: FloatingNavProps) {
+  const [menuOpen, setMenuOpen] = useState(false);
 
   return (
-    <header className="pointer-events-none absolute inset-x-3 top-3.5 z-[1000] flex items-center justify-between gap-2 md:inset-x-4 md:top-4">
+    <header
+      className={cn(
+        "pointer-events-none absolute inset-x-3 top-3.5 flex items-center justify-between gap-2 md:inset-x-4 md:top-4",
+        // The menu's scrim is portaled to body at z-1100, and this header is its
+        // own stacking context — so the row has to outrank the scrim from here,
+        // or the brand and the menu button would be dimmed along with the map.
+        menuOpen ? "z-[1120]" : "z-[1000]",
+      )}
+    >
       <div className="pointer-events-auto">
         <BrandPill />
       </div>
-      <div className="pointer-events-auto flex items-center gap-0.5 rounded-full bg-card/[0.94] p-1 shadow-pill backdrop-blur-[8px] md:shadow-pill-lg">
-        <LanguageSwitcher />
-        <span aria-hidden className="h-5 w-px shrink-0 bg-hairline md:h-[22px]" />
-        <button
-          type="button"
-          aria-label={t("about")}
-          onClick={onAbout}
-          className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring md:h-9 md:w-9"
-        >
-          <Info className="h-4 w-4" aria-hidden />
-        </button>
+      <div className="pointer-events-auto">
+        <NavMenu
+          open={menuOpen}
+          onOpenChange={setMenuOpen}
+          onAbout={onAbout}
+          onSafety={onSafety}
+        />
       </div>
     </header>
   );

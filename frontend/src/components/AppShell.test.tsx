@@ -182,7 +182,7 @@ describe("AppShell", () => {
     expect(document.body.style.pointerEvents).toBe("");
   });
 
-  it("renders exactly one language switcher across the nav and the mobile sheet", async () => {
+  it("renders the language switcher exactly once, reachable through the nav menu", async () => {
     const user = userEvent.setup();
 
     render(
@@ -191,7 +191,7 @@ describe("AppShell", () => {
           map={<div>map area</div>}
           chrome={
             <>
-              <FloatingNav onAbout={() => {}} />
+              <FloatingNav onAbout={() => {}} onSafety={() => {}} />
               <ControlledMobileControlSheet />
             </>
           }
@@ -199,13 +199,12 @@ describe("AppShell", () => {
       </I18nProvider>,
     );
 
-    // The sheet body only mounts once open, so open it before counting —
-    // otherwise a duplicate switcher inside the sheet is invisible to getAllByRole.
-    await user.click(screen.getByRole("button", { name: /obre controls|open controls|abrir controles/i }));
-    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    // The language switcher now lives inside the nav menu, not loose in the nav
+    // or duplicated in the mobile sheet, so it's absent until the menu opens.
+    expect(screen.queryByRole("group", { name: "Idioma" })).not.toBeInTheDocument();
 
-    // The open (modal) sheet marks the rest of the page aria-hidden, so the query
-    // must opt in to hidden elements to still see the nav switcher.
-    expect(screen.getAllByRole("group", { name: "Idioma", hidden: true })).toHaveLength(1);
+    await user.click(screen.getByRole("button", { name: /^menú?$/i }));
+
+    expect(screen.getAllByRole("group", { name: "Idioma" })).toHaveLength(1);
   });
 });

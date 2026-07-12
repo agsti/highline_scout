@@ -58,7 +58,7 @@ def run_region(region: Region, highliner: str, data_dir: str,
          "--region", region.name])
 
 
-def main() -> None:
+def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--data-dir", default="data")
     parser.add_argument("--start-at", help="skip regions before this id")
@@ -67,34 +67,30 @@ def main() -> None:
                         help="number of regions to precompute concurrently")
     parser.add_argument("--chunk-workers", type=int, default=1,
                         help="number of chunks to precompute concurrently per region")
-    args = parser.parse_args()
+    return parser.parse_args()
 
+
+def _select_regions(start_at: str | None, only: list[str] | None) -> list[Region]:
     regions = REGIONS
-    if args.start_at:
+    if start_at:
         names = [r.name for r in regions]
-        if args.start_at not in names:
-            raise SystemExit(f"unknown region for --start-at: {args.start_at}")
-        regions = regions[names.index(args.start_at):]
-    if args.only:
-        wanted = set(args.only)
+        if start_at not in names:
+            raise SystemExit(f"unknown region for --start-at: {start_at}")
+        regions = regions[names.index(start_at):]
+    if only:
+        wanted = set(only)
         regions = [r for r in regions if r.name in wanted]
+    return regions
 
-    highliner = str(Path(".venv/bin/highliner"))
-    if args.jobs < 1:
-        raise SystemExit("--jobs must be >= 1")
-    if args.chunk_workers < 1:
-        raise SystemExit("--chunk-workers must be >= 1")
-    if args.jobs == 1:
-        for region in regions:
-            run_region(region, highliner, args.data_dir, args.chunk_workers)
-        return
 
-    print(f"running {len(regions)} regions with {args.jobs} jobs "
-          f"and {args.chunk_workers} chunk workers each", flush=True)
-    with concurrent.futures.ThreadPoolExecutor(max_workers=args.jobs) as pool:
+def _run_parallel(regions: list[Region], highliner: str, data_dir: str,
+                  jobs: int, chunk_workers: int) -> None:
+    print(f"running {len(regions)} regions with {jobs} jobs "
+          f"and {chunk_workers} chunk workers each", flush=True)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=jobs) as pool:
         futures = {
-            pool.submit(run_region, region, highliner, args.data_dir,
-                        args.chunk_workers): region
+            pool.submit(run_region, region, highliner, data_dir,
+                        chunk_workers): region
             for region in regions
         }
         for future in concurrent.futures.as_completed(futures):
@@ -105,6 +101,23 @@ def main() -> None:
                 for pending in futures:
                     pending.cancel()
                 raise RuntimeError(f"{region.name} failed") from exc
+
+
+def main() -> None:
+    args = _parse_args()
+    if args.jobs < 1:
+        raise SystemExit("--jobs must be >= 1")
+    if args.chunk_workers < 1:
+        raise SystemExit("--chunk-workers must be >= 1")
+
+    regions = _select_regions(args.start_at, args.only)
+    highliner = str(Path(".venv/bin/highliner"))
+    if args.jobs == 1:
+        for region in regions:
+            run_region(region, highliner, args.data_dir, args.chunk_workers)
+        return
+    _run_parallel(regions, highliner, args.data_dir, args.jobs,
+                  args.chunk_workers)
 
 
 if __name__ == "__main__":

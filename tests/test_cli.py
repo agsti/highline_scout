@@ -8,7 +8,7 @@ from highliner import cli
 def test_precompute_command(monkeypatch: pytest.MonkeyPatch) -> None:
     calls: dict[str, object] = {}
 
-    def fake(region: str, bbox: tuple[float, ...], data_dir: Path,
+    def fake(region: str, bbox: tuple[float, ...], data_dir: Path,  # noqa: PLR0913
              chunk_m: float = 10000.0,
              report: Callable[[int, int], None] | None = None,
              crs: str | None = None,

@@ -11,6 +11,12 @@ repos:
         types: [python]
         require_serial: true
 
+      - id: file-length
+        name: file length (<=500 lines)
+        entry: uv run python scripts/check_file_length.py
+        language: system
+        types: [python]
+
       - id: mypy
         name: mypy
         entry: uv run mypy

@@ -29,7 +29,7 @@ import rasterio
 import requests
 from pyproj import Transformer
 from rasterio.merge import merge
-from shapely.geometry import box, mapping, shape
+from shapely.geometry import box, mapping
 from shapely.geometry.base import BaseGeometry
 from shapely.ops import transform as shapely_transform
 
@@ -46,7 +46,6 @@ IDEE_COLLECTIONS = {
     "EPSG:4083": "EL.ElevationGridCoverage_4083_5_C",
 }
 CNIG_BASE = "https://centrodedescargas.cnig.es/CentroDescargas"
-CNIG_SERIES_PATH = "modelo-digital-terreno-mdt05-primera-cobertura"
 CNIG_HEADERS = {"User-Agent": "Mozilla/5.0 highliner-finder/0.1"}
 NATIVE_RES = 5.0       # meters — finest DTM resolution on this WCS
 MAX_TILE_PX = 175      # per side; 175*175 < 35,800 px request cap
@@ -165,105 +164,6 @@ def _cnig_session() -> requests.Session:
     s = requests.Session()
     s.headers.update(CNIG_HEADERS)
     return s
-
-
-def _cnig_catalog_page(session: requests.Session, page: int) -> str:
-    params = {
-        "codAgr": "MOMDT",
-        "codSerie": "MDT05",
-        "numPagina": str(page),
-        "codTipoArchivo": "",
-        "codComAutonoma": "",
-        "codProvincia": "",
-        "codIne": "",
-        "coordenadas": "",
-        "huso": "",
-        "x": "",
-        "y": "",
-        "lon": "",
-        "lat": "",
-        "formato": "COG",
-    }
-    r = session.get(f"{CNIG_BASE}/archivosSerie", params=params, timeout=60)
-    r.raise_for_status()
-    return r.text
-
-
-def _cnig_sheet_geom(session: requests.Session, sec: str) -> BaseGeometry:
-    for attempt in range(6):
-        r = session.get(f"{CNIG_BASE}/localizarCoordsSec",
-                        params={"secuencial": sec}, timeout=60)
-        if r.status_code != 429:
-            r.raise_for_status()
-            coords = json.loads(r.json()["coordsJson"])
-            return shape(coords["features"][0]["geometry"])
-        retry_after = int(r.headers.get("Retry-After", "0") or "0")
-        time.sleep(max(retry_after, 10 * (attempt + 1)))
-    r.raise_for_status()
-    raise RuntimeError("unreachable")
-
-
-def _cnig_index(index_path: Path) -> list[dict[str, object]]:
-    if index_path.exists():
-        rows: list[dict[str, object]] = json.loads(index_path.read_text())
-        for row in rows:
-            row["geometry"] = shape(row["geometry"])
-        return rows
-
-    index_path.parent.mkdir(parents=True, exist_ok=True)
-    partial_path = index_path.with_suffix(".partial.json")
-    partial: dict[str, dict[str, object]] = {}
-    if partial_path.exists():
-        for row in json.loads(partial_path.read_text()):
-            partial[str(row["secuencial"])] = row
-
-    session = _cnig_session()
-    session.get(f"{CNIG_BASE}/{CNIG_SERIES_PATH}", timeout=60)
-    catalog: list[tuple[str, str]] = []
-    seen: set[str] = set()
-    page = 1
-    while True:
-        html = _cnig_catalog_page(session, page)
-        secs = re.findall(r"detalleArchivo\?sec=(\d+)", html)
-        names = re.findall(r"PNOA[-_]MDT05[^<\s]+", html)
-        # Two independent scrapes of the same page, so the counts can drift if
-        # CNIG's markup changes; take the pairs we can and drop any tail.
-        for sec, name in zip(secs, names, strict=False):
-            if sec in seen:
-                continue
-            seen.add(sec)
-            catalog.append((sec, name.replace("_", "-")))
-        if not secs:
-            break
-        page += 1
-
-    for i, (sec, name) in enumerate(catalog, start=1):
-        if sec not in partial:
-            partial[sec] = {
-                "secuencial": sec,
-                "filename": name,
-                "geometry": mapping(_cnig_sheet_geom(session, sec)),
-            }
-            if i % 10 == 0:
-                partial_path.write_text(json.dumps(list(partial.values())))
-            time.sleep(1.0)
-
-    partial_path.write_text(json.dumps(list(partial.values())))
-    rows = []
-    for row in partial.values():
-        rows.append({
-            "secuencial": row["secuencial"],
-            "filename": row["filename"],
-            "geometry": shape(row["geometry"]),
-        })
-    serializable = [
-        {"secuencial": r["secuencial"], "filename": r["filename"],
-         "geometry": mapping(r["geometry"])}
-        for r in rows
-    ]
-    index_path.write_text(json.dumps(serializable))
-    partial_path.unlink(missing_ok=True)
-    return rows
 
 
 def _bbox_geom_lonlat(bbox: Bbox, crs: str) -> BaseGeometry:
@@ -466,7 +366,7 @@ def tile_specs(bbox: Bbox, res: float = NATIVE_RES, tile_px: int = MAX_TILE_PX
     return out
 
 
-def fetch_tiles(bbox: Bbox, tiles_dir: Path, res: float = NATIVE_RES,
+def fetch_tiles(bbox: Bbox, tiles_dir: Path, res: float = NATIVE_RES,  # noqa: PLR0913
                 tile_px: int = MAX_TILE_PX, source: str = "icgc",
                 crs: str = "EPSG:25831") -> list[Path]:
     """Download tiles covering ``bbox`` into ``tiles_dir``; reuse cached tiles;

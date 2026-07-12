@@ -14,7 +14,7 @@ from highliner.repositories.candidates import save_candidates
 _Pair = tuple[float, float, Anchor, Anchor, Candidate]
 
 
-def _write_region(data_dir: Path, region: str,
+def _write_region(data_dir: Path, region: str,  # noqa: PLR0913
                   bbox: tuple[float, float, float, float],
                   anchors: list[Anchor], candidates: list[Candidate],
                   chunk_m: float = 10000.0,

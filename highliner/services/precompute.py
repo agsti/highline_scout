@@ -50,7 +50,7 @@ def _cleanup_transient_tiles(tiles: list[Path], tiles_dir: Path) -> None:
     shutil.rmtree(tiles_dir, ignore_errors=True)
 
 
-def process_chunk(cx: int, cy: int, core_bbox: Bbox, region_dir: Path,
+def process_chunk(cx: int, cy: int, core_bbox: Bbox, region_dir: Path,  # noqa: PLR0913
                   halo: float = config.CHUNK_HALO_M,
                   crs: str = config.UTM_CRS,
                   dtm_source: str = "icgc") -> int:
@@ -120,11 +120,13 @@ def process_chunk(cx: int, cy: int, core_bbox: Bbox, region_dir: Path,
     return len(owned_pairs)
 
 
-def precompute(region: str, bbox: Bbox, data_dir: Path, chunk_m: float = config.CHUNK_M,
-              report: Callable[[int, int], None] | None = None,
-              crs: str | None = None,
-              dtm_source: str | None = None,
-              workers: int = 1) -> int:
+def precompute(  # noqa: PLR0913
+        region: str, bbox: Bbox, data_dir: Path,
+        chunk_m: float = config.CHUNK_M,
+        report: Callable[[int, int], None] | None = None,
+        crs: str | None = None,
+        dtm_source: str | None = None,
+        workers: int = 1) -> int:
     """Precompute anchors + pairs for ``bbox`` under ``data_dir/<region>``.
     Writes grid.json, then processes every chunk (skipping finished ones).
     Returns the number of chunks."""

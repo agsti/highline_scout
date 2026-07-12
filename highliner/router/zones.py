@@ -14,7 +14,7 @@ router = APIRouter()
 
 
 @router.get("/zones")
-def zones(
+def zones(  # noqa: PLR0913
     request: Request,
     region: str | None = None,
     bbox: str | None = None,

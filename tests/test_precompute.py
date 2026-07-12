@@ -130,7 +130,7 @@ def test_process_chunk_uses_chunk_scoped_transient_tiles(
 
     seen: list[Path] = []
 
-    def fake_fetch(
+    def fake_fetch(  # noqa: PLR0913
         bbox: tuple[float, float, float, float],
         tiles_dir: Path,
         res: float = _dtm.NATIVE_RES,
@@ -286,7 +286,7 @@ def test_precompute_writes_region_crs_and_source_defaults(
 
     seen: list[tuple[tuple[float, float, float, float], str, str]] = []
 
-    def fake_fetch(
+    def fake_fetch(  # noqa: PLR0913
         bbox: tuple[float, float, float, float],
         tiles_dir: Path,
         res: float = _dtm.NATIVE_RES,

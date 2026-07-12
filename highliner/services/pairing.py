@@ -20,7 +20,7 @@ def filter_candidates(candidates: list[Candidate], max_len: float, min_len: floa
             and c.height_diff <= max_dh]
 
 
-def _profile_lows(raster: Raster, x1: np.ndarray, y1: np.ndarray,
+def _profile_lows(raster: Raster, x1: np.ndarray, y1: np.ndarray,  # noqa: PLR0913
                   x2: np.ndarray, y2: np.ndarray, ns: np.ndarray) -> np.ndarray:
     """NaN-aware interior minimum of the elevation profile of each segment
     (endpoints excluded), all segments sampled in one raster gather.
@@ -59,9 +59,10 @@ def _profile_lows(raster: Raster, x1: np.ndarray, y1: np.ndarray,
     return lows
 
 
-def find_candidates(anchors: list[Anchor], raster: Raster, max_len: float,
-                    min_len: float, min_exposure: float, max_dh: float,
-                    sector_tol: float = config.SECTOR_TOL_DEG) -> list[Candidate]:
+def find_candidates(  # noqa: PLR0913
+        anchors: list[Anchor], raster: Raster, max_len: float,
+        min_len: float, min_exposure: float, max_dh: float,
+        sector_tol: float = config.SECTOR_TOL_DEG) -> list[Candidate]:
     if len(anchors) < 2:
         return []
     coords = np.array([[a.x, a.y] for a in anchors])

@@ -27,9 +27,17 @@ system interpreter's plain `venv` is known-broken here.
     just dev                       # FastAPI dev server, auto-reload, :8000
     just fetch-restrictions        # download protected-area layers -> data/restrictions/
 
-CI runs `ruff check`, `mypy` and `pytest`; `pre-commit install` runs the first
-two on commit. Ruff is lint-only (rules `E,F,I,UP,B` at 88 columns) — there is
-no autoformatter, so match the surrounding style by hand.
+CI runs `ruff check`, the file-length cap, `mypy` and `pytest`; `pre-commit
+install` runs everything but the tests on commit. Ruff is lint-only (rules
+`E,F,I,UP,B,C90,PLR09xx` at 88 columns) — there is no autoformatter, so match
+the surrounding style by hand.
+
+Complexity is capped: cyclomatic complexity 10 per function, 12 branches, 50
+statements, 5 arguments, and 500 lines per file (the last has no ruff rule, so
+`scripts/check_file_length.py` enforces it). Twelve pre-existing signatures
+carry `# noqa: PLR0913` — FastAPI query params and geospatial tuning knobs that
+legitimately exceed 5 arguments. Prefer splitting the function over adding a
+new `noqa`.
 
 The frontend is a Vite + React + TypeScript app under `frontend/` (Node ≥ 20):
 

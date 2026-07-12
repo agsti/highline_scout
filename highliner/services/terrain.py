@@ -64,7 +64,7 @@ def _group_sectors(azimuths: np.ndarray, drops: np.ndarray, min_drop: float
     return tuple(sectors)
 
 
-def drop_sectors(raster: Raster, x: float, y: float, radius: float,
+def drop_sectors(raster: Raster, x: float, y: float, radius: float,  # noqa: PLR0913
                  n_azimuths: int, min_drop: float
                  ) -> tuple[tuple[float, float, float], ...]:
     """Sweep azimuths around (x, y); group consecutive dropping directions
@@ -107,7 +107,7 @@ def _thin(points: list[_ThinPoint], thin_dist: float) -> list[Anchor]:
     return kept
 
 
-def extract_anchors(raster: Raster, slope_min: float, radius: float,
+def extract_anchors(raster: Raster, slope_min: float, radius: float,  # noqa: PLR0913
                     n_azimuths: int, min_sector_drop: float,
                     thin_dist: float) -> list[Anchor]:
     slope = compute_slope(raster.data, raster.res)

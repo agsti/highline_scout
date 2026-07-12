@@ -36,12 +36,14 @@ serve host="127.0.0.1" port="8000":
 test *args:
     uv run pytest {{args}}
 
-# Lint (ruff) and type check (strict mypy) the whole codebase.
+# Lint (ruff + file-length cap) and type check (strict mypy) the whole codebase.
 check: lint typecheck
 
-# Lint with ruff. Pass extra args, e.g. just lint --fix
+# Lint with ruff, then enforce the 500-line file cap ruff can't express.
+# Pass extra ruff args, e.g. just lint --fix
 lint *args:
     uv run ruff check {{args}}
+    uv run python scripts/check_file_length.py
 
 # Static type checking (strict mypy) across the codebase.
 typecheck:

@@ -1,9 +1,10 @@
 import numpy as np
 from scipy.spatial import cKDTree
+
 from highliner.core import config, geo
 from highliner.models.anchor import Anchor
-from highliner.models.raster import Raster
 from highliner.models.candidate import Candidate
+from highliner.models.raster import Raster
 
 # Profile samples gathered per batch: bounds the flattened sampling arrays to
 # a few tens of MB on pair-dense chunks.
@@ -94,7 +95,7 @@ def find_candidates(anchors: list[Anchor], raster: Raster, max_len: float,
     # even on chunks with hundreds of thousands of surviving pairs.
     bounds = np.searchsorted(np.cumsum(ns), np.arange(
         _PROFILE_BLOCK_SAMPLES, int(ns.sum()), _PROFILE_BLOCK_SAMPLES), side="left") + 1
-    for lo, hi in zip(np.r_[0, bounds], np.r_[bounds, len(ks)]):
+    for lo, hi in zip(np.r_[0, bounds], np.r_[bounds, len(ks)], strict=True):
         if lo >= hi:
             continue
         kb = ks[lo:hi]

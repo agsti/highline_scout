@@ -36,6 +36,13 @@ serve host="127.0.0.1" port="8000":
 test *args:
     uv run pytest {{args}}
 
+# Lint (ruff) and type check (strict mypy) the whole codebase.
+check: lint typecheck
+
+# Lint with ruff. Pass extra args, e.g. just lint --fix
+lint *args:
+    uv run ruff check {{args}}
+
 # Static type checking (strict mypy) across the codebase.
 typecheck:
     uv run mypy

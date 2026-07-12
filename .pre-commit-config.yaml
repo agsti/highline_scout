@@ -1,9 +1,16 @@
-# Run `pre-commit install` once to enable. The mypy hook is a local hook run
-# through uv so it sees the project's real dependencies and type stubs, which
-# strict mode needs to resolve imports.
+# Run `pre-commit install` once to enable. Both hooks are local hooks run
+# through uv so they see the project's real dependencies and type stubs, which
+# mypy's strict mode needs to resolve imports.
 repos:
   - repo: local
     hooks:
+      - id: ruff
+        name: ruff
+        entry: uv run ruff check --force-exclude
+        language: system
+        types: [python]
+        require_serial: true
+
       - id: mypy
         name: mypy
         entry: uv run mypy

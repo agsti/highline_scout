@@ -1,5 +1,6 @@
 from pathlib import Path
 from typing import cast
+
 import numpy as np
 import pytest
 import requests
@@ -14,7 +15,8 @@ def _http_error(status: int, retry_after: str | None = None) -> requests.HTTPErr
     return requests.HTTPError(response=resp)
 
 
-def _response(status: int, retry_after: str | None = None, text: str = "") -> requests.Response:
+def _response(status: int, retry_after: str | None = None,
+              text: str = "") -> requests.Response:
     resp = requests.Response()
     resp.status_code = status
     resp._content = text.encode()
@@ -25,7 +27,8 @@ def _response(status: int, retry_after: str | None = None, text: str = "") -> re
     return resp
 
 
-def _fake_asc(bbox: tuple[float, float, float, float], width: int, height: int, dest: Path) -> Path:
+def _fake_asc(bbox: tuple[float, float, float, float], width: int, height: int,
+              dest: Path) -> Path:
     """Write a minimal valid ESRI ArcGrid tile of constant elevation 100."""
     minx, miny, maxx, maxy = bbox
     cell = (maxx - minx) / width
@@ -46,7 +49,8 @@ def _fake_asc(bbox: tuple[float, float, float, float], width: int, height: int, 
 def test_cnig_request_retries_throttle_then_succeeds(
         monkeypatch: pytest.MonkeyPatch) -> None:
     sleeps: list[float] = []
-    monkeypatch.setattr("highliner.repositories.dtm.time.sleep", lambda s: sleeps.append(s))
+    monkeypatch.setattr("highliner.repositories.dtm.time.sleep",
+                        lambda s: sleeps.append(s))
     responses = [_response(429, retry_after="9"), _response(200)]
 
     class FakeSession:
@@ -73,7 +77,8 @@ def test_cnig_request_returns_last_response_when_throttle_persists(
 def test_cnig_query_sheets_retries_throttled_page(
         monkeypatch: pytest.MonkeyPatch) -> None:
     sleeps: list[float] = []
-    monkeypatch.setattr("highliner.repositories.dtm.time.sleep", lambda s: sleeps.append(s))
+    monkeypatch.setattr("highliner.repositories.dtm.time.sleep",
+                        lambda s: sleeps.append(s))
     page1 = '<a href="detalleArchivo?sec=42">PNOA-MDT05-H30-0500-COG.tif</a>'
     responses = [
         _response(429, retry_after="3"),   # page 1 throttled once
@@ -103,11 +108,12 @@ def test_tile_specs_covers_grid() -> None:
     specs = list(ingest.tile_specs((484000, 4646000, 486000, 4647500),
                                    res=5.0, tile_px=175))
     assert len(specs) == 6
-    for tb, w, h in specs:
+    for _tb, w, h in specs:
         assert w > 0 and h > 0
 
 
-def test_fetch_tiles_skips_failures(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_fetch_tiles_skips_failures(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     def fake_download(bbox: tuple[float, float, float, float], width: int,
                       height: int, dest: Path) -> Path:
         if int(bbox[0]) == 484000:           # simulate out-of-coverage column
@@ -226,7 +232,8 @@ def test_fetch_cnig_tiles_raises_when_broken_stream_persists(
 def test_fetch_tiles_retries_rate_limited_tiles_honoring_retry_after(
         tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     sleeps: list[float] = []
-    monkeypatch.setattr("highliner.repositories.dtm.time.sleep", lambda s: sleeps.append(s))
+    monkeypatch.setattr("highliner.repositories.dtm.time.sleep",
+                        lambda s: sleeps.append(s))
     attempts: dict[tuple[float, float, float, float], int] = {}
 
     def fake_download(bbox: tuple[float, float, float, float], width: int,
@@ -291,7 +298,8 @@ def test_fetch_tiles_downloads_concurrently_in_spec_order(
     assert peak >= 2, "tile downloads must overlap"
 
 
-def test_raster_from_tiles_merges(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_raster_from_tiles_merges(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(ingest, "_download_tile", _fake_asc)
     paths = ingest.fetch_tiles((484000, 4646000, 486000, 4647500),
                                tmp_path / "tiles", res=5.0, tile_px=175)
@@ -327,7 +335,8 @@ def test_cached_query_sheets_caches_result(
         tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     calls: list[tuple[tuple[float, ...], str]] = []
 
-    def fake_query(session: object, bbox: tuple[float, ...], crs: str) -> list[tuple[str, str]]:
+    def fake_query(session: object, bbox: tuple[float, ...],
+                   crs: str) -> list[tuple[str, str]]:
         calls.append((bbox, crs))
         return [("42", "sheet.tif")]
 
@@ -335,8 +344,9 @@ def test_cached_query_sheets_caches_result(
     cache_dir = tmp_path / "idx"
     bbox = (400000.0, 4600000.0, 410000.0, 4610000.0)
 
-    a = ingest._cached_query_sheets(cast(requests.Session, None), bbox, "EPSG:25830", cache_dir)
-    b = ingest._cached_query_sheets(cast(requests.Session, None), bbox, "EPSG:25830", cache_dir)
+    session = cast(requests.Session, None)
+    a = ingest._cached_query_sheets(session, bbox, "EPSG:25830", cache_dir)
+    b = ingest._cached_query_sheets(session, bbox, "EPSG:25830", cache_dir)
 
     assert a == b == [("42", "sheet.tif")]
     assert len(calls) == 1                       # second call served from disk
@@ -347,7 +357,8 @@ def test_cached_query_sheets_caches_empty_result(
         tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     calls: list[int] = []
 
-    def fake_query(session: object, bbox: tuple[float, ...], crs: str) -> list[tuple[str, str]]:
+    def fake_query(session: object, bbox: tuple[float, ...],
+                   crs: str) -> list[tuple[str, str]]:
         calls.append(1)
         return []
 
@@ -355,6 +366,7 @@ def test_cached_query_sheets_caches_empty_result(
     cache_dir = tmp_path / "idx"
     bbox = (0.0, 0.0, 10.0, 10.0)
 
-    assert ingest._cached_query_sheets(cast(requests.Session, None), bbox, "EPSG:25830", cache_dir) == []
-    assert ingest._cached_query_sheets(cast(requests.Session, None), bbox, "EPSG:25830", cache_dir) == []
+    session = cast(requests.Session, None)
+    assert ingest._cached_query_sheets(session, bbox, "EPSG:25830", cache_dir) == []
+    assert ingest._cached_query_sheets(session, bbox, "EPSG:25830", cache_dir) == []
     assert len(calls) == 1                       # empty result cached too

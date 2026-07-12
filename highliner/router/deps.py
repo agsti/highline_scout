@@ -63,7 +63,8 @@ def _lonlat_overlaps(a: LonLatBox, b: LonLatBox) -> bool:
     return aw <= be and ae >= bw and as_ <= bn and an >= bs
 
 
-def regions_in_view(index: list[RegionEntry], view_lonlat: LonLatBox) -> list[RegionEntry]:
+def regions_in_view(
+        index: list[RegionEntry], view_lonlat: LonLatBox) -> list[RegionEntry]:
     return [e for e in index if _lonlat_overlaps(e.lonlat_bounds, view_lonlat)]
 
 

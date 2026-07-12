@@ -11,8 +11,6 @@ fetches each chunk as a grid of small tiles and merges them in memory.
 IGN/IDEE serves the national MDT05 through OGC API Coverages. The code here
 requests small COG subsets from the EPSG-specific 5 m collections.
 """
-from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable
 import concurrent.futures
 import fcntl
 import functools
@@ -22,14 +20,19 @@ import math
 import os
 import re
 import time
+from collections.abc import Callable
+from pathlib import Path
+from typing import TYPE_CHECKING, Any
+
 import numpy as np
-import requests
 import rasterio
-from rasterio.merge import merge
+import requests
 from pyproj import Transformer
-from shapely.geometry import box, shape, mapping
+from rasterio.merge import merge
+from shapely.geometry import box, mapping, shape
 from shapely.geometry.base import BaseGeometry
 from shapely.ops import transform as shapely_transform
+
 if TYPE_CHECKING:
     from highliner.models.raster import Raster
 
@@ -223,7 +226,9 @@ def _cnig_index(index_path: Path) -> list[dict[str, object]]:
         html = _cnig_catalog_page(session, page)
         secs = re.findall(r"detalleArchivo\?sec=(\d+)", html)
         names = re.findall(r"PNOA[-_]MDT05[^<\s]+", html)
-        for sec, name in zip(secs, names):
+        # Two independent scrapes of the same page, so the counts can drift if
+        # CNIG's markup changes; take the pairs we can and drop any tail.
+        for sec, name in zip(secs, names, strict=False):
             if sec in seen:
                 continue
             seen.add(sec)
@@ -313,7 +318,8 @@ def _cnig_query_sheets(session: requests.Session, bbox: Bbox,
         secs = re.findall(r"detalleArchivo\?sec=(\d+)", r.text)
         names = re.findall(r"PNOA[-_]MDT05[^<\s]+", r.text)
         added = 0
-        for sec, name in zip(secs, names):
+        # Same caveat as the catalog scrape above: counts can drift.
+        for sec, name in zip(secs, names, strict=False):
             if sec in seen:
                 continue
             seen.add(sec)

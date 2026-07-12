@@ -22,7 +22,8 @@ def anchors(
     total = 0
     for entry in resolve_regions(request, region, bbox, bbox_lonlat):
         box = parse_bbox_utm(bbox, bbox_lonlat, entry.grid.crs)
-        clipped = clip_anchors(chunked_store.load_anchors_in_bbox(entry.region_dir, box), box)
+        clipped = clip_anchors(
+            chunked_store.load_anchors_in_bbox(entry.region_dir, box), box)
         total += len(clipped)
         per_region.append((clipped, entry.grid.crs))
     if total > config.MAX_ANCHORS_IN_VIEW:

@@ -2,7 +2,6 @@ import json
 from pathlib import Path
 
 from fastapi.testclient import TestClient
-
 from highliner.app import create_app
 from highliner.core import tiles
 

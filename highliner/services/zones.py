@@ -1,8 +1,10 @@
 from collections import defaultdict
-from typing import Callable
+from collections.abc import Callable
+
 import numpy as np
 from scipy.spatial import cKDTree
 from shapely.geometry import MultiPoint
+
 from highliner.core import config, geo
 from highliner.models.anchor import Anchor
 from highliner.models.candidate import Candidate
@@ -54,7 +56,7 @@ def build_zones(candidates: list[Candidate],
     for i in range(len(anchors)):
         members[find(i)].append(i)
     comp_pairs = defaultdict(list)  # component root -> Candidates
-    for c, (i, _j) in zip(candidates, pair_idx):
+    for c, (i, _j) in zip(candidates, pair_idx, strict=True):
         comp_pairs[find(i)].append(c)
 
     zones = []

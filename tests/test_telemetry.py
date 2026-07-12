@@ -5,11 +5,15 @@ import posthog
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-
 from highliner.core.config import Settings
-from highliner.core.telemetry import (SERVER_DISTINCT_ID, SlowRequestMiddleware,
-                                      api_paths, capture_server_event,
-                                      init_posthog, init_sentry)
+from highliner.core.telemetry import (
+    SERVER_DISTINCT_ID,
+    SlowRequestMiddleware,
+    api_paths,
+    capture_server_event,
+    init_posthog,
+    init_sentry,
+)
 
 
 class FakeCapture:

@@ -1,14 +1,17 @@
-from pathlib import Path
 import json
+from pathlib import Path
+
 import pytest
 from fastapi.testclient import TestClient
-
+from highliner.app import create_app
+from highliner.core import config
 from highliner.models.anchor import Anchor
 from highliner.models.candidate import Candidate
 from highliner.repositories.anchors import save_anchors
 from highliner.repositories.candidates import save_candidates
-from highliner.app import create_app
-from highliner.core import config
+
+# (centre_x, centre_y, anchor_a, anchor_b, candidate) for one facing pair.
+_Pair = tuple[float, float, Anchor, Anchor, Candidate]
 
 
 def _write_region(data_dir: Path, region: str,
@@ -36,7 +39,7 @@ def _gap_region(data_dir: Path, region: str = "test") -> None:
     _write_region(data_dir, region, (0.0, 0.0, 300.0, 300.0), [a, b], [c])
 
 
-def _facing_pair(lon: float, lat: float) -> tuple[float, float, Anchor, Anchor, Candidate]:
+def _facing_pair(lon: float, lat: float) -> _Pair:
     """Two facing anchors 80 m apart, centred on the UTM projection of (lon, lat)."""
     from highliner.core import geo
     cx, cy = geo.to_utm(lon, lat)
@@ -72,7 +75,8 @@ def test_zones_endpoint(tmp_path: Path) -> None:
 def test_zones_slider_filters_out_pair(tmp_path: Path) -> None:
     _gap_region(tmp_path)
     client = TestClient(create_app(data_dir=tmp_path))
-    r = client.get("/zones", params={"region": "test", "bbox": "0,0,300,300", "min_exposure": 90})
+    r = client.get("/zones", params={"region": "test", "bbox": "0,0,300,300",
+                                     "min_exposure": 90})
     assert r.status_code == 200
     assert r.json()["features"] == []
 
@@ -91,7 +95,8 @@ def test_zones_bbox_lonlat(tmp_path: Path) -> None:
     a = Anchor(x=cx - 40, y=cy, elev=100.0, sectors=((80.0, 100.0, 60.0),))
     b = Anchor(x=cx + 40, y=cy, elev=100.0, sectors=((260.0, 280.0, 60.0),))
     c = Candidate(a=a, b=b, length=80.0, exposure=80.0, height_diff=0.0)
-    _write_region(tmp_path, "geo", (cx - 200.0, cy - 200.0, cx + 200.0, cy + 200.0), [a, b], [c])
+    _write_region(tmp_path, "geo",
+                  (cx - 200.0, cy - 200.0, cx + 200.0, cy + 200.0), [a, b], [c])
 
     client = TestClient(create_app(data_dir=tmp_path))
     r = client.get("/zones", params={
@@ -168,7 +173,9 @@ def test_regions_lists_region(tmp_path: Path) -> None:
     assert b[0] < b[2] and b[1] < b[3]
 
 
-def _write_restriction_layer(data_dir: Path, layer_id: str, name: str, lonlat_box: tuple[float, float, float, float]) -> None:
+def _write_restriction_layer(
+        data_dir: Path, layer_id: str, name: str,
+        lonlat_box: tuple[float, float, float, float]) -> None:
     """Write a one-polygon restriction layer (lon/lat) to data_dir."""
     import geopandas as gpd
     from shapely.geometry import box
@@ -270,7 +277,8 @@ def test_anchors_merges_two_regions(tmp_path: Path) -> None:
     assert len(r.json()["features"]) == 4  # 2 anchors per region
 
 
-def test_anchors_merged_cap_413(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_anchors_merged_cap_413(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     cx1, cy1, a1, b1, c1 = _facing_pair(1.83, 41.59)
     _write_region(tmp_path, "one", (cx1 - 200, cy1 - 200, cx1 + 200, cy1 + 200),
                   [a1, b1], [c1])
@@ -291,7 +299,7 @@ def test_zones_merges_cross_crs_seam_into_one_zone(tmp_path: Path) -> None:
     # per-region loop returned two fragments; the merge returns one zone.
     from highliner.core import geo
 
-    def pair_in(crs: str, dlat: float) -> tuple[float, float, Anchor, Anchor, Candidate]:
+    def pair_in(crs: str, dlat: float) -> _Pair:
         cx, cy = geo.from_lonlat_crs(0.72, 42.05 + dlat, crs)
         a = Anchor(x=cx - 40, y=cy, elev=100.0, sectors=((80.0, 100.0, 60.0),))
         b = Anchor(x=cx + 40, y=cy, elev=100.0, sectors=((260.0, 280.0, 60.0),))
@@ -324,8 +332,9 @@ def test_zones_cross_crs_duplicate_collapses_to_one_pair(tmp_path: Path) -> None
     # as two distinct pairs (n_pairs == 2); only the reproject -> dedup path
     # collapses them into a single surviving pair. n_pairs == 1 is therefore
     # proof the dedup step ran, not just the union-find merge.
-    from highliner.core import geo
     import math
+
+    from highliner.core import geo
 
     # lon0/lat0 chosen (and verified) so the reprojected midpoint lands ~1 m
     # from a 15 m grid-cell center (round(mx/15) boundaries sit at the

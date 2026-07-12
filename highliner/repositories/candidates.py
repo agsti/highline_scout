@@ -32,5 +32,6 @@ def load_candidates(path: str | Path) -> list[Candidate]:
         a = Anchor(x=float(r.ax), y=float(r.ay), elev=float(r.aelev), sectors=())
         b = Anchor(x=float(r.bx), y=float(r.by), elev=float(r.belev), sectors=())
         out.append(Candidate(a=a, b=b, length=float(r.length),
-                             exposure=float(r.exposure), height_diff=float(r.height_diff)))
+                             exposure=float(r.exposure),
+                             height_diff=float(r.height_diff)))
     return out

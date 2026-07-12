@@ -2,9 +2,8 @@ from pathlib import Path
 
 import geopandas as gpd
 import pytest
-from shapely.geometry import Polygon
-
 from highliner.repositories import restrictions as R
+from shapely.geometry import Polygon
 
 _SQUARE = Polygon([(0, 0), (0, 1), (1, 1), (1, 0)])
 

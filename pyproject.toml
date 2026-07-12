@@ -19,7 +19,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest", "httpx", "mypy", "types-requests"]
+dev = ["pytest", "httpx", "mypy", "types-requests", "ruff"]
 
 [project.scripts]
 highliner = "highliner.cli:main"
@@ -30,6 +30,15 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 include = ["highliner*"]
+
+[tool.ruff]
+target-version = "py311"
+src = ["highliner", "scripts", "tests"]
+
+[tool.ruff.lint]
+# pycodestyle + pyflakes (ruff's default) plus import sorting, pyupgrade and
+# bugbear. Formatting is left alone: `ruff format` is not part of the workflow.
+select = ["E", "F", "I", "UP", "B"]
 
 [tool.mypy]
 python_version = "3.11"

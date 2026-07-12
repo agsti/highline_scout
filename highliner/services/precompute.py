@@ -5,13 +5,13 @@ tiles (+halo), extract anchors, find candidate pairs at a loose envelope, keep
 core anchors and canonically-owned pairs, write parquet partitions, then delete
 the raw downloads. RAM is bounded to one chunk; no DTM persists.
 """
+import concurrent.futures
 import json
 import math
-import concurrent.futures
 import os
 import shutil
+from collections.abc import Callable, Iterator
 from pathlib import Path
-from typing import Callable, Iterator
 
 from highliner.core import config
 from highliner.core.regions import defaults_for_region
@@ -94,8 +94,9 @@ def process_chunk(cx: int, cy: int, core_bbox: Bbox, region_dir: Path,
                 # tie-break coords so sub-meter drift between a pair re-extracted in
                 # adjacent chunks can't flip which endpoint is "canonical" (which
                 # could drop or duplicate a seam-crossing line).
-                kx, ky = min((float(round(c.a.x)), float(round(c.a.y)), c.a.x, c.a.y),
-                             (float(round(c.b.x)), float(round(c.b.y)), c.b.x, c.b.y))[2:]
+                kx, ky = min(
+                    (float(round(c.a.x)), float(round(c.a.y)), c.a.x, c.a.y),
+                    (float(round(c.b.x)), float(round(c.b.y)), c.b.x, c.b.y))[2:]
                 if _in_core(kx, ky, core_bbox):
                     owned_pairs.append(c)
 

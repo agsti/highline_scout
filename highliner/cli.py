@@ -1,6 +1,7 @@
 import argparse
 import time
 from pathlib import Path
+
 from highliner.core import config
 from highliner.core.regions import defaults_for_region
 
@@ -13,6 +14,7 @@ def _fmt_hms(seconds: float) -> str:
 
 def _cmd_serve(args: argparse.Namespace) -> None:
     import uvicorn
+
     from highliner.app import create_app
     app = create_app(data_dir=Path(args.data_dir))
     uvicorn.run(app, host=args.host, port=args.port)

@@ -1,8 +1,8 @@
 import numpy as np
 from affine import Affine
-from highliner.models.raster import Raster
 from highliner.models.anchor import Anchor
 from highliner.models.candidate import Candidate
+from highliner.models.raster import Raster
 from highliner.services import pairing
 
 

@@ -49,7 +49,8 @@ def test_sample_line_diagonal_matches_value_at() -> None:
     n = max(2, int(length / 1.0) + 1)
     xs = np.linspace(0.5, 9.5, n)
     ys = np.linspace(9.5, 0.5, n)
-    expected = [r.value_at(float(x), float(y)) for x, y in zip(xs, ys)]
+    expected = [
+        r.value_at(float(x), float(y)) for x, y in zip(xs, ys, strict=True)]
     assert prof.tolist() == expected
     assert len(prof) == n
 
@@ -68,6 +69,7 @@ def test_values_at_batch_matches_scalar() -> None:
     xs = np.array([3.5, -5.0, 9.5, 3.0, 100.0])
     ys = np.array([5.5, -5.0, 0.5, 5.5, 5.5])
     vals = r.values_at(xs, ys)
-    expected = [r.value_at(float(x), float(y)) for x, y in zip(xs, ys)]
+    expected = [
+        r.value_at(float(x), float(y)) for x, y in zip(xs, ys, strict=True)]
     assert vals.shape == (5,)
     np.testing.assert_array_equal(vals, expected)

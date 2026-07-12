@@ -47,11 +47,13 @@ def test_build_index_empty_when_data_dir_missing(tmp_path: Path) -> None:
 
 def test_get_region_index_is_cached(tmp_path: Path) -> None:
     from types import SimpleNamespace
+
     from highliner.core import geo
     cx, cy = geo.to_utm(1.83, 41.59)
     _write_grid(tmp_path, "cat", (cx - 500, cy - 500, cx + 500, cy + 500))
 
-    request = SimpleNamespace(app=SimpleNamespace(state=SimpleNamespace(data_dir=tmp_path)))
+    request = SimpleNamespace(
+        app=SimpleNamespace(state=SimpleNamespace(data_dir=tmp_path)))
     first = deps.get_region_index(request)  # type: ignore[arg-type]
     second = deps.get_region_index(request)  # type: ignore[arg-type]
     assert first is second  # built once, then served from app.state cache

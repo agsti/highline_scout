@@ -1,9 +1,10 @@
+import concurrent.futures
 from pathlib import Path
 from typing import cast
-import concurrent.futures
+
 import pytest
-from highliner.services import precompute
 from highliner.core import config
+from highliner.services import precompute
 
 
 def test_chunk_grid_tiles_bbox() -> None:
@@ -11,7 +12,7 @@ def test_chunk_grid_tiles_bbox() -> None:
     chunks = list(precompute.chunk_grid(bbox, chunk_m=10000.0))
     assert len(chunks) == 3 * 2                 # 3 cols x 2 rows
     assert len({(cx, cy) for cx, cy, _ in chunks}) == 6
-    for cx, cy, (x0, y0, x1, y1) in chunks:
+    for _cx, _cy, (x0, y0, x1, y1) in chunks:
         assert x1 <= 25000.0 and y1 <= 15000.0
         assert x1 > x0 and y1 > y0
     top_right = [c for c in chunks if c[0] == 2 and c[1] == 1][0]
@@ -78,10 +79,12 @@ def test_process_chunk_resumes(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
     precompute.process_chunk(0, 0, core, region_dir)           # returns immediately
 
 
-def test_process_chunk_empty_marks_done(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_process_chunk_empty_marks_done(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     from highliner.repositories import dtm as _dtm
-    monkeypatch.setattr(_dtm, "_download_tile",
-                        lambda *a, **k: (_ for _ in ()).throw(RuntimeError("no coverage")))
+    monkeypatch.setattr(
+        _dtm, "_download_tile",
+        lambda *a, **k: (_ for _ in ()).throw(RuntimeError("no coverage")))
     region_dir = tmp_path / "catalonia"
     core = (200000.0, 4400000.0, 210000.0, 4410000.0)
     precompute.process_chunk(0, 0, core, region_dir)
@@ -262,7 +265,8 @@ def test_precompute_uses_process_pool_for_parallel_workers(
         def __exit__(self, exc_type: object, exc: object, tb: object) -> None:
             return None
 
-        def submit(self, *args: object, **kwargs: object) -> concurrent.futures.Future[int]:
+        def submit(self, *args: object,
+                   **kwargs: object) -> concurrent.futures.Future[int]:
             seen["submitted"] = cast(int, seen["submitted"]) + 1
             return done_future
 
@@ -335,8 +339,8 @@ def test_cross_chunk_pair_owned_by_exactly_one_partition(
     precompute.precompute("catalonia", bbox, tmp_path, chunk_m=10000.0)
     region_dir = tmp_path / "catalonia"
 
-    from highliner.repositories.candidates import load_candidates
     from highliner.models.candidate import Candidate
+    from highliner.repositories.candidates import load_candidates
     c0 = load_candidates(region_dir / "pairs" / "q_0_0.parquet")
     c1 = load_candidates(region_dir / "pairs" / "q_1_0.parquet")
 

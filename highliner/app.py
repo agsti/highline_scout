@@ -7,10 +7,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from highliner.core import config
-from highliner.core.telemetry import (SlowRequestMiddleware, api_paths,
-                                      init_posthog, init_sentry,
-                                      shutdown_telemetry)
-from highliner.router import (anchors, density, regions, restrictions, zones)
+from highliner.core.telemetry import (
+    SlowRequestMiddleware,
+    api_paths,
+    init_posthog,
+    init_sentry,
+    shutdown_telemetry,
+)
+from highliner.router import anchors, density, regions, restrictions, zones
 
 
 @asynccontextmanager

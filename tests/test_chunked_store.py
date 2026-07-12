@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+
 import pytest
 from fastapi import HTTPException
 from highliner.core import config
@@ -62,7 +63,8 @@ def test_load_pairs_in_bbox_only_overlapping(tmp_path: Path) -> None:
     assert [round(c.a.x) for c in got] == [5000]
 
 
-def test_load_pairs_too_many_chunks_raises(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_load_pairs_too_many_chunks_raises(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     region = _grid(tmp_path)
     (region / "pairs").mkdir()
     save_candidates([_cand(5000.0)], region / "pairs" / "q_0_0.parquet")
@@ -72,7 +74,8 @@ def test_load_pairs_too_many_chunks_raises(tmp_path: Path, monkeypatch: pytest.M
     assert ei.value.status_code == 413
 
 
-def test_load_anchors_too_many_chunks_raises(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_load_anchors_too_many_chunks_raises(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     region = _grid(tmp_path)
     (region / "anchors").mkdir()
     save_anchors([Anchor(x=5000.0, y=5000.0, elev=10.0, sectors=())],

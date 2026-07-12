@@ -66,5 +66,7 @@ DATA_DIR = settings.data_dir
 
 # Zoomed-out density pyramid
 DENSITY_ZOOM_LEVELS = range(6, 15)  # slippy-map zoom layers precomputed (z6..z14)
-DENSITY_MAX_ZOOM = 12               # frontend shows density at/below this Leaflet zoom, zones above
-DENSITY_ZOOM_OFFSET = 2             # request density tiles this many levels finer than the display zoom
+# Frontend shows density at/below this Leaflet zoom, zones above it.
+DENSITY_MAX_ZOOM = 12
+# Request density tiles this many levels finer than the display zoom.
+DENSITY_ZOOM_OFFSET = 2

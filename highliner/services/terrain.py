@@ -1,12 +1,16 @@
 import math
-import numpy as np
-from highliner.models.raster import Raster
-from highliner.models.anchor import Anchor
 
+import numpy as np
+
+from highliner.models.anchor import Anchor
+from highliner.models.raster import Raster
 
 # Steep cells swept per batch: bounds the (cells, azimuths) scratch arrays to
 # a few tens of MB on cliff-dense chunks.
 _SWEEP_BLOCK_CELLS = 65536
+
+# One candidate anchor before thinning: (x, y, elev, sectors, score).
+_ThinPoint = tuple[float, float, float, tuple[tuple[float, float, float], ...], float]
 
 
 def compute_slope(dtm: np.ndarray, res: float) -> np.ndarray:
@@ -74,8 +78,7 @@ def drop_sectors(raster: Raster, x: float, y: float, radius: float,
     return _group_sectors(az, drops, min_drop)
 
 
-def _thin(points: list[tuple[float, float, float, tuple[tuple[float, float, float], ...], float]],
-          thin_dist: float) -> list[Anchor]:
+def _thin(points: list[_ThinPoint], thin_dist: float) -> list[Anchor]:
     """Greedy non-max suppression by descending drop; keep points >= thin_dist
     apart. Spatial-hash grid with thin_dist cells: a conflicting kept point can
     only live in the 3x3 neighborhood, so each check is O(1) on average."""

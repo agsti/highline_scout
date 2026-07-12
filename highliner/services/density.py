@@ -5,13 +5,13 @@ one JSON layer per zoom level. Each pair contributes at its midpoint (where the
 gap is); a cell records the pair count ``n`` and the max ``exposure`` seen.
 """
 import json
+from collections.abc import Callable, Iterable
 from pathlib import Path
-from typing import Callable, Iterable
 
 from highliner.core import config, geo, tiles
 from highliner.core.regions import defaults_for_region
-from highliner.repositories import chunked_store
 from highliner.models.candidate import Candidate
+from highliner.repositories import chunked_store
 from highliner.repositories.candidates import load_candidates
 
 

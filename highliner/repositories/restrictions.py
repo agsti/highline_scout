@@ -30,16 +30,16 @@ files (``fetch_all``) and reading stored layers (``load_layer``). The
 is driven by it; the serving helpers that consume it (``layer_meta``,
 ``clip_to_features``) live in ``highliner.services.restrictions``.
 """
-from pathlib import Path
-from collections.abc import Mapping
-from functools import lru_cache
-from typing import Any, Callable, TypedDict
 import xml.etree.ElementTree as ET
+from collections.abc import Callable, Mapping
+from functools import lru_cache
+from pathlib import Path
+from typing import Any, TypedDict
+
 import geopandas as gpd
 import pandas as pd
 
 from highliner.core import config
-
 
 RAW_DIR = Path(config.DATA_DIR) / "restrictions" / "raw"
 SOURCE_GLOBS: dict[str, tuple[str, ...]] = {

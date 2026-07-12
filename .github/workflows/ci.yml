@@ -19,6 +19,9 @@ jobs:
       - name: Install dependencies
         run: uv sync --extra dev
 
+      - name: Lint (ruff)
+        run: uv run ruff check
+
       - name: Type check (mypy)
         run: uv run mypy
 

@@ -22,8 +22,14 @@ system interpreter's plain `venv` is known-broken here.
 
     just test                      # full suite (uv run pytest)
     uv run pytest tests/test_pairing.py::test_name   # single test
+    just check                     # lint (ruff) + type check (strict mypy)
+    just lint --fix                # ruff, applying safe autofixes
     just dev                       # FastAPI dev server, auto-reload, :8000
     just fetch-restrictions        # download protected-area layers -> data/restrictions/
+
+CI runs `ruff check`, `mypy` and `pytest`; `pre-commit install` runs the first
+two on commit. Ruff is lint-only (rules `E,F,I,UP,B` at 88 columns) — there is
+no autoformatter, so match the surrounding style by hand.
 
 The frontend is a Vite + React + TypeScript app under `frontend/` (Node ≥ 20):
 

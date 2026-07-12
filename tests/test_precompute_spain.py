@@ -1,11 +1,11 @@
 import sys
 
 import pytest
-
 from scripts import precompute_spain
 
 
-def test_precompute_spain_forwards_chunk_workers(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_precompute_spain_forwards_chunk_workers(
+        monkeypatch: pytest.MonkeyPatch) -> None:
     commands: list[list[str]] = []
     monkeypatch.setattr(sys, "argv", [
         "precompute_spain.py",

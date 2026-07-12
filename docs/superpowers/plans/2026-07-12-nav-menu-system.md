@@ -417,7 +417,7 @@ describe("SafetyDialog", () => {
 });
 ```
 
-(If `STRINGS.en.caveat` does not literally start "Zones to scout", read it in `src/lib/i18n/strings.ts` and assert on a distinctive substring of the real value instead.)
+`STRINGS.en.caveat` is verbatim: "Zones to scout — not confirmed-riggable. No bolts, trees, loose rock, access or permissions are verified." — the assertions above are substrings of the real values.
 
 - [ ] **Step 2: Run the test to verify it fails**
 

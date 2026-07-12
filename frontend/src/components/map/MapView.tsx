@@ -1,11 +1,12 @@
 import L from "leaflet";
 import { CopyIcon, ExternalLink, Loader2 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { captureMapSettled } from "@/lib/analytics";
 import { ApiError, fetchAnchors, fetchDensity, fetchRestrictions, fetchZones } from "@/lib/api";
-import { bboxLonLatParam, initialViewFromSearch, type MapViewState } from "@/lib/geo";
+import { bboxLonLatParam, type MapViewState } from "@/lib/geo";
 import { useI18n } from "@/lib/i18n";
+import type { Lang } from "@/lib/i18n/strings";
 import {
   ANCHOR_MIN_ZOOM,
   DENSITY_MAX_ZOOM,
@@ -16,9 +17,9 @@ import {
 } from "@/lib/map-style";
 import type { DensityFeatureCollection, RestrictionLayerMeta, ZoneFeatureCollection } from "@/types/highliner";
 import { createDensityLayer, createRestrictionLayer, createZoneLayer, renderAnchors } from "./leafletLayers";
+import { useLeafletMap } from "./useLeafletMap";
 import { ZoomControls } from "./ZoomControls";
 
-const DEFAULT_VIEW: MapViewState = { center: [41.6, 1.83], zoom: 13 };
 const MOBILE_QUERY = "(max-width: 767px)";
 
 interface MapViewProps {
@@ -73,8 +74,8 @@ export function MapView({
   onDensityModeChange,
 }: MapViewProps) {
   const { lang, t } = useI18n();
-  const elRef = useRef<HTMLDivElement | null>(null);
-  const mapRef = useRef<L.Map | null>(null);
+  const [mapElement, setMapElement] = useState<HTMLDivElement | null>(null);
+  const mapForContextRef = useRef<L.Map | null>(null);
   const zoneLayerRef = useRef<L.GeoJSON | null>(null);
   const densityLayerRef = useRef<L.GeoJSON | null>(null);
   const anchorLayerRef = useRef<L.LayerGroup | null>(null);
@@ -84,14 +85,28 @@ export function MapView({
   const shownZoneFeaturesRef = useRef<ZoneFeatureCollection["features"]>([]);
   const shownDensityRef = useRef<DensityFeatureCollection | null>(null);
   const densitySortedRef = useRef<number[]>([]);
+  const layerLanguageRef = useRef<Lang | null>(null);
   const requestIdRef = useRef(0);
   const tRef = useRef(t);
   const contextMenuRootRef = useRef<HTMLDivElement | null>(null);
   const keepContextMenuForMoveRef = useRef(false);
   const statusRef = useRef<{ kind: "idle" | "loading-zones" | "loading-density" | "zones" | "density" | "zoom" | "error"; count?: number; detail?: string; noun?: "nounZones" | "nounHotspots" }>({ kind: "idle" });
-  const [viewportTick, setViewportTick] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
+
+  const setMapElementRef = useCallback((element: HTMLDivElement | null) => {
+    setMapElement(element);
+  }, []);
+
+  const handleViewportChange = useCallback((map: L.Map) => {
+    mapForContextRef.current = map;
+    if (keepContextMenuForMoveRef.current) {
+      keepContextMenuForMoveRef.current = false;
+    } else {
+      setContextMenu(null);
+    }
+    onViewportChange(map);
+  }, [onViewportChange]);
 
   function renderStatus() {
     switch (statusRef.current.kind) {
@@ -117,11 +132,6 @@ export function MapView({
     onMapStatus?.(renderStatus());
   }
 
-  function publishViewState(map: L.Map) {
-    const center = map.getCenter();
-    onViewStateChange?.({ center: [center.lat, center.lng], zoom: map.getZoom() });
-  }
-
   function rebuildDynamicLayers(map: L.Map) {
     if (zoneLayerRef.current) map.removeLayer(zoneLayerRef.current);
     if (densityLayerRef.current) map.removeLayer(densityLayerRef.current);
@@ -144,6 +154,39 @@ export function MapView({
   function isMobileViewport() {
     return typeof window.matchMedia === "function" && window.matchMedia(MOBILE_QUERY).matches;
   }
+
+  const setContextMenuFromLeafletEvent = useCallback((event: L.LeafletMouseEvent) => {
+    const map = mapForContextRef.current;
+    if (!map) return;
+    const { lat, lng } = event.latlng;
+    const mobile = isMobileViewport();
+    setContextMenu({
+      lat,
+      lng,
+      zoom: map.getZoom(),
+      x: event.containerPoint.x,
+      y: event.containerPoint.y,
+    });
+    if (mobile) {
+      keepContextMenuForMoveRef.current = true;
+      map.panTo([lat, lng], { animate: true });
+    }
+  }, []);
+
+  const onMapSettled = useCallback((map: L.Map) => {
+    const center = map.getCenter();
+    captureMapSettled(map.getZoom(), center.lat, center.lng);
+  }, []);
+
+  const { mapRef, viewportRevision } = useLeafletMap({
+    element: mapElement,
+    t,
+    lang,
+    onViewportChange: handleViewportChange,
+    onViewStateChange,
+    onMapSettled,
+    onContextMenu: setContextMenuFromLeafletEvent,
+  });
 
   useEffect(() => {
     tRef.current = t;
@@ -171,62 +214,27 @@ export function MapView({
   }, [contextMenu]);
 
   useEffect(() => {
-    if (!elRef.current || mapRef.current) return;
-    const urlView = initialViewFromSearch(window.location.search);
-    const view = urlView ?? DEFAULT_VIEW;
-    const map = L.map(elRef.current, { zoomControl: false }).setView(view.center, view.zoom);
-    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      maxZoom: 19,
-      attribution: "(c) OpenStreetMap",
-    }).addTo(map);
-    map.createPane("restrictions");
-    const pane = map.getPane("restrictions");
-    if (pane) pane.style.zIndex = "350";
+    const map = mapRef.current;
+    if (!map) return;
     rebuildDynamicLayers(map);
+    layerLanguageRef.current = lang;
     anchorLayerRef.current = L.layerGroup().addTo(map);
     restrictionLayerRef.current = createRestrictionLayer(() => restrictionMetaRef.current).addTo(map);
-    map.on("moveend", () => {
-      if (keepContextMenuForMoveRef.current) {
-        keepContextMenuForMoveRef.current = false;
-      } else {
-        setContextMenu(null);
-      }
-      onViewportChange(map);
-      publishViewState(map);
-      const center = map.getCenter();
-      captureMapSettled(map.getZoom(), center.lat, center.lng);
-      setViewportTick((value) => value + 1);
-    });
-    map.on("contextmenu", (event) => {
-      const { lat, lng } = event.latlng;
-      const mobile = isMobileViewport();
-      setContextMenu({
-        lat,
-        lng,
-        zoom: map.getZoom(),
-        x: event.containerPoint.x,
-        y: event.containerPoint.y,
-      });
-      if (mobile) {
-        keepContextMenuForMoveRef.current = true;
-        map.panTo([lat, lng], { animate: true });
-      }
-    });
-    mapRef.current = map;
-    onViewportChange(map);
-    publishViewState(map);
     return () => {
-      map.remove();
-      mapRef.current = null;
+      anchorLayerRef.current = null;
+      restrictionLayerRef.current = null;
     };
-  }, [onViewportChange, onViewStateChange]);
+  }, [mapElement, mapRef]);
 
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-    rebuildDynamicLayers(map);
+    if (layerLanguageRef.current !== lang) {
+      rebuildDynamicLayers(map);
+      layerLanguageRef.current = lang;
+    }
     onMapStatus?.(renderStatus());
-  }, [lang, onMapStatus]);
+  }, [lang, mapElement, onMapStatus]);
 
   useEffect(() => {
     restrictionMetaRef.current = new Map(restrictionLayers.map((layer) => [layer.id, layer]));
@@ -301,7 +309,7 @@ export function MapView({
 
     void load();
     return () => controller.abort();
-  }, [minLen, maxLen, minExposure, onMapStatus, onError, onDensityModeChange, viewportTick]);
+  }, [minLen, maxLen, minExposure, mapElement, onMapStatus, onError, onDensityModeChange, viewportRevision]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -331,7 +339,7 @@ export function MapView({
         onError?.(message);
       });
     return () => controller.abort();
-  }, [showAnchors, t, onAnchorStatus, onError, viewportTick]);
+  }, [mapElement, showAnchors, t, onAnchorStatus, onError, viewportRevision]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -364,7 +372,7 @@ export function MapView({
         }
       });
     return () => controller.abort();
-  }, [enabledRestrictions, t, onRestrictionStatus, onError, viewportTick]);
+  }, [enabledRestrictions, mapElement, t, onRestrictionStatus, onError, viewportRevision]);
 
   useEffect(() => {
     zoneLayerRef.current?.clearLayers();
@@ -389,7 +397,7 @@ export function MapView({
 
   return (
     <div className="relative h-full w-full">
-      <div ref={elRef} className="h-full w-full" />
+      <div ref={setMapElementRef} className="h-full w-full" />
       {isLoading ? (
         <div
           data-testid="map-spinner"

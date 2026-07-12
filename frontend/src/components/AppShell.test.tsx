@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -199,8 +199,21 @@ describe("AppShell", () => {
       </I18nProvider>,
     );
 
-    // The language switcher now lives inside the nav menu, not loose in the nav
-    // or duplicated in the mobile sheet, so it's absent until the menu opens.
+    // Duplication guard, part 1: open the mobile sheet and confirm its own
+    // content carries no switcher of its own.
+    await user.click(screen.getByRole("button", { name: /obre controls|open controls|abrir controles/i }));
+    const sheet = screen.getByRole("dialog");
+    expect(within(sheet).queryByRole("group", { name: "Idioma" })).not.toBeInTheDocument();
+
+    // The sheet and the nav menu (a Radix Popover) can never legitimately be
+    // open together — an outside click on the menu trigger would just close
+    // the sheet — so close the sheet before opening the menu.
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    // Duplication guard, part 2: the language switcher now lives inside the
+    // nav menu, not loose in the nav, so it's absent until the menu opens —
+    // then it renders exactly once.
     expect(screen.queryByRole("group", { name: "Idioma" })).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /^menú?$/i }));

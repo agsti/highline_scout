@@ -10,6 +10,7 @@ export const STRINGS = {
     minExposure: "Exposició mínima",
     showAnchors: "Mostra els ancoratges",
     restrictions: "Restriccions",
+    restrictionInfo: "Sobre {name}",
     restrictionCredit: "Dades d'espais protegits © MITECO",
     caveat:
       "Zones per explorar — no s'ha confirmat que es puguin equipar. No s'han verificat ancoratges, arbres, roca solta, accessos ni permisos.",
@@ -69,6 +70,7 @@ export const STRINGS = {
     minExposure: "Exposición mínima",
     showAnchors: "Mostrar anclajes",
     restrictions: "Restricciones",
+    restrictionInfo: "Sobre {name}",
     restrictionCredit: "Datos de espacios protegidos © MITECO",
     caveat:
       "Zonas para explorar — no se ha confirmado que se puedan montar. No se han verificado anclajes, árboles, roca suelta, accesos ni permisos.",
@@ -128,6 +130,7 @@ export const STRINGS = {
     minExposure: "Min exposure",
     showAnchors: "Show anchors",
     restrictions: "Restrictions",
+    restrictionInfo: "About {name}",
     restrictionCredit: "Protected-area data © MITECO",
     caveat:
       "Zones to scout — not confirmed-riggable. No bolts, trees, loose rock, access or permissions are verified.",

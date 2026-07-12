@@ -112,14 +112,6 @@ export function App() {
 
   const legend = <RestrictionLegend layers={restrictionLayers} enabled={enabledRestrictions} />;
 
-  const swatches = useMemo(
-    () =>
-      restrictionLayers
-        .filter((layer) => enabledRestrictions.includes(layer.id))
-        .map((layer) => layer.color),
-    [restrictionLayers, enabledRestrictions],
-  );
-
   const summary = useMemo(
     () =>
       t("filterSummary", {
@@ -156,7 +148,6 @@ export function App() {
             filters={filters}
             statuses={statuses}
             restrictions={restrictions}
-            swatches={swatches}
             densityMode={densityMode}
             sheetOpen={sheetOpen}
             onSheetOpenChange={setSheetOpen}

@@ -14,7 +14,6 @@ interface MapChromeProps {
   filters: ReactNode;
   restrictions: ReactNode;
   statuses: ReactNode;
-  swatches: string[];
   densityMode: boolean;
   sheetOpen: boolean;
   onSheetOpenChange: (open: boolean) => void;
@@ -29,7 +28,6 @@ export function MapChrome(props: MapChromeProps) {
         filters={props.filters}
         restrictions={props.restrictions}
         statuses={props.statuses}
-        swatches={props.swatches}
       />
       <CaveatChip />
       <ZoomHintToast active={props.densityMode} />

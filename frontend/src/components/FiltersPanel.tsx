@@ -15,7 +15,13 @@ export function FiltersPanel({ filters, restrictions, statuses }: FiltersPanelPr
 
   return (
     <div className="absolute left-4 top-[76px] z-[1000] hidden w-[296px] md:block">
-      <div className="overflow-hidden rounded-[14px] bg-card/[0.97] shadow-panel backdrop-blur-[10px]">
+      <div
+        data-testid="filters-card"
+        className={cn(
+          "rounded-[14px] bg-card/[0.97] shadow-panel backdrop-blur-[10px]",
+          collapsed && "overflow-hidden",
+        )}
+      >
         <div className="flex items-center justify-between border-b border-hairline-soft px-3.5 py-[13px]">
           <div className="flex items-center gap-2">
             <SlidersHorizontal className="h-[15px] w-[15px] text-primary-deep" aria-hidden />
@@ -41,13 +47,16 @@ export function FiltersPanel({ filters, restrictions, statuses }: FiltersPanelPr
             collapsed ? "grid-rows-[0fr]" : "grid-rows-[1fr]",
           )}
         >
-          <div className="overflow-hidden">
+          <div
+            data-testid="filters-panel-content"
+            className={cn(collapsed && "overflow-hidden")}
+          >
             <div className="flex flex-col gap-3.5 p-3.5">
               {filters}
               {statuses}
             </div>
 
-            <div className="border-t border-hairline-soft">
+            <div className="relative border-t border-hairline-soft">
               <div className="px-3.5 pt-[11px] text-[13px] font-bold text-primary-deep">
                 {t("restrictions")}
               </div>

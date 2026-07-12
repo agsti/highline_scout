@@ -52,4 +52,18 @@ describe("FiltersPanel", () => {
       "false",
     );
   });
+
+  it("allows adjacent restriction content to overflow only while expanded", async () => {
+    const user = userEvent.setup();
+    renderPanel();
+
+    const card = screen.getByTestId("filters-card");
+    const content = screen.getByTestId("filters-panel-content");
+    expect(card).not.toHaveClass("overflow-hidden");
+    expect(content).not.toHaveClass("overflow-hidden");
+
+    await user.click(screen.getByRole("button", { name: "Minimize panel" }));
+    expect(card).toHaveClass("overflow-hidden");
+    expect(content).toHaveClass("overflow-hidden");
+  });
 });

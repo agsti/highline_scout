@@ -49,7 +49,7 @@ export function RestrictionLayerControls({
   return (
     <fieldset
       ref={rootRef}
-      className="relative space-y-3 rounded-md border p-3 md:rounded-none md:border-0 md:p-0"
+      className="space-y-3 rounded-md border p-3 md:rounded-none md:border-0 md:p-0"
     >
       <legend className="px-1 text-xs font-medium text-muted-foreground md:sr-only">
         {t("restrictions")}

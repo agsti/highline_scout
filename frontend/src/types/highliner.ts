@@ -56,3 +56,5 @@ export interface RestrictionProperties {
 
 export type RestrictionFeature = Feature<PolygonGeometry, RestrictionProperties>;
 export type RestrictionFeatureCollection = FeatureCollection<RestrictionFeature>;
+
+export type RestrictionAreaMode = "informative" | "exclude";

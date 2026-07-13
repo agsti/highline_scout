@@ -3,6 +3,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { I18nProvider } from "@/lib/i18n";
+import type { RestrictionAreaMode } from "@/types/highliner";
 import { NavMenu } from "./NavMenu";
 
 function renderMenu() {
@@ -11,8 +12,16 @@ function renderMenu() {
 
   function Harness() {
     const [open, setOpen] = useState(false);
+    const [mode, setMode] = useState<RestrictionAreaMode>("informative");
     return (
-      <NavMenu open={open} onOpenChange={setOpen} onAbout={onAbout} onSafety={onSafety} />
+      <NavMenu
+        open={open}
+        onOpenChange={setOpen}
+        onAbout={onAbout}
+        onSafety={onSafety}
+        restrictionAreaMode={mode}
+        onRestrictionAreaModeChange={setMode}
+      />
     );
   }
 
@@ -105,5 +114,24 @@ describe("NavMenu", () => {
 
     expect(screen.getByRole("button", { name: "Español" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("button", { name: "Seguridad" })).toBeInTheDocument();
+  });
+
+  it("changes the restriction-area mode", async () => {
+    const user = userEvent.setup();
+    renderMenu();
+
+    await openMenu(user);
+
+    expect(screen.getByText("Restriction areas")).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Restriction areas" })).toHaveTextContent(
+      "Informative",
+    );
+
+    await user.click(screen.getByRole("combobox", { name: "Restriction areas" }));
+    await user.click(screen.getByRole("option", { name: "Exclude results" }));
+
+    expect(screen.getByRole("combobox", { name: "Restriction areas" })).toHaveTextContent(
+      "Exclude results",
+    );
   });
 });

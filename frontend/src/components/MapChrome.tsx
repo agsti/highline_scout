@@ -7,6 +7,7 @@ import { FloatingNav } from "./FloatingNav";
 import { LineChanceMeter } from "./LineChanceMeter";
 import { MobileControlSheet } from "./MobileControlSheet";
 import { ZoomHintToast } from "./ZoomHintToast";
+import type { RestrictionAreaMode } from "@/types/highliner";
 
 interface MapChromeProps {
   summary: string;
@@ -21,13 +22,20 @@ interface MapChromeProps {
   onSheetOpenChange: (open: boolean) => void;
   onAbout: () => void;
   onSafety: () => void;
+  restrictionAreaMode: RestrictionAreaMode;
+  onRestrictionAreaModeChange: (mode: RestrictionAreaMode) => void;
   onErrorDismiss: (eventId: number) => void;
 }
 
 export function MapChrome(props: MapChromeProps) {
   return (
     <>
-      <FloatingNav onAbout={props.onAbout} onSafety={props.onSafety} />
+      <FloatingNav
+        onAbout={props.onAbout}
+        onSafety={props.onSafety}
+        restrictionAreaMode={props.restrictionAreaMode}
+        onRestrictionAreaModeChange={props.onRestrictionAreaModeChange}
+      />
       <FiltersPanel
         filters={props.filters}
         restrictions={props.restrictions}

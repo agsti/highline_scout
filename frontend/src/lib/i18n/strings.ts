@@ -10,6 +10,9 @@ export const STRINGS = {
     minExposure: "Exposició mínima",
     showAnchors: "Mostra els ancoratges",
     restrictions: "Restriccions",
+    restrictionAreas: "Àrees restringides",
+    restrictionAreasInformative: "Informatiu",
+    restrictionAreasExclude: "Exclou resultats",
     restrictionInfo: "Sobre {name}",
     restrictionCredit: "Dades d'espais protegits © MITECO",
     caveat:
@@ -79,6 +82,9 @@ export const STRINGS = {
     minExposure: "Exposición mínima",
     showAnchors: "Mostrar anclajes",
     restrictions: "Restricciones",
+    restrictionAreas: "Áreas restringidas",
+    restrictionAreasInformative: "Informativo",
+    restrictionAreasExclude: "Excluir resultados",
     restrictionInfo: "Sobre {name}",
     restrictionCredit: "Datos de espacios protegidos © MITECO",
     caveat:
@@ -148,6 +154,9 @@ export const STRINGS = {
     minExposure: "Min exposure",
     showAnchors: "Show anchors",
     restrictions: "Restrictions",
+    restrictionAreas: "Restriction areas",
+    restrictionAreasInformative: "Informative",
+    restrictionAreasExclude: "Exclude results",
     restrictionInfo: "About {name}",
     restrictionCredit: "Protected-area data © MITECO",
     caveat:

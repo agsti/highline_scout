@@ -13,7 +13,7 @@ import { capture } from "./lib/analytics";
 import { fetchRestrictionLayers } from "./lib/api";
 import { bboxLonLatParam } from "./lib/geo";
 import { useI18n } from "./lib/i18n";
-import type { RestrictionLayerMeta } from "./types/highliner";
+import type { RestrictionAreaMode, RestrictionLayerMeta } from "./types/highliner";
 
 const DEFAULT_LENGTH_RANGE: LengthRange = [20, 150];
 const DEFAULT_MIN_EXPOSURE = 30;
@@ -30,6 +30,7 @@ export function App() {
   const [showAnchors, setShowAnchors] = useState(false);
   const [restrictionLayers, setRestrictionLayers] = useState<RestrictionLayerMeta[]>([]);
   const [enabledRestrictions, setEnabledRestrictions] = useState<string[]>([]);
+  const [restrictionAreaMode, setRestrictionAreaMode] = useState<RestrictionAreaMode>("informative");
   const [disclaimerOpen, setDisclaimerOpen] = useState(true);
   const [aboutOpen, setAboutOpen] = useState(false);
   const [safetyOpen, setSafetyOpen] = useState(false);
@@ -126,6 +127,7 @@ export function App() {
       <AppShell
         map={
           <MapView
+            {...{ restrictionAreaMode }}
             minLen={appliedLengthRange[0]}
             maxLen={appliedLengthRange[1]}
             minExposure={appliedMinExposure}
@@ -151,6 +153,8 @@ export function App() {
             onSheetOpenChange={setSheetOpen}
             onAbout={() => setAboutOpen(true)}
             onSafety={() => setSafetyOpen(true)}
+            restrictionAreaMode={restrictionAreaMode}
+            onRestrictionAreaModeChange={setRestrictionAreaMode}
             onErrorDismiss={(eventId) =>
               setError((current) => (current?.id === eventId ? null : current))
             }

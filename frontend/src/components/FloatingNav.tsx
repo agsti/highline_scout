@@ -2,13 +2,21 @@ import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { BrandPill } from "./BrandPill";
 import { NavMenu } from "./NavMenu";
+import type { RestrictionAreaMode } from "@/types/highliner";
 
 interface FloatingNavProps {
   onAbout: () => void;
   onSafety: () => void;
+  restrictionAreaMode?: RestrictionAreaMode;
+  onRestrictionAreaModeChange?: (mode: RestrictionAreaMode) => void;
 }
 
-export function FloatingNav({ onAbout, onSafety }: FloatingNavProps) {
+export function FloatingNav({
+  onAbout,
+  onSafety,
+  restrictionAreaMode = "informative",
+  onRestrictionAreaModeChange = () => {},
+}: FloatingNavProps) {
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (
@@ -30,6 +38,8 @@ export function FloatingNav({ onAbout, onSafety }: FloatingNavProps) {
           onOpenChange={setMenuOpen}
           onAbout={onAbout}
           onSafety={onSafety}
+          restrictionAreaMode={restrictionAreaMode}
+          onRestrictionAreaModeChange={onRestrictionAreaModeChange}
         />
       </div>
     </header>

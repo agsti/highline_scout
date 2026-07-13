@@ -2,7 +2,15 @@ import { useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Info, Menu, MessageSquarePlus, ShieldAlert, X } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useI18n } from "@/lib/i18n";
+import type { RestrictionAreaMode } from "@/types/highliner";
 import { LanguageSwitcher } from "./LanguageSwitcher";
 
 interface NavMenuProps {
@@ -10,6 +18,8 @@ interface NavMenuProps {
   onOpenChange: (open: boolean) => void;
   onAbout: () => void;
   onSafety: () => void;
+  restrictionAreaMode: RestrictionAreaMode;
+  onRestrictionAreaModeChange: (mode: RestrictionAreaMode) => void;
 }
 
 interface MenuItemProps {
@@ -37,7 +47,14 @@ function MenuItem({ icon, label, hint, onClick }: MenuItemProps) {
   );
 }
 
-export function NavMenu({ open, onOpenChange, onAbout, onSafety }: NavMenuProps) {
+export function NavMenu({
+  open,
+  onOpenChange,
+  onAbout,
+  onSafety,
+  restrictionAreaMode,
+  onRestrictionAreaModeChange,
+}: NavMenuProps) {
   const { t } = useI18n();
   const [feedbackNoted, setFeedbackNoted] = useState(false);
 
@@ -95,6 +112,28 @@ export function NavMenu({ open, onOpenChange, onAbout, onSafety }: NavMenuProps)
               label={t("safety")}
               onClick={() => select(onSafety)}
             />
+          </div>
+
+          <div className="border-t border-hairline px-3.5 py-2.5">
+            <label
+              htmlFor="restriction-area-mode"
+              className="text-[11px] font-[650] uppercase tracking-[0.04em] text-muted-foreground"
+            >
+              {t("restrictionAreas")}
+            </label>
+            <Select value={restrictionAreaMode} onValueChange={onRestrictionAreaModeChange}>
+              <SelectTrigger
+                id="restriction-area-mode"
+                aria-label={t("restrictionAreas")}
+                className="mt-1.5 h-8"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="informative">{t("restrictionAreasInformative")}</SelectItem>
+                <SelectItem value="exclude">{t("restrictionAreasExclude")}</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="flex items-center justify-between gap-2 border-t border-hairline px-3.5 py-2.5">

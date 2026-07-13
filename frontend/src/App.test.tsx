@@ -3,7 +3,6 @@ import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
-import { ErrorToast } from "./components/ErrorToast";
 import { I18nProvider, useI18n } from "./lib/i18n";
 
 const apiMocks = vi.hoisted(() => ({
@@ -23,12 +22,14 @@ vi.mock("./components/map/MapView", () => ({
     showAnchors,
     enabledRestrictions,
     restrictionLayers,
+    restrictionAreaMode,
     onMapStatus,
     onError,
   }: {
     showAnchors?: boolean;
     enabledRestrictions?: string[];
     restrictionLayers?: Array<{ id: string }>;
+    restrictionAreaMode?: string;
     onMapStatus?: (status: string) => void;
     onError?: (message: string) => void;
   }) => {
@@ -42,6 +43,7 @@ vi.mock("./components/map/MapView", () => ({
         <div data-testid="show-anchors">{String(showAnchors)}</div>
         <div data-testid="enabled-restrictions">{enabledRestrictions?.join(",") ?? ""}</div>
         <div data-testid="restriction-layer-count">{restrictionLayers?.length ?? 0}</div>
+        <div data-testid="restriction-area-mode">{restrictionAreaMode ?? ""}</div>
       </div>
     );
   },
@@ -52,32 +54,6 @@ vi.mock("./components/AppShell", () => ({
     <div>
       <div>{chrome}</div>
       <div>{map}</div>
-    </div>
-  ),
-}));
-
-vi.mock("./components/MapChrome", () => ({
-  MapChrome: ({
-    filters,
-    restrictions,
-    errorMessage,
-    errorEventId,
-    onErrorDismiss,
-  }: {
-    filters: ReactNode;
-    restrictions: ReactNode;
-    errorMessage: string;
-    errorEventId: number;
-    onErrorDismiss: (eventId: number) => void;
-  }) => (
-    <div>
-      {(() => {
-        dismissMapError = onErrorDismiss;
-        return null;
-      })()}
-      {filters}
-      {restrictions}
-      <ErrorToast message={errorMessage} eventId={errorEventId} onDismiss={onErrorDismiss} />
     </div>
   ),
 }));
@@ -206,5 +182,17 @@ describe("App", () => {
 
     await user.click(screen.getByRole("button", { name: "set english" }));
     expect(apiMocks.fetchRestrictionLayers).toHaveBeenCalledTimes(1);
+  });
+
+  it("passes the selected restriction-area mode to the map", async () => {
+    const user = userEvent.setup();
+    window.localStorage.setItem("lang", "en");
+    renderApp();
+
+    await user.click(screen.getByRole("button", { name: "Menu" }));
+    await user.click(screen.getByRole("combobox", { name: "Restriction areas" }));
+    await user.click(screen.getByRole("option", { name: "Exclude results" }));
+
+    expect(screen.getByTestId("restriction-area-mode")).toHaveTextContent("exclude");
   });
 });

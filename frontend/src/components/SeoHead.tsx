@@ -18,6 +18,10 @@ function upsertHeadNode<K extends keyof HTMLElementTagNameMap>(
       ? `${tagName}[property="${attributes.property}"]`
       : attributes.rel === "canonical"
         ? `${tagName}[rel="canonical"]`
+        : attributes.rel === "alternate"
+          ? `${tagName}[rel="alternate"][hreflang="${attributes.hreflang}"]`
+          : attributes.type === "application/ld+json"
+            ? `${tagName}[type="application/ld+json"]`
         : null;
   const node =
     document.head.querySelector(selector) ??
@@ -28,6 +32,11 @@ function upsertHeadNode<K extends keyof HTMLElementTagNameMap>(
   for (const [name, value] of Object.entries(attributes)) node.setAttribute(name, value);
   if (text !== undefined) node.textContent = text;
   if (!node.parentElement) document.head.append(node);
+  if (fallback) {
+    document.head.querySelectorAll(fallback).forEach((duplicate) => {
+      if (duplicate !== node) duplicate.remove();
+    });
+  }
 }
 
 export function SeoHead({ page }: SeoHeadProps) {

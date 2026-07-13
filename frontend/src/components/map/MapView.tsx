@@ -4,7 +4,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { captureMapSettled } from "@/lib/analytics";
 import { bboxLonLatParam, type MapViewState } from "@/lib/geo";
 import { useI18n } from "@/lib/i18n";
-import type { RestrictionAreaMode, RestrictionLayerMeta } from "@/types/highliner";
+import type {
+  RestrictionAreaMode,
+  RestrictionFeatureCollection,
+  RestrictionLayerMeta,
+} from "@/types/highliner";
 import { MapContextMenu, type ContextMenuPoint } from "./MapContextMenu";
 import { useAnchorLayer } from "./useAnchorLayer";
 import { useLeafletMap } from "./useLeafletMap";
@@ -36,6 +40,7 @@ export function MapView({
   maxLen,
   minExposure,
   showAnchors,
+  restrictionAreaMode,
   enabledRestrictions,
   restrictionLayers,
   onViewportChange,
@@ -51,6 +56,10 @@ export function MapView({
   const mapForContextRef = useRef<L.Map | null>(null);
   const keepContextMenuForMoveRef = useRef(false);
   const [contextMenu, setContextMenu] = useState<ContextMenuPoint | null>(null);
+  const [restrictionFeatures, setRestrictionFeatures] = useState<RestrictionFeatureCollection>({
+    type: "FeatureCollection",
+    features: [],
+  });
 
   const setMapElementRef = useCallback((element: HTMLDivElement | null) => {
     setMapElement(element);
@@ -111,6 +120,8 @@ export function MapView({
     minExposure,
     lang,
     t,
+    restrictionAreaMode,
+    restrictionFeatures,
     onMapStatus,
     onError,
     onDensityModeChange,
@@ -131,6 +142,7 @@ export function MapView({
     enabledRestrictions,
     restrictionLayers,
     t,
+    onFeaturesChange: setRestrictionFeatures,
     onRestrictionStatus,
     onError,
   });

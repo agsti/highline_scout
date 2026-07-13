@@ -4,7 +4,7 @@ import { useRef, type MutableRefObject } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError, fetchRestrictions } from "@/lib/api";
 import { I18nProvider, useI18n } from "@/lib/i18n";
-import type { RestrictionLayerMeta } from "@/types/highliner";
+import type { RestrictionFeatureCollection, RestrictionLayerMeta } from "@/types/highliner";
 import { useRestrictionLayer } from "./useRestrictionLayer";
 
 const mocks = vi.hoisted(() => ({
@@ -27,6 +27,7 @@ const map = {
 } as unknown as L.Map;
 const onError = vi.fn();
 const onRestrictionStatus = vi.fn();
+const onFeaturesChange = vi.fn();
 const restrictionLayers: RestrictionLayerMeta[] = [
   { id: "zepa", label: "ZEPA", tooltip: "tooltip", highlight: "tooltip", color: "#0a0" },
 ];
@@ -40,6 +41,7 @@ function RestrictionHarness({ enabledRestrictions, providedMapRef }: { enabledRe
     enabledRestrictions,
     restrictionLayers,
     t,
+    onFeaturesChange,
     onRestrictionStatus,
     onError,
   });
@@ -63,6 +65,7 @@ describe("useRestrictionLayer", () => {
     mocks.removeLayer.mockReset();
     onError.mockReset();
     onRestrictionStatus.mockReset();
+    onFeaturesChange.mockReset();
   });
 
   it("clears restrictions and skips the request when none are selected", () => {
@@ -70,6 +73,23 @@ describe("useRestrictionLayer", () => {
 
     expect(mocks.restrictionLayer.clearLayers).toHaveBeenCalledTimes(1);
     expect(fetchRestrictions).not.toHaveBeenCalled();
+    expect(onFeaturesChange).toHaveBeenCalledWith({ type: "FeatureCollection", features: [] });
+  });
+
+  it("publishes the complete successful restriction collection", async () => {
+    const collection: RestrictionFeatureCollection = {
+      type: "FeatureCollection",
+      features: [{
+        type: "Feature",
+        geometry: { type: "Polygon", coordinates: [[[1, 2], [1, 3], [2, 3], [1, 2]]] },
+        properties: { layer: "zepa" },
+      }],
+    };
+    mocks.fetchRestrictions.mockResolvedValue(collection);
+
+    renderHarness(["zepa"]);
+
+    await waitFor(() => expect(onFeaturesChange).toHaveBeenCalledWith(collection));
   });
 
   it("turns a 413 response into localized zoom guidance", async () => {

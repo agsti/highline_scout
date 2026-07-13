@@ -5,7 +5,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fetchDensity, fetchZones } from "@/lib/api";
 import { I18nProvider, useI18n } from "@/lib/i18n";
 import { DENSITY_MAX_ZOOM, DENSITY_TILE_MAX } from "@/lib/map-style";
-import type { ZoneFeature, ZoneFeatureCollection } from "@/types/highliner";
+import type {
+  DensityFeatureCollection,
+  RestrictionAreaMode,
+  RestrictionFeatureCollection,
+  ZoneFeature,
+  ZoneFeatureCollection,
+} from "@/types/highliner";
 import { useZoneDensityLayer } from "./useZoneDensityLayer";
 
 const mocks = vi.hoisted(() => ({
@@ -78,9 +84,13 @@ const zoneB: ZoneFeature = {
 function Harness({
   viewportRevision = 0,
   providedMapRef,
+  restrictionAreaMode = "informative",
+  restrictionFeatures = { type: "FeatureCollection", features: [] },
 }: {
   viewportRevision?: number;
   providedMapRef?: MutableRefObject<L.Map | null>;
+  restrictionAreaMode?: RestrictionAreaMode;
+  restrictionFeatures?: RestrictionFeatureCollection;
 }) {
   const { lang, t } = useI18n();
   const fallbackMapRef = useRef<L.Map | null>(map);
@@ -93,6 +103,8 @@ function Harness({
     minExposure: 30,
     lang,
     t,
+    restrictionAreaMode,
+    restrictionFeatures,
   });
   return <output data-testid="loading">{String(isLoading)}</output>;
 }
@@ -104,6 +116,15 @@ function renderHarness(viewportRevision = 0, providedMapRef?: MutableRefObject<L
     </I18nProvider>,
   );
 }
+
+const overlappingRestriction: RestrictionFeatureCollection = {
+  type: "FeatureCollection",
+  features: [{
+    type: "Feature",
+    geometry: { type: "Polygon", coordinates: [[[0, 1], [0, 4], [3, 4], [0, 1]]] },
+    properties: { layer: "zepa" },
+  }],
+};
 
 describe("useZoneDensityLayer", () => {
   beforeEach(() => {
@@ -145,7 +166,44 @@ describe("useZoneDensityLayer", () => {
         <Harness viewportRevision={1} />
       </I18nProvider>,
     );
+    await waitFor(() => expect(mocks.zoneLayer.addData).toHaveBeenLastCalledWith(featureCollection([zoneA, zoneB])));
+  });
+
+  it("rerenders zones excluding those overlapping selected restrictions", async () => {
+    mocks.fetchZones.mockResolvedValue(featureCollection([zoneA, zoneB]));
+    const view = renderHarness();
+    await waitFor(() => expect(mocks.zoneLayer.addData).toHaveBeenLastCalledWith(featureCollection([zoneA, zoneB])));
+
+    view.rerender(
+      <I18nProvider>
+        <Harness restrictionAreaMode="exclude" restrictionFeatures={overlappingRestriction} />
+      </I18nProvider>,
+    );
+
     await waitFor(() => expect(mocks.zoneLayer.addData).toHaveBeenLastCalledWith(featureCollection([zoneB])));
+  });
+
+  it("keeps density data unfiltered when restrictions are excluded", async () => {
+    getZoom.mockReturnValue(DENSITY_MAX_ZOOM);
+    const density: DensityFeatureCollection = {
+      type: "FeatureCollection",
+      features: [{
+        type: "Feature",
+        geometry: { type: "Polygon", coordinates: [[[1, 2], [1, 3], [2, 3], [1, 2]]] },
+        properties: { n_pairs: 1, max_exposure: 30, length_min: 80, length_max: 120 },
+      }],
+    };
+    mocks.fetchDensity.mockResolvedValue(density);
+    const view = renderHarness();
+    await waitFor(() => expect(mocks.densityLayer.addData).toHaveBeenLastCalledWith(density));
+
+    view.rerender(
+      <I18nProvider>
+        <Harness restrictionAreaMode="exclude" restrictionFeatures={overlappingRestriction} />
+      </I18nProvider>,
+    );
+
+    await waitFor(() => expect(mocks.densityLayer.addData).toHaveBeenLastCalledWith(density));
   });
 
   it("keeps loading visible until the current request resolves", async () => {

@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { ApiError, fetchDensity, fetchZones } from "@/lib/api";
 import { bboxLonLatParam } from "@/lib/geo";
 import type { useI18n } from "@/lib/i18n";
+import { filterZonesByRestrictions } from "@/lib/restriction-filter";
 import type { Lang } from "@/lib/i18n/strings";
 import {
   DENSITY_MAX_ZOOM,
@@ -11,7 +12,12 @@ import {
   DENSITY_ZOOM_OFFSET,
   zoneKey,
 } from "@/lib/map-style";
-import type { DensityFeatureCollection, ZoneFeatureCollection } from "@/types/highliner";
+import type {
+  DensityFeatureCollection,
+  RestrictionAreaMode,
+  RestrictionFeatureCollection,
+  ZoneFeatureCollection,
+} from "@/types/highliner";
 import { createDensityLayer, createZoneLayer } from "./leafletLayers";
 
 type T = ReturnType<typeof useI18n>["t"];
@@ -30,6 +36,8 @@ export function useZoneDensityLayer(options: {
   minExposure: number;
   lang: Lang;
   t: T;
+  restrictionAreaMode: RestrictionAreaMode;
+  restrictionFeatures: RestrictionFeatureCollection;
   onMapStatus?: (status: string) => void;
   onError?: (message: string) => void;
   onDensityModeChange?: (dense: boolean) => void;
@@ -74,6 +82,20 @@ export function useZoneDensityLayer(options: {
     options.onMapStatus?.(renderStatus());
   }
 
+  function renderZones() {
+    const layer = zoneLayerRef.current;
+    if (!layer) return;
+    const collection: ZoneFeatureCollection = {
+      type: "FeatureCollection",
+      features: shownZoneFeaturesRef.current,
+    };
+    const visible = options.restrictionAreaMode === "exclude"
+      ? filterZonesByRestrictions(collection, options.restrictionFeatures)
+      : collection;
+    layer.clearLayers();
+    layer.addData(visible);
+  }
+
   useEffect(() => {
     const map = options.mapRef.current;
     if (!map) return;
@@ -93,10 +115,7 @@ export function useZoneDensityLayer(options: {
     layerLanguageRef.current = options.lang;
     layerMapRef.current = map;
 
-    if (shownZoneFeaturesRef.current.length > 0) {
-      const collection: ZoneFeatureCollection = { type: "FeatureCollection", features: shownZoneFeaturesRef.current };
-      zoneLayerRef.current.addData(collection);
-    }
+    renderZones();
     if (shownDensityRef.current) densityLayerRef.current.addData(shownDensityRef.current);
     if (!mapReady) setMapReady(true);
 
@@ -124,6 +143,10 @@ export function useZoneDensityLayer(options: {
     shownZoneKeysRef.current.clear();
     shownZoneFeaturesRef.current = [];
   }, [options.minLen, options.maxLen, options.minExposure]);
+
+  useEffect(() => {
+    renderZones();
+  }, [options.restrictionAreaMode, options.restrictionFeatures]);
 
   useEffect(() => {
     const map = options.mapRef.current;
@@ -174,8 +197,7 @@ export function useZoneDensityLayer(options: {
           return true;
         });
         shownZoneFeaturesRef.current = shownZoneFeaturesRef.current.concat(fresh);
-        const freshCollection: ZoneFeatureCollection = { type: "FeatureCollection", features: fresh };
-        zoneLayerRef.current?.addData(freshCollection);
+        renderZones();
         pushStatus({ kind: "zones", count: shownZoneKeysRef.current.size });
       } catch (error) {
         if (controller.signal.aborted) return;

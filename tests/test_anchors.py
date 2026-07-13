@@ -1,13 +1,14 @@
 from pathlib import Path
 
+from highliner.etl.repositories.anchors import save_anchors
 from highliner.models.anchor import Anchor
-from highliner.repositories.anchors import load_anchors, save_anchors
+from highliner.server.repositories.anchors import load_anchors
 
 
 def test_to_geojson_points_and_sectors() -> None:
     from highliner.core import geo
     from highliner.models.anchor import Anchor
-    from highliner.router.serializers import anchors_to_geojson as to_geojson
+    from highliner.server.router.serializers import anchors_to_geojson as to_geojson
     a = Anchor(x=420000.0, y=4600000.0, elev=540.0,
                sectors=((80.0, 100.0, 35.0), (250.0, 280.0, 40.0)))
     fc = to_geojson([a])

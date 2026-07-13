@@ -14,7 +14,7 @@ from highliner.core.telemetry import (
     init_sentry,
     shutdown_telemetry,
 )
-from highliner.router import anchors, density, regions, restrictions, zones
+from highliner.server.router import anchors, density, regions, restrictions, zones
 
 
 @asynccontextmanager
@@ -35,7 +35,7 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
     app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"],
                        allow_headers=["*"])
 
-    # App-wide state the routers read via highliner.router.deps.
+    # App-wide state the routers read via highliner.server.router.deps.
     app.state.data_dir = data_dir
 
     for module in (regions, zones, anchors, density, restrictions):
@@ -50,7 +50,8 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
         known_paths=api_paths(app),
     )
 
-    frontend_dir = Path(__file__).resolve().parent.parent / "frontend" / "dist"
+    frontend_dir = (Path(__file__).resolve().parent.parent.parent
+                    / "frontend" / "dist")
     if frontend_dir.exists():
         app.mount("/", StaticFiles(directory=frontend_dir, html=True),
                   name="frontend")

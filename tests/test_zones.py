@@ -1,6 +1,6 @@
 from highliner.models.anchor import Anchor
 from highliner.models.candidate import Candidate
-from highliner.services import zones
+from highliner.server.services import zones
 
 
 def make_pair(x1: float, x2: float, y: float, exposure: float) -> Candidate:
@@ -68,7 +68,7 @@ def test_shared_anchor_merges_pairs() -> None:
 
 
 def test_to_geojson_polygons_with_properties() -> None:
-    from highliner.router.serializers import zones_to_geojson
+    from highliner.server.router.serializers import zones_to_geojson
     zs = zones.build_zones([make_pair(420000, 420080, 4600000, exposure=60.0)])
     fc = zones_to_geojson(zs)
     assert fc["type"] == "FeatureCollection"

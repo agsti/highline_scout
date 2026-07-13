@@ -15,13 +15,13 @@ def _fmt_hms(seconds: float) -> str:
 def _cmd_serve(args: argparse.Namespace) -> None:
     import uvicorn
 
-    from highliner.app import create_app
+    from highliner.server.app import create_app
     app = create_app(data_dir=Path(args.data_dir))
     uvicorn.run(app, host=args.host, port=args.port)
 
 
 def _cmd_precompute(args: argparse.Namespace) -> None:
-    from highliner.services import precompute as precompute_service
+    from highliner.etl.services import precompute as precompute_service
     minx, miny, maxx, maxy = (float(v) for v in args.bbox.split(","))
     bbox = (minx, miny, maxx, maxy)
     chunk_m = args.chunk_km * 1000.0
@@ -46,7 +46,7 @@ def _cmd_precompute(args: argparse.Namespace) -> None:
 
 
 def _cmd_precompute_density(args: argparse.Namespace) -> None:
-    from highliner.services import density
+    from highliner.etl.services import density
     region_dir = Path(args.data_dir) / args.region
     start = time.monotonic()
 
@@ -60,7 +60,7 @@ def _cmd_precompute_density(args: argparse.Namespace) -> None:
 
 
 def _cmd_fetch_restrictions(args: argparse.Namespace) -> None:
-    from highliner.repositories.restrictions import fetch_all
+    from highliner.etl.repositories.restrictions import fetch_all
     print("Building national protected-area layers from data/restrictions/raw/ ...")
     fetch_all()
 

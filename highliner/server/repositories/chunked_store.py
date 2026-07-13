@@ -15,8 +15,8 @@ from fastapi import HTTPException
 from highliner.core import config
 from highliner.models.anchor import Anchor
 from highliner.models.candidate import Candidate
-from highliner.repositories.anchors import load_anchors
-from highliner.repositories.candidates import load_candidates
+from highliner.server.repositories.anchors import load_anchors
+from highliner.server.repositories.candidates import load_candidates
 
 Bbox = tuple[float, float, float, float]
 

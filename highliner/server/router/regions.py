@@ -2,7 +2,7 @@ from typing import Any
 
 from fastapi import APIRouter, Request
 
-from highliner.router.deps import get_region_index
+from highliner.server.router.deps import get_region_index
 
 router = APIRouter()
 

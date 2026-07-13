@@ -41,13 +41,13 @@ COPY --from=builder /app/.venv /app/.venv
 COPY highliner ./highliner
 COPY --from=frontend /app/frontend/dist ./frontend/dist
 
-# Run from source so highliner.app.create_app() finds the frontend build at
-# /app/frontend/dist (resolved relative to the package: parent.parent of
-# highliner/app.py, then frontend/dist).
+# Run from source so highliner.server.app.create_app() finds the frontend build
+# at /app/frontend/dist (resolved relative to the package: parent.parent.parent
+# of highliner/server/app.py, then frontend/dist).
 ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONPATH=/app \
     PYTHONUNBUFFERED=1
 
 EXPOSE 8000
 
-CMD ["uvicorn", "highliner.app:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "highliner.server.app:app", "--host", "0.0.0.0", "--port", "8000"]

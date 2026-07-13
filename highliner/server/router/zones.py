@@ -4,11 +4,11 @@ from fastapi import APIRouter, Request
 
 from highliner.core import config
 from highliner.models.candidate import Candidate
-from highliner.repositories import chunked_store
-from highliner.router import serializers
-from highliner.router.deps import parse_bbox_utm, resolve_regions
-from highliner.services import zones as zones_service
-from highliner.services.pairing import filter_candidates
+from highliner.server.repositories import chunked_store
+from highliner.server.router import serializers
+from highliner.server.router.deps import parse_bbox_utm, resolve_regions
+from highliner.server.services import zones as zones_service
+from highliner.server.services.pairing import filter_candidates
 
 router = APIRouter()
 

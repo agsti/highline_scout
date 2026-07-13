@@ -1,8 +1,9 @@
 from pathlib import Path
 
+from highliner.etl.repositories.candidates import save_candidates
 from highliner.models.anchor import Anchor
 from highliner.models.candidate import Candidate
-from highliner.repositories.candidates import load_candidates, save_candidates
+from highliner.server.repositories.candidates import load_candidates
 
 
 def _cand() -> Candidate:

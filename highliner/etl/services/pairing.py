@@ -11,15 +11,6 @@ from highliner.models.raster import Raster
 _PROFILE_BLOCK_SAMPLES = 2_000_000
 
 
-def filter_candidates(candidates: list[Candidate], max_len: float, min_len: float,
-                      min_exposure: float, max_dh: float) -> list[Candidate]:
-    """Narrow precomputed candidates by the live slider thresholds."""
-    return [c for c in candidates
-            if min_len <= c.length <= max_len
-            and c.exposure >= min_exposure
-            and c.height_diff <= max_dh]
-
-
 def _profile_lows(raster: Raster, x1: np.ndarray, y1: np.ndarray,  # noqa: PLR0913
                   x2: np.ndarray, y2: np.ndarray, ns: np.ndarray) -> np.ndarray:
     """NaN-aware interior minimum of the elevation profile of each segment

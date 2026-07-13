@@ -10,7 +10,7 @@ install:
 # For live frontend work, run this alongside `just dev-web`: Vite serves the UI
 # with hot reload on :5173 and proxies API calls to this server on :8000.
 dev:
-    uv run uvicorn highliner.app:app --reload --reload-dir highliner --host 127.0.0.1 --port 8000
+    uv run uvicorn highliner.server.app:app --reload --reload-dir highliner --host 127.0.0.1 --port 8000
 
 # Install the frontend's npm dependencies from the lockfile.
 install-web:

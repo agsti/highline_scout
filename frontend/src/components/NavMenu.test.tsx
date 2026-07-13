@@ -87,6 +87,25 @@ describe("NavMenu", () => {
     expect(screen.queryByRole("button", { name: "About Highline Scout" })).not.toBeInTheDocument();
   });
 
+  it("links to the methodology page for the selected language", async () => {
+    const user = userEvent.setup();
+    renderMenu();
+
+    await openMenu(user);
+
+    expect(screen.getByRole("link", { name: "How it works" })).toHaveAttribute(
+      "href",
+      "/en/how-it-works",
+    );
+
+    await user.click(screen.getByRole("button", { name: "Español" }));
+
+    expect(screen.getByRole("link", { name: "Cómo funciona" })).toHaveAttribute(
+      "href",
+      "/es/how-it-works",
+    );
+  });
+
   it("closes on Escape", async () => {
     const user = userEvent.setup();
     renderMenu();

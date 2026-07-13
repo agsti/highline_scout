@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { Info, Menu, MessageSquarePlus, X } from "lucide-react";
+import { Info, Map, Menu, MessageSquarePlus, X } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Select,
@@ -46,6 +46,12 @@ function MenuItem({ icon, label, hint, onClick }: MenuItemProps) {
   );
 }
 
+const HOW_IT_WORKS_PATHS = {
+  ca: "/ca/how-it-works",
+  es: "/es/how-it-works",
+  en: "/en/how-it-works",
+} as const;
+
 export function NavMenu({
   open,
   onOpenChange,
@@ -53,7 +59,7 @@ export function NavMenu({
   restrictionAreaMode,
   onRestrictionAreaModeChange,
 }: NavMenuProps) {
-  const { t } = useI18n();
+  const { lang, t } = useI18n();
   const [feedbackNoted, setFeedbackNoted] = useState(false);
 
   function handleOpenChange(next: boolean) {
@@ -128,6 +134,15 @@ export function NavMenu({
           </div>
 
           <div className="border-t border-hairline p-1.5">
+            <a
+              href={HOW_IT_WORKS_PATHS[lang]}
+              className="flex min-h-[44px] w-full items-center gap-2.5 rounded-[10px] px-2.5 py-[11px] text-left text-[13px] font-semibold text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            >
+              <span aria-hidden className="flex shrink-0 text-muted-foreground">
+                <Map className="h-4 w-4" />
+              </span>
+              <span className="flex-1">{t("howItWorksMenu")}</span>
+            </a>
             <MenuItem
               icon={<MessageSquarePlus className="h-4 w-4" />}
               label={t("feedback")}

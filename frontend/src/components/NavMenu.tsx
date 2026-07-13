@@ -65,13 +65,16 @@ export function NavMenu({ open, onOpenChange, onAbout, onSafety }: NavMenuProps)
       <Popover open={open} onOpenChange={handleOpenChange}>
         <PopoverTrigger
           aria-label={t("menu")}
-          className="flex h-[42px] w-[42px] items-center justify-center rounded-full bg-primary-deep text-primary-foreground shadow-menu-button transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          className="flex items-center gap-2 rounded-full bg-card py-[7px] pl-2 pr-3.5 text-primary-deep shadow-pill transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring md:py-2 md:pl-[9px] md:pr-4 md:shadow-pill-lg"
         >
-          {open ? (
-            <X className="h-4 w-4" strokeWidth={1.6} aria-hidden />
-          ) : (
-            <Menu className="h-4 w-4" strokeWidth={1.6} aria-hidden />
-          )}
+          <span className="text-[15px] font-bold tracking-[-0.01em] md:text-base">{t("menu")}</span>
+          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground md:h-[24px] md:w-[24px]">
+            {open ? (
+              <X className="h-4 w-4" strokeWidth={2.5} aria-hidden />
+            ) : (
+              <Menu className="h-4 w-4" strokeWidth={2.5} aria-hidden />
+            )}
+          </span>
         </PopoverTrigger>
 
         <PopoverContent className="w-[248px] p-0" aria-label={t("menu")}>

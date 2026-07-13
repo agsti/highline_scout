@@ -30,6 +30,16 @@ describe("FloatingNav", () => {
     expect(screen.queryByRole("group", { name: "Language" })).not.toBeInTheDocument();
   });
 
+  it("styles the menu trigger as a solid labelled pill", () => {
+    renderNav();
+
+    const trigger = screen.getByRole("button", { name: "Menu" });
+    expect(trigger).toHaveClass("bg-card", "rounded-full", "shadow-pill");
+    expect(trigger).toHaveTextContent("Menu");
+    expect(trigger.querySelectorAll("span")[1]).toHaveClass("bg-primary", "text-primary-foreground");
+    expect(trigger.querySelector("svg")).toHaveAttribute("stroke-width", "2.5");
+  });
+
   it("reaches the about dialog through the menu", async () => {
     const user = userEvent.setup();
     const { onAbout } = renderNav();

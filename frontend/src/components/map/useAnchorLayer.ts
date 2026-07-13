@@ -80,6 +80,7 @@ export function useAnchorLayer(options: {
     const controller = new AbortController();
     fetchAnchors({ bboxLonLat: bboxLonLatParam(map.getBounds()) }, controller.signal)
       .then((fc) => {
+        if (controller.signal.aborted) return;
         shownAnchorsRef.current = fc;
         renderVisibleAnchors();
         options.onAnchorStatus?.(options.t("anchorsCount", { n: fc.features.length }));

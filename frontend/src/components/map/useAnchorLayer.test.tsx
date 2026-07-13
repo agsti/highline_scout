@@ -186,4 +186,21 @@ describe("useAnchorLayer", () => {
       { type: "FeatureCollection", features: [outsideAnchor] },
     ));
   });
+
+  it("does not render an aborted response after anchors are disabled", async () => {
+    const response = deferred<AnchorFeatureCollection>();
+    mocks.fetchAnchors.mockReturnValue(response.promise);
+    const view = renderHarness(true);
+
+    view.rerender(
+      <I18nProvider>
+        <AnchorHarness showAnchors={false} />
+      </I18nProvider>,
+    );
+    const renderCountAfterDisable = mocks.renderAnchors.mock.calls.length;
+    await act(async () => response.resolve(anchors));
+
+    expect(mocks.renderAnchors).toHaveBeenCalledTimes(renderCountAfterDisable);
+    expect(onAnchorStatus).toHaveBeenLastCalledWith("");
+  });
 });

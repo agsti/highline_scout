@@ -132,6 +132,8 @@ export function MapView({
     viewportRevision,
     showAnchors,
     t,
+    restrictionAreaMode,
+    restrictionFeatures,
     onAnchorStatus,
     onError,
   });

@@ -14,6 +14,7 @@ from highliner.server.repositories import chunked_store
 from highliner.server.router.deps import (
     get_region_index,
     parse_bbox_lonlat,
+    regions_in_country,
     regions_in_view,
 )
 
@@ -54,10 +55,11 @@ def _cells_to_features(cells: list[dict[str, Any]], zc: int,
 
 
 @router.get("/density")
-def density(
+def density(  # noqa: PLR0913
     request: Request,
     z: int,
     region: str | None = None,
+    country: str = config.DEFAULT_COUNTRY,
     bbox: str | None = None,
     bbox_lonlat: str | None = None,
 ) -> dict[str, Any]:
@@ -79,10 +81,11 @@ def density(
         return {"type": "FeatureCollection",
                 "features": _cells_to_features(cells, zc, view)}
 
-    # region omitted: merge every indexed region that has this z-layer.
+    # region omitted: merge every ``country`` region that has this z-layer.
     view = parse_bbox_lonlat(bbox, bbox_lonlat)
+    index = regions_in_country(get_region_index(request), country)
     features: list[dict[str, Any]] = []
-    for entry in regions_in_view(get_region_index(request), view):
+    for entry in regions_in_view(index, view):
         path = entry.region_dir / "density" / f"z{zc}.json"
         if not path.exists():
             continue

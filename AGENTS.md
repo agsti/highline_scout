@@ -247,8 +247,16 @@ re-downloadable CNIG DTM sheets shared across a country's regions, so it can be
 wiped without losing any precomputed output. `data/` holds derived results plus
 the transient per-chunk `tiles/` scratch, deleted as each chunk finishes. The
 server discovers regions by scanning `data/*/*/grid.json`, so region names must
-stay unique across countries; restriction overlays are read from every
-`data/<country>/restrictions/` present.
+stay unique across countries.
+
+Every read endpoint takes a `country` query param that scopes it to one
+partition, defaulting to `config.DEFAULT_COUNTRY` (`"spain"`) — the single
+source of that default. `/regions` returns each region's `country` and lists
+only the requested one; `/zones`, `/anchors` and `/density` only serve that
+country's regions when no explicit `region` is given (an explicit `region`
+resolves its own country via `REGION_DEFAULTS`); `/restrictions` reads only
+`data/<country>/restrictions/`. Existing callers that omit `country` keep
+getting Spain unchanged.
 
 ## Tuning
 

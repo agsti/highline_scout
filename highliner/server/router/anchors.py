@@ -19,12 +19,13 @@ router = APIRouter()
 def anchors(
     request: Request,
     region: str | None = None,
+    country: str = config.DEFAULT_COUNTRY,
     bbox: str | None = None,
     bbox_lonlat: str | None = None,
 ) -> dict[str, Any]:
     per_region: list[tuple[list[Anchor], str]] = []
     total = 0
-    for entry in resolve_regions(request, region, bbox, bbox_lonlat):
+    for entry in resolve_regions(request, region, bbox, bbox_lonlat, country):
         box = parse_bbox_utm(bbox, bbox_lonlat, entry.grid.crs)
         clipped = clip_anchors(
             chunked_store.load_anchors_in_bbox(entry.region_dir, box), box)

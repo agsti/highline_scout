@@ -41,6 +41,18 @@ def test_regions_in_view_filters_by_overlap(tmp_path: Path) -> None:
     assert [e.name for e in hits] == ["cat"]
 
 
+def test_build_index_sets_country_from_partition(tmp_path: Path) -> None:
+    cx, cy = to_utm(1.83, 41.59)
+    _write_grid(tmp_path, "cat", (cx - 500, cy - 500, cx + 500, cy + 500))
+    _write_grid(tmp_path, "alps", (cx - 500, cy - 500, cx + 500, cy + 500),
+                country="france")
+
+    index = deps.build_region_index(tmp_path)
+    assert {(e.name, e.country) for e in index} == {("cat", "spain"),
+                                                    ("alps", "france")}
+    assert [e.name for e in deps.regions_in_country(index, "france")] == ["alps"]
+
+
 def test_build_index_empty_when_data_dir_missing(tmp_path: Path) -> None:
     assert deps.build_region_index(tmp_path / "nope") == []
 

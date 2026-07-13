@@ -70,5 +70,9 @@ settings = Settings()
 DATA_DIR = settings.data_dir
 CACHE_DIR = settings.cache_dir
 
+# The country partition served when a request doesn't name one. Single source
+# of the default; every endpoint's `country` query param falls back to this.
+DEFAULT_COUNTRY = "spain"
+
 # Zoomed-out density pyramid
 DENSITY_ZOOM_LEVELS = range(6, 15)  # slippy-map zoom layers precomputed (z6..z14)

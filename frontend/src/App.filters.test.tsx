@@ -24,6 +24,10 @@ vi.mock("./components/map/MapView", () => ({
   },
 }));
 
+vi.mock("./components/SafetyDisclaimerDialog", () => ({
+  SafetyDisclaimerDialog: () => null,
+}));
+
 function lastMapProps() {
   return mapProps.mock.calls.at(-1)?.[0] as {
     minLen: number;

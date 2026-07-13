@@ -275,3 +275,127 @@ All 3 tests pass again. `popover.tsx` is unchanged from before the fix
 
 ## Commit
 See git log for the commit SHA covering this fix.
+
+---
+
+# Task 2 Fix Report: sideOffset Default Assertion
+
+## Status: DONE
+
+## Finding: `sideOffset = 8` default was untested
+
+A previous review finding correctly identified that `PopoverContent`'s `sideOffset = 8` 
+default was not covered by tests. The earlier claim that this was untestable in jsdom 
+was false — Radix's popper wrapper (the `[data-radix-popper-content-wrapper]` div, 
+which is the `parentElement` of `PopoverContent`) carries an inline style 
+`transform: translate(0px, {sideOffset}px)` that jsdom computes deterministically.
+
+## Test Coverage Added
+
+Extended `frontend/src/components/ui/popover.test.tsx` "defaults to end alignment" test
+to also assert on the `sideOffset` default. The test now checks both the `align` default
+and the `sideOffset` default in a single unified assertion:
+
+```tsx
+it("defaults to end alignment when align/sideOffset are not specified", async () => {
+  const user = userEvent.setup();
+
+  render(
+    <Popover>
+      <PopoverTrigger aria-label="Open">trigger</PopoverTrigger>
+      <PopoverContent>panel</PopoverContent>
+    </Popover>,
+  );
+
+  await user.click(screen.getByRole("button", { name: "Open" }));
+
+  const panel = screen.getByText("panel");
+  expect(panel).toHaveAttribute("data-align", "end");
+  expect(panel.parentElement).toHaveStyle({
+    transform: "translate(0px, 8px)",
+  });
+});
+```
+
+## Verification
+
+### Command (passing)
+```bash
+bash -c 'cd /home/gus/projects/highliner_finder/frontend && /home/gus/.nvm/versions/node/v25.9.0/bin/node ./node_modules/vitest/vitest.mjs run popover'
+```
+
+### Output — all 3 tests pass
+```
+ RUN  v2.1.9 /home/gus/projects/highliner_finder/frontend
+
+(node:4183053) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/components/ui/popover.test.tsx (3 tests) 125ms
+
+ Test Files  1 passed (1)
+      Tests  3 passed (3)
+   Start at  21:09:38
+   Duration  696ms (transform 37ms, setup 36ms, collect 87ms, tests 125ms, environment 167ms, prepare 132ms)
+```
+
+### Deliberate-break check (proves the assertion bites)
+
+Temporarily changed `frontend/src/components/ui/popover.tsx` line 11 from:
+```tsx
+>(({ className, align = "end", sideOffset = 8, ...props }, ref) => (
+```
+to:
+```tsx
+>(({ className, align = "end", sideOffset = 0, ...props }, ref) => (
+```
+
+Re-ran tests:
+```
+ RUN  v2.1.9 /home/gus/projects/highliner_finder/frontend
+
+ ❯ src/components/ui/popover.test.tsx (3 tests | 1 failed) 110ms
+   × Popover > defaults to end alignment when align/sideOffset are not specified 22ms
+     → expect(element).toHaveStyle()
+
+- Expected
+
+- transform: translate(0px, 8px);
++ transform: translate(0px, 0px);
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/ui/popover.test.tsx > Popover > defaults to end alignment when align/sideOffset are not specified
+Error: expect(element).toHaveStyle()
+
+- Expected
+
+- transform: translate(0px, 8px);
++ transform: translate(0px, 0px);
+ ❯ src/components/ui/popover.test.tsx:38:33
+     36|     const panel = screen.getByText("panel");
+     37|     expect(panel).toHaveAttribute("data-align", "end");
+     38|     expect(panel.parentElement).toHaveStyle({
+       |                                 ^
+       |       transform: "translate(0px, 8px)",
+       |     });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 2 passed (3)
+   Start at  21:09:28
+   Duration  693ms (transform 44ms, setup 44ms, collect 90ms, tests 110ms, environment 167m, prepare 118ms)
+```
+
+Test FAILED as expected. Restored `sideOffset = 8`, verified `git diff 
+frontend/src/components/ui/popover.tsx` is empty (no residual changes), 
+re-ran tests, and all 3 passed.
+
+## Commit
+
+```
+[feat/nav-menu-system 67154c6] test: assert PopoverContent sideOffset default in popover.test.tsx
+ 1 file changed, 5 insertions(+)
+```
+
+Only `frontend/src/components/ui/popover.test.tsx` was modified (behavior-neutral).

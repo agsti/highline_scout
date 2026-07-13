@@ -23,6 +23,10 @@ vi.mock("./components/map/MapView", () => ({
   MapView: () => <div data-testid="map" />,
 }));
 
+vi.mock("./components/SafetyDisclaimerDialog", () => ({
+  SafetyDisclaimerDialog: () => null,
+}));
+
 beforeEach(() => {
   captureMock.mockClear();
 });

@@ -57,7 +57,7 @@ raster/zone models. A new location needs:
 ## 4. Precompute strategy
 
 There is only one supported pattern — chunked precompute
-(`services/precompute.py`, `highliner precompute --region NAME --bbox ...`):
+(`services/precompute.py`, `highliner-etl-chunk --region NAME --bbox ...`):
 tiles the region into `CHUNK_M`-sized squares (with a halo so
 `MAX_PAIR_LEN`-long pairs crossing chunk edges are still found), and for each
 chunk downloads DTM tiles, extracts anchors, runs pairing at a loose envelope

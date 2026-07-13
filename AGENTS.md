@@ -67,11 +67,12 @@ Local dev and production serve the frontend differently:
   Keep the Vite `server.proxy` list in `vite.config.ts` in sync with the API
   route prefixes.
 
-CLI (`highliner` entry point, `highliner/cli.py`):
+CLI entry points:
 
-    .venv/bin/highliner precompute --region NAME --bbox minx,miny,maxx,maxy [--chunk-km N]
-    .venv/bin/highliner precompute-density --region NAME
-    .venv/bin/highliner serve
+    .venv/bin/highliner-etl-chunk --region NAME --bbox minx,miny,maxx,maxy [--chunk-km N]
+    .venv/bin/highliner-etl-density --region NAME
+    .venv/bin/highliner-server
+    .venv/bin/highliner-restrictions
 
 ## Telemetry
 
@@ -125,20 +126,22 @@ nothing and needs no setup.
 The package is split top-level by the two stages — `etl/` (offline precompute)
 and `server/` (serving) — over a shared `core/` + `models/` foundation. Each
 stage keeps the same layered structure (repositories / services, plus router on
-the server). `cli.py` stays at the top since it drives both stages:
+the server). Command entry points live beside the stage they drive:
 
     highliner/
-      cli.py                 `highliner` entry point (precompute/precompute-density/serve/fetch-restrictions)
       core/                  shared cross-cutting: config, geo (coord transforms),
                              regions, tiles, telemetry, restrictions (the LAYERS
                              overlay registry both stages consume)
       models/                shared pure domain dataclasses: anchor, candidate, zone, raster
       etl/                   offline precompute pipeline
+        chunk/main.py        chunk-precompute command
+        density/main.py      density-precompute command
         repositories/        dtm (ICGC/IGN WCS), anchors (parquet write side),
                              candidates (parquet write side), restrictions
                              (build national MITECO layers)
         services/            terrain, pairing.find_candidates, precompute, density
       server/                serving
+        main.py              server command
         app.py               FastAPI factory: wires routers, CORS, and the
                              frontend/dist/ static mount
         repositories/        chunked_store (viewport reads), partition_cache
@@ -150,6 +153,7 @@ the server). `cli.py` stays at the top since it drives both stages:
                              zones, anchors, density, restrictions) plus
                              deps.py (bbox parsing, region cache, app.state access)
                              and serializers.py (domain → GeoJSON)
+      restrictions/main.py   protected-area build command
 
 Dependencies flow router → services → repositories → models/core, and both
 stages depend only on the shared `core/` + `models/`. The one exception is the
@@ -164,7 +168,7 @@ Two stages. All geospatial work is done offline by `precompute` and cached as
 parquet partitions; the server only does cheap in-viewport reads and filtering
 on every request — no DTM raster is ever touched at serve time.
 
-1. **Precompute** (`highliner precompute`, `etl/services/precompute.py`) — tiles
+1. **Precompute** (`highliner-etl-chunk`, `etl/services/precompute.py`) — tiles
    the region's bbox into `chunk_m`-sized squares (`chunk_grid`). For each chunk
    (`process_chunk`): downloads ICGC bare-earth DTM tiles (5 m, EPSG:25831) over
    a WCS endpoint for the chunk's core plus a halo (`etl/repositories/dtm.py`; each
@@ -222,7 +226,7 @@ covering all of Spain, built from MITECO's (national) Banco de Datos de la
 Naturaleza files — Red Natura 2000 GML (INSPIRE ProtectedSites) and Espacios
 Naturales Protegidos GeoJSON, each shipped as a peninsula+Baleares file and a
 Canarias file in different CRSes. `just fetch-restrictions` downloads the raw
-files into `data/spain/restrictions/raw/` and runs `highliner fetch-restrictions`
+files into `data/spain/restrictions/raw/` and runs `highliner-restrictions`
 to derive three layers — `zepa` (Special Protection Area for Birds) and `zec`
 (Site/Area of Community Importance), both filtered from the RN2000 GML by
 designation code (parsed from the raw XML, since GDAL doesn't expose it as an

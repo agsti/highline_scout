@@ -1,32 +1,43 @@
-from collections.abc import Callable
 from pathlib import Path
 
 import pytest
-from highliner import cli
+from highliner.etl.chunk import main as chunk_main
+from highliner.etl.density import main as density_main
+from highliner.restrictions import main as restrictions_main
+from highliner.server import main as server_main
 
 
-def test_precompute_command(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_server_command_starts_uvicorn(monkeypatch: pytest.MonkeyPatch) -> None:
     calls: dict[str, object] = {}
 
-    def fake(region: str, bbox: tuple[float, ...], data_dir: Path,  # noqa: PLR0913
-             chunk_m: float = 10000.0,
-             report: Callable[[int, int], None] | None = None,
-             crs: str | None = None,
-             dtm_source: str | None = None,
-             workers: int = 1) -> int:
-        calls["region"] = region
-        calls["bbox"] = bbox
-        calls["chunk_m"] = chunk_m
-        calls["crs"] = crs
-        calls["dtm_source"] = dtm_source
-        calls["workers"] = workers
-        if report:
-            report(1, 1)
+    def fake_create_app(data_dir: Path) -> object:
+        calls["data_dir"] = data_dir
+        return object()
+
+    def fake_run(app: object, host: str, port: int) -> None:
+        calls.update(app=app, host=host, port=port)
+
+    monkeypatch.setattr("highliner.server.main.create_app", fake_create_app)
+    monkeypatch.setattr("highliner.server.main.uvicorn.run", fake_run)
+    server_main.main(["--data-dir", "/tmp/x", "--host", "0.0.0.0",
+                      "--port", "9000"])
+    assert calls["data_dir"] == Path("/tmp/x")
+    assert calls["host"] == "0.0.0.0"
+    assert calls["port"] == 9000
+
+
+def test_chunk_command_uses_region_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: dict[str, object] = {}
+
+    def fake(region: str, bbox: tuple[float, ...], data_dir: Path,
+             **kwargs: object) -> int:
+        calls.update(region=region, bbox=bbox, data_dir=data_dir, **kwargs)
         return 1
+
     monkeypatch.setattr("highliner.etl.services.precompute.precompute", fake)
-    cli.main(["precompute", "--region", "catalonia", "--data-dir", "/tmp/x",
-              "--bbox", "0,0,10000,10000", "--chunk-km", "10",
-              "--workers", "4"])
+    chunk_main.main(["--region", "catalonia", "--data-dir", "/tmp/x",
+                     "--bbox", "0,0,10000,10000", "--chunk-km", "10",
+                     "--workers", "4"])
     assert calls["region"] == "catalonia"
     assert calls["bbox"] == (0.0, 0.0, 10000.0, 10000.0)
     assert calls["chunk_m"] == 10000.0
@@ -35,15 +46,32 @@ def test_precompute_command(monkeypatch: pytest.MonkeyPatch) -> None:
     assert calls["workers"] == 4
 
 
-def test_precompute_density_command(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_density_command_uses_region_directory(
+        monkeypatch: pytest.MonkeyPatch) -> None:
     calls: dict[str, object] = {}
 
-    def fake(region_dir: Path, zoom_levels: object = None,
-             report: Callable[[int, int], None] | None = None) -> int:
+    def fake(region_dir: Path, **kwargs: object) -> int:
         calls["region_dir"] = region_dir
-        if report:
-            report(1, 1)
         return 7
+
     monkeypatch.setattr("highliner.etl.services.density.build_density", fake)
-    cli.main(["precompute-density", "--region", "catalonia", "--data-dir", "/tmp/x"])
+    density_main.main(["--region", "catalonia", "--data-dir", "/tmp/x"])
     assert calls["region_dir"] == Path("/tmp/x") / "spain" / "catalonia"
+
+
+def test_restrictions_command_builds_layers(
+        monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[str] = []
+    monkeypatch.setattr(restrictions_main, "fetch_all",
+                        lambda: calls.append("called"))
+    restrictions_main.main([])
+    assert calls == ["called"]
+
+
+def test_project_defines_focused_command_scripts() -> None:
+    project = Path("pyproject.toml").read_text()
+    assert 'highliner-server = "highliner.server.main:main"' in project
+    assert 'highliner-etl-chunk = "highliner.etl.chunk.main:main"' in project
+    assert 'highliner-etl-density = "highliner.etl.density.main:main"' in project
+    assert 'highliner-restrictions = "highliner.restrictions.main:main"' in project
+    assert "highliner.cli:main" not in project

@@ -94,22 +94,22 @@ Total at the default 10 km chunk size: 10,193 chunks.
 ## Commands after source/CRS support exists
 
 ```sh
-.venv/bin/highliner precompute --region andalucia --bbox 100000,3977000,622000,4289000
-.venv/bin/highliner precompute --region aragon --bbox 569000,4412000,811000,4755000
-.venv/bin/highliner precompute --region asturias --bbox 161000,4754000,378000,4839000
-.venv/bin/highliner precompute --region canarias --bbox 188000,3060000,662000,3256000
-.venv/bin/highliner precompute --region cantabria --bbox 349000,4734000,488000,4819000
-.venv/bin/highliner precompute --region castilla_la_mancha --bbox 294000,4208000,682000,4576000
-.venv/bin/highliner precompute --region castilla_y_leon --bbox 165000,4439000,602000,4790000
-.venv/bin/highliner precompute --region ceuta --bbox 285000,3972000,295000,3978000
-.venv/bin/highliner precompute --region comunitat_valenciana --bbox 626000,4190000,816000,4520000
-.venv/bin/highliner precompute --region extremadura --bbox 110000,4204000,358000,4487000
-.venv/bin/highliner precompute --region galicia --bbox -15000,4637000,193000,4860000
-.venv/bin/highliner precompute --region illes_balears --bbox 860000,4286000,1127000,4463000
-.venv/bin/highliner precompute --region la_rioja --bbox 488000,4641000,610000,4722000
-.venv/bin/highliner precompute --region madrid --bbox 365000,4415000,496000,4558000
-.venv/bin/highliner precompute --region melilla --bbox 502000,3902000,507000,3909000
-.venv/bin/highliner precompute --region murcia --bbox 557000,4137000,708000,4292000
-.venv/bin/highliner precompute --region navarra --bbox 540000,4640000,686000,4797000
-.venv/bin/highliner precompute --region pais_vasco --bbox 463000,4702000,604000,4812000
+.venv/bin/highliner-etl-chunk --region andalucia --bbox 100000,3977000,622000,4289000
+.venv/bin/highliner-etl-chunk --region aragon --bbox 569000,4412000,811000,4755000
+.venv/bin/highliner-etl-chunk --region asturias --bbox 161000,4754000,378000,4839000
+.venv/bin/highliner-etl-chunk --region canarias --bbox 188000,3060000,662000,3256000
+.venv/bin/highliner-etl-chunk --region cantabria --bbox 349000,4734000,488000,4819000
+.venv/bin/highliner-etl-chunk --region castilla_la_mancha --bbox 294000,4208000,682000,4576000
+.venv/bin/highliner-etl-chunk --region castilla_y_leon --bbox 165000,4439000,602000,4790000
+.venv/bin/highliner-etl-chunk --region ceuta --bbox 285000,3972000,295000,3978000
+.venv/bin/highliner-etl-chunk --region comunitat_valenciana --bbox 626000,4190000,816000,4520000
+.venv/bin/highliner-etl-chunk --region extremadura --bbox 110000,4204000,358000,4487000
+.venv/bin/highliner-etl-chunk --region galicia --bbox -15000,4637000,193000,4860000
+.venv/bin/highliner-etl-chunk --region illes_balears --bbox 860000,4286000,1127000,4463000
+.venv/bin/highliner-etl-chunk --region la_rioja --bbox 488000,4641000,610000,4722000
+.venv/bin/highliner-etl-chunk --region madrid --bbox 365000,4415000,496000,4558000
+.venv/bin/highliner-etl-chunk --region melilla --bbox 502000,3902000,507000,3909000
+.venv/bin/highliner-etl-chunk --region murcia --bbox 557000,4137000,708000,4292000
+.venv/bin/highliner-etl-chunk --region navarra --bbox 540000,4640000,686000,4797000
+.venv/bin/highliner-etl-chunk --region pais_vasco --bbox 463000,4702000,604000,4812000
 ```

@@ -30,7 +30,7 @@ test-web:
 
 # Production-style server via the CLI (no auto-reload). Override like: just serve 0.0.0.0 9000
 serve host="127.0.0.1" port="8000":
-    uv run highliner serve --host {{host}} --port {{port}}
+    uv run highliner-server --host {{host}} --port {{port}}
 
 # Run the test suite. Pass extra args/paths, e.g. just test tests/test_pairing.py -k bearing
 test *args:
@@ -77,18 +77,18 @@ fetch-restrictions:
       (curl -fL "{{ENP_URL}}" -o data/restrictions/raw/enp.zip && \
        unzip -o -j data/restrictions/raw/enp.zip -d data/restrictions/raw && \
        rm data/restrictions/raw/enp.zip)
-    uv run highliner fetch-restrictions
+    uv run highliner-restrictions
 
 # Precompute anchors + candidate pairs for a region into data/<region>/.
 # Long, resumable batch: Ctrl-C anytime and re-run to continue where it left off.
 # Test a small area first, e.g.:
 #   just precompute --region catalonia --bbox 399134,4603853,403346,4607126 --chunk-km 5
 precompute *args:
-    uv run highliner precompute {{args}}
+    uv run highliner-etl-chunk {{args}}
 
 # Build the zoomed-out density pyramid from precomputed pairs.
 precompute-density *args:
-    uv run highliner precompute-density {{args}}
+    uv run highliner-etl-density {{args}}
 
 # Precompute all non-Catalonia Spain regions, resuming completed chunks.
 precompute-spain *args:

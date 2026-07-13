@@ -26,11 +26,11 @@ function pickInitialLang(): Lang {
     const code = pref.slice(0, 2).toLowerCase();
     if (isLang(code)) return code;
   }
-  return "ca";
+  return "en";
 }
 
-export function I18nProvider({ children }: { children: ReactNode }) {
-  const [lang, setLangState] = useState<Lang>(() => pickInitialLang());
+export function I18nProvider({ children, initialLang }: { children: ReactNode; initialLang?: Lang }) {
+  const [lang, setLangState] = useState<Lang>(() => initialLang ?? pickInitialLang());
 
   useEffect(() => {
     document.documentElement.lang = lang;

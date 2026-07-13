@@ -48,6 +48,17 @@ describe("catalog parity", () => {
 });
 
 describe("useI18n", () => {
+  it("uses the explicit initial language over saved and browser preferences", () => {
+    window.localStorage.setItem("lang", "ca");
+    const explicitWrapper = ({ children }: { children: ReactNode }) => (
+      <I18nProvider initialLang="en">{children}</I18nProvider>
+    );
+
+    const { result } = renderHook(() => useI18n(), { wrapper: explicitWrapper });
+
+    expect(result.current.lang).toBe("en");
+  });
+
   it("interpolates translated strings", () => {
     const { result } = renderHook(() => useI18n(), { wrapper });
     expect(result.current.t("zonesCount", { n: 3 })).toBe("3 zones");

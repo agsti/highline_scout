@@ -537,7 +537,7 @@ describe("MapView", () => {
     expect(onViewportChange).toHaveBeenCalledTimes(2);
     expect(leafletMocks.zoneLayerAddData).toHaveBeenLastCalledWith({
       type: "FeatureCollection",
-      features: [zoneB],
+      features: [zoneA, zoneB],
     });
     expect(onMapStatus).toHaveBeenLastCalledWith("2 zones");
 

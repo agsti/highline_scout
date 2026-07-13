@@ -1,15 +1,28 @@
 import type {
   AnchorFeatureCollection,
+  RestrictionAreaMode,
   RestrictionFeatureCollection,
   ZoneFeatureCollection,
 } from "../types/highliner";
-import type { PolygonGeometry, Position } from "../types/geojson";
+import type {
+  MultiPolygonGeometry,
+  PolygonGeometry,
+  Position,
+} from "../types/geojson";
 
 const EPSILON = 1e-10;
 
 function pointInPolygon(point: Position, polygon: PolygonGeometry): boolean {
   const [exterior, ...holes] = polygon.coordinates;
   return pointInRing(point, exterior) && !holes.some((hole) => pointInRing(point, hole));
+}
+
+function restrictionPolygons(
+  geometry: PolygonGeometry | MultiPolygonGeometry,
+): PolygonGeometry[] {
+  return geometry.type === "Polygon"
+    ? [geometry]
+    : geometry.coordinates.map((coordinates) => ({ type: "Polygon", coordinates }));
 }
 
 function pointInRing(point: Position, ring: Position[]): boolean {
@@ -65,6 +78,20 @@ function ringsIntersect(first: Position[], second: Position[]): boolean {
   });
 }
 
+function ringsCross(first: Position[], second: Position[]): boolean {
+  return first.some((firstPoint, index) => {
+    const nextFirstPoint = first[(index + 1) % first.length];
+    return second.some((secondPoint, secondIndex) =>
+      segmentsCross(
+        firstPoint,
+        nextFirstPoint,
+        secondPoint,
+        second[(secondIndex + 1) % second.length],
+      ),
+    );
+  });
+}
+
 function segmentsIntersect(a: Position, b: Position, c: Position, d: Position): boolean {
   const first = orientation(a, b, c);
   const second = orientation(a, b, d);
@@ -80,6 +107,18 @@ function segmentsIntersect(a: Position, b: Position, c: Position, d: Position): 
     (Math.abs(second) <= EPSILON && pointOnSegment(d, a, b)) ||
     (Math.abs(third) <= EPSILON && pointOnSegment(a, c, d)) ||
     (Math.abs(fourth) <= EPSILON && pointOnSegment(b, c, d))
+  );
+}
+
+function segmentsCross(a: Position, b: Position, c: Position, d: Position): boolean {
+  const first = orientation(a, b, c);
+  const second = orientation(a, b, d);
+  const third = orientation(c, d, a);
+  const fourth = orientation(c, d, b);
+
+  return (
+    ((first > EPSILON && second < -EPSILON) || (first < -EPSILON && second > EPSILON)) &&
+    ((third > EPSILON && fourth < -EPSILON) || (third < -EPSILON && fourth > EPSILON))
   );
 }
 
@@ -106,7 +145,9 @@ export function filterAnchorsByRestrictions(
     features: anchors.features.filter(
       (anchor) =>
         !restrictions.features.some((restriction) =>
-          pointInPolygon(anchor.geometry.coordinates, restriction.geometry),
+          restrictionPolygons(restriction.geometry).some((polygon) =>
+            pointInPolygon(anchor.geometry.coordinates, polygon),
+          ),
         ),
     ),
   };
@@ -115,14 +156,29 @@ export function filterAnchorsByRestrictions(
 export function filterZonesByRestrictions(
   zones: ZoneFeatureCollection,
   restrictions: RestrictionFeatureCollection,
+  mode: ExcludeRestrictionAreaMode,
 ): ZoneFeatureCollection {
   return {
     ...zones,
     features: zones.features.filter(
       (zone) =>
         !restrictions.features.some((restriction) =>
-          polygonsOverlap(zone.geometry, restriction.geometry),
+          restrictionPolygons(restriction.geometry).some((polygon) =>
+            mode === "exclude-overlaps"
+              ? polygonsOverlap(zone.geometry, polygon)
+              : polygonIsInside(zone.geometry, polygon),
+          ),
         ),
     ),
   };
+}
+
+type ExcludeRestrictionAreaMode = Exclude<RestrictionAreaMode, "informative">;
+
+function polygonIsInside(zone: PolygonGeometry, restriction: PolygonGeometry): boolean {
+  const [zoneExterior] = zone.coordinates;
+  return (
+    zoneExterior.every((point) => pointInPolygon(point, restriction)) &&
+    !restriction.coordinates.some((ring) => ringsCross(zoneExterior, ring))
+  );
 }

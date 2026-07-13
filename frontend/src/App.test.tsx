@@ -98,6 +98,7 @@ function renderApp() {
 
 describe("App", () => {
   beforeEach(() => {
+    window.localStorage.removeItem("restrictionAreaMode");
     apiMocks.fetchRestrictionLayers.mockReset().mockResolvedValue([
       {
         id: "zepa",
@@ -110,6 +111,7 @@ describe("App", () => {
   });
 
   afterEach(() => {
+    window.localStorage.removeItem("restrictionAreaMode");
     vi.useRealTimers();
     vi.restoreAllMocks();
   });
@@ -184,15 +186,32 @@ describe("App", () => {
     expect(apiMocks.fetchRestrictionLayers).toHaveBeenCalledTimes(1);
   });
 
-  it("passes the selected restriction-area mode to the map", async () => {
+  it("restores a saved restriction-area mode", async () => {
+    window.localStorage.setItem("restrictionAreaMode", "exclude-inside");
+    renderApp();
+
+    await act(async () => {});
+    expect(screen.getByTestId("restriction-area-mode")).toHaveTextContent("exclude-inside");
+  });
+
+  it("falls back to informative mode for an invalid saved restriction-area mode", async () => {
+    window.localStorage.setItem("restrictionAreaMode", "not-a-mode");
+    renderApp();
+
+    await act(async () => {});
+    expect(screen.getByTestId("restriction-area-mode")).toHaveTextContent("informative");
+  });
+
+  it("saves the restriction-area mode when it changes", async () => {
     const user = userEvent.setup();
     window.localStorage.setItem("lang", "en");
     renderApp();
 
     await user.click(screen.getByRole("button", { name: "Menu" }));
     await user.click(screen.getByRole("combobox", { name: "Restriction areas" }));
-    await user.click(screen.getByRole("option", { name: "Exclude results" }));
+    await user.click(screen.getByRole("option", { name: "Exclude overlaps" }));
 
-    expect(screen.getByTestId("restriction-area-mode")).toHaveTextContent("exclude");
+    expect(screen.getByTestId("restriction-area-mode")).toHaveTextContent("exclude-overlaps");
+    expect(window.localStorage.getItem("restrictionAreaMode")).toBe("exclude-overlaps");
   });
 });

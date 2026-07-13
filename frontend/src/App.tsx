@@ -18,6 +18,22 @@ import type { RestrictionAreaMode, RestrictionLayerMeta } from "./types/highline
 const DEFAULT_LENGTH_RANGE: LengthRange = [20, 150];
 const DEFAULT_MIN_EXPOSURE = 30;
 
+function isRestrictionAreaMode(value: string | null): value is RestrictionAreaMode {
+  return (
+    value === "informative" || value === "exclude-overlaps" || value === "exclude-inside"
+  );
+}
+
+function pickInitialRestrictionAreaMode(): RestrictionAreaMode {
+  try {
+    const saved = window.localStorage.getItem("restrictionAreaMode");
+    if (isRestrictionAreaMode(saved)) return saved;
+  } catch {
+    // Storage can be unavailable in private mode.
+  }
+  return "informative";
+}
+
 export function App() {
   const { t } = useI18n();
   const tRef = useRef(t);
@@ -30,7 +46,9 @@ export function App() {
   const [showAnchors, setShowAnchors] = useState(false);
   const [restrictionLayers, setRestrictionLayers] = useState<RestrictionLayerMeta[]>([]);
   const [enabledRestrictions, setEnabledRestrictions] = useState<string[]>([]);
-  const [restrictionAreaMode, setRestrictionAreaMode] = useState<RestrictionAreaMode>("informative");
+  const [restrictionAreaMode, setRestrictionAreaMode] = useState<RestrictionAreaMode>(
+    pickInitialRestrictionAreaMode,
+  );
   const [disclaimerOpen, setDisclaimerOpen] = useState(true);
   const [aboutOpen, setAboutOpen] = useState(false);
   const [safetyOpen, setSafetyOpen] = useState(false);
@@ -87,6 +105,15 @@ export function App() {
       }
       return next;
     });
+  }, []);
+
+  const handleRestrictionAreaModeChange = useCallback((mode: RestrictionAreaMode) => {
+    setRestrictionAreaMode(mode);
+    try {
+      window.localStorage.setItem("restrictionAreaMode", mode);
+    } catch {
+      // Ignore unavailable storage.
+    }
   }, []);
 
   const filters = (
@@ -154,7 +181,7 @@ export function App() {
             onAbout={() => setAboutOpen(true)}
             onSafety={() => setSafetyOpen(true)}
             restrictionAreaMode={restrictionAreaMode}
-            onRestrictionAreaModeChange={setRestrictionAreaMode}
+            onRestrictionAreaModeChange={handleRestrictionAreaModeChange}
             onErrorDismiss={(eventId) =>
               setError((current) => (current?.id === eventId ? null : current))
             }

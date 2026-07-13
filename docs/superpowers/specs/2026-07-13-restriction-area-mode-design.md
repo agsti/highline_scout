@@ -8,12 +8,16 @@ overlays or client-side exclusion areas for scout results.
 ## User interface
 
 The top-right navigation menu will contain a localized setting named
-"Restriction areas". It uses a two-option select:
+"Restriction areas". It uses a three-option select:
 
 - **Informative** (default): enabled restriction layers are drawn on the map;
   zones and anchors remain unchanged.
-- **Exclude results**: enabled restriction layers remain drawn and additionally
-  exclude matching results from the map.
+- **Exclude overlaps**: enabled restriction layers remain drawn and additionally
+  exclude a zone when any part of its polygon touches or overlaps an enabled
+  restriction polygon.
+- **Exclude inside**: enabled restriction layers remain drawn and additionally
+  exclude a zone only when one enabled restriction polygon fully contains its
+  polygon. Checked layers are not unioned for this mode.
 
 The existing restriction-layer controls continue to choose the enabled layers.
 They do not contain the mode setting. The enabled layers define the scope of
@@ -24,10 +28,12 @@ exclusion when the mode is `Exclude results`.
 All filtering remains in the browser. No API endpoint, offline data, or server
 filter changes are required.
 
-- A zone is hidden if its rendered polygon overlaps at least one currently
-  loaded feature from an enabled restriction layer.
-- An anchor is hidden if its point is inside at least one currently loaded
-  feature from an enabled restriction layer.
+- In `Exclude overlaps`, a zone is hidden if its rendered polygon overlaps at
+  least one currently loaded feature from an enabled restriction layer.
+- In `Exclude inside`, a zone is hidden only if every point of its polygon is
+  contained by one currently loaded feature from an enabled restriction layer.
+- In either exclusion mode, an anchor is hidden if its point is inside at least
+  one currently loaded feature from an enabled restriction layer.
 - With no enabled layers, `Exclude results` has no effect.
 - Switching mode or changing enabled layers immediately re-renders results
   using the same client-side geometry data.

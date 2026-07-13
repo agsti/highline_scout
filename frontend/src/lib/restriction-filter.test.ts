@@ -38,6 +38,16 @@ function restriction(coordinates: [number, number][][]): RestrictionFeature {
   };
 }
 
+function multiPolygonRestriction(
+  coordinates: [number, number][][][],
+): RestrictionFeature {
+  return {
+    type: "Feature",
+    geometry: { type: "MultiPolygon", coordinates },
+    properties: { layer: "zec" },
+  };
+}
+
 function zone(coordinates: [number, number][][]): ZoneFeature {
   return {
     type: "Feature",
@@ -89,21 +99,80 @@ describe("restriction filters", () => {
     ]);
   });
 
-  it("removes zones that cross or enclose restrictions while retaining disjoint zones", () => {
-    const crossingZone = zone([square(-1, 2, 2, 4)]);
+  it("removes anchors inside any MultiPolygon constituent", () => {
+    const inSecondPolygon = anchor(11, 11);
+    const outsideAnchor = anchor(6, 6);
+    const anchors: AnchorFeatureCollection = {
+      type: "FeatureCollection",
+      features: [inSecondPolygon, outsideAnchor],
+    };
+    const restrictions: RestrictionFeatureCollection = {
+      type: "FeatureCollection",
+      features: [multiPolygonRestriction([[square(0, 0, 2, 2)], [square(10, 10, 12, 12)]])],
+    };
+
+    expect(filterAnchorsByRestrictions(anchors, restrictions).features).toEqual([outsideAnchor]);
+  });
+
+  it("removes zones with any overlap in exclude-overlaps mode", () => {
+    const partlyOverlappingZone = zone([square(-1, 2, 2, 4)]);
     const enclosingZone = zone([square(-1, -1, 7, 7)]);
+    const containedZone = zone([square(1, 1, 2, 2)]);
     const disjointZone = zone([square(8, 8, 10, 10)]);
     const zones: ZoneFeatureCollection = {
       type: "FeatureCollection",
-      features: [crossingZone, enclosingZone, disjointZone],
+      features: [partlyOverlappingZone, enclosingZone, containedZone, disjointZone],
     };
     const restrictions: RestrictionFeatureCollection = {
       type: "FeatureCollection",
       features: [restriction([square(0, 0, 6, 6)])],
     };
 
-    expect(filterZonesByRestrictions(zones, restrictions).features).toEqual([
+    expect(filterZonesByRestrictions(zones, restrictions, "exclude-overlaps").features).toEqual([
       disjointZone,
+    ]);
+  });
+
+  it("removes only zones wholly inside one restriction in exclude-inside mode", () => {
+    const partlyOverlappingZone = zone([square(-1, 2, 2, 4)]);
+    const containedZone = zone([square(1, 1, 2, 2)]);
+    const boundaryContainedZone = zone([square(0, 1, 2, 2)]);
+    const splitAcrossRestrictions = zone([square(1, 1, 5, 2)]);
+    const zones: ZoneFeatureCollection = {
+      type: "FeatureCollection",
+      features: [partlyOverlappingZone, containedZone, boundaryContainedZone, splitAcrossRestrictions],
+    };
+    const restrictions: RestrictionFeatureCollection = {
+      type: "FeatureCollection",
+      features: [
+        restriction([square(0, 0, 3, 3)]),
+        restriction([square(3, 0, 6, 3)]),
+      ],
+    };
+
+    expect(filterZonesByRestrictions(zones, restrictions, "exclude-inside").features).toEqual([
+      partlyOverlappingZone,
+      splitAcrossRestrictions,
+    ]);
+  });
+
+  it("filters zones in a non-first MultiPolygon constituent in both exclusion modes", () => {
+    const inSecondPolygon = zone([square(10.5, 10.5, 11.5, 11.5)]);
+    const outsideZone = zone([square(6, 6, 7, 7)]);
+    const zones: ZoneFeatureCollection = {
+      type: "FeatureCollection",
+      features: [inSecondPolygon, outsideZone],
+    };
+    const restrictions: RestrictionFeatureCollection = {
+      type: "FeatureCollection",
+      features: [multiPolygonRestriction([[square(0, 0, 2, 2)], [square(10, 10, 12, 12)]])],
+    };
+
+    expect(filterZonesByRestrictions(zones, restrictions, "exclude-overlaps").features).toEqual([
+      outsideZone,
+    ]);
+    expect(filterZonesByRestrictions(zones, restrictions, "exclude-inside").features).toEqual([
+      outsideZone,
     ]);
   });
 });

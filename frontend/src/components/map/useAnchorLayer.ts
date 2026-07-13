@@ -40,9 +40,9 @@ export function useAnchorLayer(options: {
   function renderVisibleAnchors() {
     const layer = layerRef.current;
     if (!layer) return;
-    const anchors = restrictionAreaModeRef.current === "exclude"
-      ? filterAnchorsByRestrictions(shownAnchorsRef.current, restrictionFeaturesRef.current)
-      : shownAnchorsRef.current;
+    const anchors = restrictionAreaModeRef.current === "informative"
+      ? shownAnchorsRef.current
+      : filterAnchorsByRestrictions(shownAnchorsRef.current, restrictionFeaturesRef.current);
     renderAnchors(layer, anchors);
   }
 

@@ -1,6 +1,7 @@
 import type {
   Feature,
   FeatureCollection,
+  MultiPolygonGeometry,
   PointGeometry,
   PolygonGeometry,
 } from "./geojson";
@@ -54,7 +55,13 @@ export interface RestrictionProperties {
   name?: string;
 }
 
-export type RestrictionFeature = Feature<PolygonGeometry, RestrictionProperties>;
+export type RestrictionFeature = Feature<
+  PolygonGeometry | MultiPolygonGeometry,
+  RestrictionProperties
+>;
 export type RestrictionFeatureCollection = FeatureCollection<RestrictionFeature>;
 
-export type RestrictionAreaMode = "informative" | "exclude";
+export type RestrictionAreaMode =
+  | "informative"
+  | "exclude-overlaps"
+  | "exclude-inside";

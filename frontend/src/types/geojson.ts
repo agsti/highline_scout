@@ -10,6 +10,11 @@ export interface PolygonGeometry {
   coordinates: Position[][];
 }
 
+export interface MultiPolygonGeometry {
+  type: "MultiPolygon";
+  coordinates: Position[][][];
+}
+
 export interface Feature<G, P> {
   type: "Feature";
   geometry: G;

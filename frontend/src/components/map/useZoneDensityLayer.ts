@@ -93,9 +93,13 @@ export function useZoneDensityLayer(options: {
       type: "FeatureCollection",
       features: shownZoneFeaturesRef.current,
     };
-    const visible = restrictionAreaModeRef.current === "exclude"
-      ? filterZonesByRestrictions(collection, restrictionFeaturesRef.current)
-      : collection;
+    const visible = restrictionAreaModeRef.current === "informative"
+      ? collection
+      : filterZonesByRestrictions(
+          collection,
+          restrictionFeaturesRef.current,
+          restrictionAreaModeRef.current,
+        )
     layer.clearLayers();
     layer.addData(visible);
   }

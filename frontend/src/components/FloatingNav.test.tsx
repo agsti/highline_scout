@@ -27,7 +27,7 @@ describe("FloatingNav", () => {
     const logo = screen.getByRole("img", { name: "Highline Scout" });
     expect(logo).toHaveAttribute(
       "src",
-      "/assets/logo.svg",
+      "/src/assets/logo.svg",
     );
     expect(logo).toHaveClass("h-9", "md:h-[38px]");
     expect(screen.queryByRole("heading", { name: "Highline Scout" })).not.toBeInTheDocument();

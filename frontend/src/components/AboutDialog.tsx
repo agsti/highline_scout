@@ -18,7 +18,6 @@ export function AboutDialog({ open, onOpenChange }: AboutDialogProps) {
         <div className="space-y-3 text-sm text-muted-foreground">
           <p>{t("aboutBody")}</p>
           <p className="text-xs">{t("aboutData")}</p>
-          <p className="text-xs">{t("disclaimerPrivacy")}</p>
         </div>
       </DialogContent>
     </Dialog>

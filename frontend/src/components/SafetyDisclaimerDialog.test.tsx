@@ -88,4 +88,27 @@ describe("SafetyDisclaimerDialog", () => {
 
     expect(screen.getByText(/sense galetes|sin cookies|no cookies/i)).toBeInTheDocument();
   });
+
+  it("explains that HighlineScout only suggests spots and lists scouting safeguards", () => {
+    window.localStorage.setItem("lang", "en");
+
+    render(
+      <I18nProvider>
+        <SafetyDisclaimerDialog open onAccept={vi.fn()} />
+      </I18nProvider>,
+    );
+
+    const dialog = screen.getByRole("dialog");
+    expect(screen.getByRole("heading", { name: "HighlineScout" })).toBeInTheDocument();
+    expect(dialog).toHaveTextContent("HighlineScout helps you find your next potential highline spot.");
+    expect(screen.getByRole("list")).toHaveTextContent(
+      "Beginners: scout with an experienced highliner.",
+    );
+    expect(screen.getByRole("list")).toHaveTextContent(
+      "Have an expert assess bolts and tree anchors.",
+    );
+    expect(screen.getByRole("list")).toHaveTextContent(
+      "This tool cannot assess vegetation, obstacles, or rock quality, so results are leads—not guaranteed safe or riggable lines.",
+    );
+  });
 });

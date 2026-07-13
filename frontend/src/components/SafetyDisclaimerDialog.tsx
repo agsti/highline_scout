@@ -40,10 +40,12 @@ export function SafetyDisclaimerDialog({ open, onAccept }: SafetyDisclaimerDialo
           <DialogTitle>{t("disclaimerTitle")}</DialogTitle>
         </DialogHeader>
         <div className="space-y-3 text-sm text-muted-foreground">
-          <p className="font-semibold text-destructive">{t("disclaimerLead")}</p>
-          <p>{t("disclaimerBody")}</p>
-          <p>{t("disclaimerResponsibility")}</p>
-          <p className="text-xs">{t("disclaimerPrivacy")}</p>
+          <p>{t("disclaimerIntro")}</p>
+          <ul className="list-disc space-y-2 pl-5">
+            <li>{t("disclaimerBeginner")}</li>
+            <li>{t("disclaimerAnchors")}</li>
+            <li>{t("disclaimerLimitations")}</li>
+          </ul>
         </div>
         <Button type="button" onClick={onAccept} autoFocus>
           {t("disclaimerAccept")}

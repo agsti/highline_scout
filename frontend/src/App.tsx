@@ -127,11 +127,11 @@ export function App() {
       <AppShell
         map={
           <MapView
-            {...{ restrictionAreaMode }}
             minLen={appliedLengthRange[0]}
             maxLen={appliedLengthRange[1]}
             minExposure={appliedMinExposure}
             showAnchors={showAnchors}
+            restrictionAreaMode={restrictionAreaMode}
             enabledRestrictions={enabledRestrictions}
             restrictionLayers={restrictionLayers}
             onViewportChange={handleViewportChange}

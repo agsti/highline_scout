@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { captureMapSettled } from "@/lib/analytics";
 import { bboxLonLatParam, type MapViewState } from "@/lib/geo";
 import { useI18n } from "@/lib/i18n";
-import type { RestrictionLayerMeta } from "@/types/highliner";
+import type { RestrictionAreaMode, RestrictionLayerMeta } from "@/types/highliner";
 import { MapContextMenu, type ContextMenuPoint } from "./MapContextMenu";
 import { useAnchorLayer } from "./useAnchorLayer";
 import { useLeafletMap } from "./useLeafletMap";
@@ -19,6 +19,7 @@ interface MapViewProps {
   maxLen: number;
   minExposure: number;
   showAnchors: boolean;
+  restrictionAreaMode: RestrictionAreaMode;
   enabledRestrictions: string[];
   restrictionLayers: RestrictionLayerMeta[];
   onViewportChange: (map: L.Map) => void;

@@ -157,6 +157,7 @@ function renderMapView(props?: Partial<React.ComponentProps<typeof MapView>>) {
         maxLen={props?.maxLen ?? 150}
         minExposure={props?.minExposure ?? 30}
         showAnchors={props?.showAnchors ?? true}
+        restrictionAreaMode={props?.restrictionAreaMode ?? "informative"}
         enabledRestrictions={props?.enabledRestrictions ?? []}
         restrictionLayers={props?.restrictionLayers ?? []}
         onViewportChange={props?.onViewportChange ?? vi.fn()}
@@ -189,6 +190,7 @@ function renderMapViewWithLanguageControl(props?: Partial<React.ComponentProps<t
         maxLen={props?.maxLen ?? 150}
         minExposure={props?.minExposure ?? 30}
         showAnchors={props?.showAnchors ?? true}
+        restrictionAreaMode={props?.restrictionAreaMode ?? "informative"}
         enabledRestrictions={props?.enabledRestrictions ?? []}
         restrictionLayers={props?.restrictionLayers ?? []}
         onViewportChange={props?.onViewportChange ?? vi.fn()}
@@ -546,6 +548,7 @@ describe("MapView", () => {
           maxLen={200}
           minExposure={30}
           showAnchors
+          restrictionAreaMode="informative"
           enabledRestrictions={[]}
           restrictionLayers={[]}
           onViewportChange={onViewportChange}

@@ -24,7 +24,13 @@ describe("FloatingNav", () => {
     renderNav();
 
     expect(screen.getByRole("banner")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Highline Scout" })).toBeInTheDocument();
+    const logo = screen.getByRole("img", { name: "Highline Scout" });
+    expect(logo).toHaveAttribute(
+      "src",
+      "/assets/logo.svg",
+    );
+    expect(logo).toHaveClass("h-9", "md:h-[38px]");
+    expect(screen.queryByRole("heading", { name: "Highline Scout" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Menu" })).toBeInTheDocument();
     expect(screen.queryByRole("group", { name: "Language" })).not.toBeInTheDocument();
   });

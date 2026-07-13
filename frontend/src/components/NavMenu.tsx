@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { Info, Menu, MessageSquarePlus, ShieldAlert, X } from "lucide-react";
+import { Info, Menu, MessageSquarePlus, X } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Select,
@@ -17,7 +17,6 @@ interface NavMenuProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onAbout: () => void;
-  onSafety: () => void;
   restrictionAreaMode: RestrictionAreaMode;
   onRestrictionAreaModeChange: (mode: RestrictionAreaMode) => void;
 }
@@ -51,7 +50,6 @@ export function NavMenu({
   open,
   onOpenChange,
   onAbout,
-  onSafety,
   restrictionAreaMode,
   onRestrictionAreaModeChange,
 }: NavMenuProps) {
@@ -95,26 +93,7 @@ export function NavMenu({
         </PopoverTrigger>
 
         <PopoverContent className="w-[248px] p-0" aria-label={t("menu")}>
-          <div className="p-1.5">
-            <MenuItem
-              icon={<MessageSquarePlus className="h-4 w-4" />}
-              label={t("feedback")}
-              hint={feedbackNoted ? t("feedbackComingSoon") : undefined}
-              onClick={() => setFeedbackNoted(true)}
-            />
-            <MenuItem
-              icon={<Info className="h-4 w-4" />}
-              label={t("about")}
-              onClick={() => select(onAbout)}
-            />
-            <MenuItem
-              icon={<ShieldAlert className="h-4 w-4" />}
-              label={t("safety")}
-              onClick={() => select(onSafety)}
-            />
-          </div>
-
-          <div className="border-t border-hairline px-3.5 py-2.5">
+          <div className="px-3.5 py-2.5">
             <label
               htmlFor="restriction-area-mode"
               className="text-[11px] font-[650] uppercase tracking-[0.04em] text-muted-foreground"
@@ -146,6 +125,20 @@ export function NavMenu({
               {t("language")}
             </span>
             <LanguageSwitcher variant="segmented" />
+          </div>
+
+          <div className="border-t border-hairline p-1.5">
+            <MenuItem
+              icon={<MessageSquarePlus className="h-4 w-4" />}
+              label={t("feedback")}
+              hint={feedbackNoted ? t("feedbackComingSoon") : undefined}
+              onClick={() => setFeedbackNoted(true)}
+            />
+            <MenuItem
+              icon={<Info className="h-4 w-4" />}
+              label={t("about")}
+              onClick={() => select(onAbout)}
+            />
           </div>
         </PopoverContent>
       </Popover>

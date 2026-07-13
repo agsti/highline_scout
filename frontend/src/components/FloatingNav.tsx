@@ -6,14 +6,12 @@ import type { RestrictionAreaMode } from "@/types/highliner";
 
 interface FloatingNavProps {
   onAbout: () => void;
-  onSafety: () => void;
   restrictionAreaMode?: RestrictionAreaMode;
   onRestrictionAreaModeChange?: (mode: RestrictionAreaMode) => void;
 }
 
 export function FloatingNav({
   onAbout,
-  onSafety,
   restrictionAreaMode = "informative",
   onRestrictionAreaModeChange = () => {},
 }: FloatingNavProps) {
@@ -37,7 +35,6 @@ export function FloatingNav({
           open={menuOpen}
           onOpenChange={setMenuOpen}
           onAbout={onAbout}
-          onSafety={onSafety}
           restrictionAreaMode={restrictionAreaMode}
           onRestrictionAreaModeChange={onRestrictionAreaModeChange}
         />

@@ -21,7 +21,6 @@ interface MapChromeProps {
   sheetOpen: boolean;
   onSheetOpenChange: (open: boolean) => void;
   onAbout: () => void;
-  onSafety: () => void;
   restrictionAreaMode: RestrictionAreaMode;
   onRestrictionAreaModeChange: (mode: RestrictionAreaMode) => void;
   onErrorDismiss: (eventId: number) => void;
@@ -32,7 +31,6 @@ export function MapChrome(props: MapChromeProps) {
     <>
       <FloatingNav
         onAbout={props.onAbout}
-        onSafety={props.onSafety}
         restrictionAreaMode={props.restrictionAreaMode}
         onRestrictionAreaModeChange={props.onRestrictionAreaModeChange}
       />

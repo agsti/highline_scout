@@ -206,7 +206,7 @@ describe("AppShell", () => {
           map={<div>map area</div>}
           chrome={
             <>
-              <FloatingNav onAbout={() => {}} onSafety={() => {}} />
+              <FloatingNav onAbout={() => {}} />
               <ControlledMobileControlSheet />
             </>
           }

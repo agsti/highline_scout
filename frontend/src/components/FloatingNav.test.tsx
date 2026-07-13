@@ -7,13 +7,12 @@ import { FloatingNav } from "./FloatingNav";
 
 function renderNav() {
   const onAbout = vi.fn();
-  const onSafety = vi.fn();
   render(
     <I18nProvider>
-      <FloatingNav onAbout={onAbout} onSafety={onSafety} />
+      <FloatingNav onAbout={onAbout} />
     </I18nProvider>,
   );
-  return { onAbout, onSafety };
+  return { onAbout };
 }
 
 describe("FloatingNav", () => {

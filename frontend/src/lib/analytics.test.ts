@@ -2,9 +2,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const initMock = vi.fn();
 const captureMock = vi.fn();
+const loadPosthogMock = vi.fn();
+const posthog = { init: initMock, capture: captureMock };
 
 vi.mock("posthog-js", () => ({
-  default: { init: initMock, capture: captureMock },
+  default: posthog,
+}));
+
+vi.mock("./analytics-loader", () => ({
+  loadPosthog: loadPosthogMock,
 }));
 
 async function loadModule() {
@@ -15,6 +21,8 @@ beforeEach(() => {
   vi.resetModules();
   initMock.mockClear();
   captureMock.mockClear();
+  loadPosthogMock.mockReset();
+  loadPosthogMock.mockResolvedValue(posthog);
 });
 
 describe("shouldEnableAnalytics", () => {
@@ -45,19 +53,20 @@ describe("capture", () => {
 
   it("no-ops when init was gated off", async () => {
     const { initAnalytics, capture } = await loadModule();
-    initAnalytics(false, "highlinescout.com");
+    await initAnalytics(false, "highlinescout.com");
     capture("zone_opened", { n_pairs: 3 });
     expect(initMock).not.toHaveBeenCalled();
     expect(captureMock).not.toHaveBeenCalled();
   });
 
-  it("initializes PostHog and forwards events when enabled", async () => {
-    const { initAnalytics, capture } = await loadModule();
-    initAnalytics(true, "highlinescout.com");
+  it("loads PostHog only after the production gate passes", async () => {
+    const { initAnalytics } = await loadModule();
+
+    await initAnalytics(true, "highlinescout.com");
+
     expect(initMock).toHaveBeenCalledWith(
       "phc_qwCr7DcdFB5HZPeRWjaSajQKjRD7j2ARr7ECSKTtyLst",
-      {
-        api_host: "https://eu.i.posthog.com",
+      expect.objectContaining({
         persistence: "memory",
         cookieless_mode: "always",
         person_profiles: "identified_only",
@@ -65,8 +74,33 @@ describe("capture", () => {
         disable_surveys: true,
         disable_product_tours: true,
         disable_conversations: true,
-      },
+      }),
     );
+  });
+
+  it("flushes events captured while PostHog is loading in order", async () => {
+    let resolveLoader: (() => void) | undefined;
+    loadPosthogMock.mockImplementationOnce(
+      () => new Promise((resolve) => { resolveLoader = () => resolve(posthog); }),
+    );
+    const { capture, initAnalytics } = await loadModule();
+
+    const initializing = initAnalytics(true, "highlinescout.com");
+    capture("filter_changed", { min_len: 20 });
+    capture("zone_opened", { n_pairs: 3 });
+    expect(captureMock).not.toHaveBeenCalled();
+
+    resolveLoader?.();
+    await initializing;
+    expect(captureMock.mock.calls).toEqual([
+      ["filter_changed", { min_len: 20 }],
+      ["zone_opened", { n_pairs: 3 }],
+    ]);
+  });
+
+  it("forwards events after PostHog loads", async () => {
+    const { initAnalytics, capture } = await loadModule();
+    await initAnalytics(true, "highlinescout.com");
     capture("zone_opened", { n_pairs: 3 });
     expect(captureMock).toHaveBeenCalledWith("zone_opened", { n_pairs: 3 });
   });
@@ -76,7 +110,7 @@ describe("captureMapSettled", () => {
   it("emits once after the debounce, collapsing a burst of pans", async () => {
     vi.useFakeTimers();
     const { initAnalytics, captureMapSettled, MAP_SETTLED_DEBOUNCE_MS } = await loadModule();
-    initAnalytics(true, "highlinescout.com");
+    await initAnalytics(true, "highlinescout.com");
 
     captureMapSettled(13, 41.6, 1.83);
     captureMapSettled(14, 41.7, 1.84);
@@ -97,7 +131,7 @@ describe("captureMapSettled", () => {
 describe("cookieless persistence", () => {
   it("stores nothing on the device, so no consent banner is required", async () => {
     const { initAnalytics } = await loadModule();
-    initAnalytics(true, "highlinescout.com");
+    await initAnalytics(true, "highlinescout.com");
 
     const options = initMock.mock.calls[0]?.[1] as Record<string, unknown>;
     // No cookie, no localStorage: distinct_id lives in memory for the page's life.

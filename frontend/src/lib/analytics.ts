@@ -1,4 +1,5 @@
-import posthog from "posthog-js";
+import type posthog from "posthog-js";
+import { loadPosthog } from "./analytics-loader";
 
 // Write-only ingestion key: it can send events but cannot read data, so it is
 // safe in client source. (Personal keys, phx_..., are secret and unused here.)
@@ -9,7 +10,12 @@ const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "0.0.0.0", ""]);
 
 export const MAP_SETTLED_DEBOUNCE_MS = 2000;
 
-let enabled = false;
+type AnalyticsEvent = [event: string, properties?: Record<string, unknown>];
+type PosthogClient = typeof posthog;
+
+let client: PosthogClient | undefined;
+let loading: Promise<void> | undefined;
+let queuedEvents: AnalyticsEvent[] = [];
 let mapSettledTimer: ReturnType<typeof setTimeout> | undefined;
 
 // The dev-build check is the real gate; the hostname check additionally keeps a
@@ -21,8 +27,14 @@ export function shouldEnableAnalytics(isProd: boolean, hostname: string): boolea
 export function initAnalytics(
   isProd: boolean = import.meta.env.PROD,
   hostname: string = window.location.hostname,
-): void {
-  if (!shouldEnableAnalytics(isProd, hostname)) return;
+): Promise<void> {
+  if (!shouldEnableAnalytics(isProd, hostname)) return Promise.resolve();
+  loading ??= loadAnalytics();
+  return loading;
+}
+
+async function loadAnalytics(): Promise<void> {
+  const posthog = await loadPosthog();
   // Cookieless by design: "memory" persistence writes nothing to the device, so
   // no ePrivacy consent — and therefore no cookie banner — is required.
   // `identified_only` keeps events anonymous (we never call identify()).
@@ -65,12 +77,19 @@ export function initAnalytics(
     disable_product_tours: true,
     disable_conversations: true,
   });
-  enabled = true;
+  client = posthog;
+  for (const [event, properties] of queuedEvents) {
+    posthog.capture(event, properties);
+  }
+  queuedEvents = [];
 }
 
 export function capture(event: string, properties?: Record<string, unknown>): void {
-  if (!enabled) return;
-  posthog.capture(event, properties);
+  if (client) {
+    client.capture(event, properties);
+  } else if (loading) {
+    queuedEvents.push([event, properties]);
+  }
 }
 
 // Panning fires `moveend` per gesture; debouncing collapses a scroll across the

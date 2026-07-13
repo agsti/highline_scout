@@ -16,6 +16,7 @@ router = APIRouter()
 def zones(  # noqa: PLR0913
     request: Request,
     region: str | None = None,
+    country: str = config.DEFAULT_COUNTRY,
     bbox: str | None = None,
     bbox_lonlat: str | None = None,
     max_len: float = config.DEFAULT_MAX_LEN_M,
@@ -24,7 +25,7 @@ def zones(  # noqa: PLR0913
     max_dh: float = config.DEFAULT_MAX_DH_M,
     cluster_dist: float = config.CLUSTER_DIST_M,
 ) -> dict[str, Any]:
-    entries = resolve_regions(request, region, bbox, bbox_lonlat)
+    entries = resolve_regions(request, region, bbox, bbox_lonlat, country)
     pair_filter = PairFilter(min_len=min_len, max_len=max_len,
                              min_exposure=min_exposure, max_dh=max_dh)
 

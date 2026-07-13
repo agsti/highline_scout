@@ -11,7 +11,7 @@ from tests.helpers import to_utm
 def _write_density(data_dir: Path, region: str, z: int) -> tuple[int, int]:
     """Write a one-cell z-layer near Montserrat; return its (xtile, ytile)."""
     tx, ty = tiles.lonlat_to_tile(1.83, 41.59, z)
-    ddir = data_dir / region / "density"
+    ddir = data_dir / "spain" / region / "density"
     ddir.mkdir(parents=True)
     (ddir / f"z{z}.json").write_text(
         json.dumps([{"x": tx, "y": ty, "n": 3, "max_exp": 85.0,
@@ -39,7 +39,7 @@ def test_density_returns_clipped_cell(tmp_path: Path) -> None:
 def test_density_legacy_cell_without_length(tmp_path: Path) -> None:
     # Cells precomputed before the length fields existed must not 500.
     tx, ty = tiles.lonlat_to_tile(1.83, 41.59, 12)
-    ddir = tmp_path / "catalonia" / "density"
+    ddir = tmp_path / "spain" / "catalonia" / "density"
     ddir.mkdir(parents=True)
     (ddir / "z12.json").write_text(
         json.dumps([{"x": tx, "y": ty, "n": 3, "max_exp": 85.0}]))
@@ -73,7 +73,7 @@ def test_density_clamps_zoom(tmp_path: Path) -> None:
 
 
 def test_density_404_without_dir(tmp_path: Path) -> None:
-    (tmp_path / "catalonia").mkdir(parents=True)
+    (tmp_path / "spain" / "catalonia").mkdir(parents=True)
     client = TestClient(create_app(data_dir=tmp_path))
     r = client.get("/density", params={
         "region": "catalonia", "z": 12, "bbox_lonlat": "1.7,41.5,2.0,41.7"})
@@ -82,8 +82,8 @@ def test_density_404_without_dir(tmp_path: Path) -> None:
 
 def _write_grid(data_dir: Path, region: str,
                 bbox: tuple[float, float, float, float]) -> None:
-    (data_dir / region).mkdir(parents=True, exist_ok=True)
-    (data_dir / region / "grid.json").write_text(
+    (data_dir / "spain" / region).mkdir(parents=True, exist_ok=True)
+    (data_dir / "spain" / region / "grid.json").write_text(
         json.dumps({"bbox": list(bbox), "chunk_m": 10000.0}))
 
 

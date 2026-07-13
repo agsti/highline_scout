@@ -9,8 +9,8 @@ from tests.helpers import to_utm
 
 def _write_grid(data_dir: Path, name: str,
                 bbox: tuple[float, float, float, float],
-                crs: str | None = None) -> None:
-    rdir = data_dir / name
+                crs: str | None = None, country: str = "spain") -> None:
+    rdir = data_dir / country / name
     rdir.mkdir(parents=True)
     grid: dict[str, Any] = {"bbox": list(bbox), "chunk_m": 10000.0}
     if crs is not None:
@@ -39,6 +39,18 @@ def test_regions_in_view_filters_by_overlap(tmp_path: Path) -> None:
     index = deps.build_region_index(tmp_path)
     hits = deps.regions_in_view(index, (1.82, 41.58, 1.84, 41.60))
     assert [e.name for e in hits] == ["cat"]
+
+
+def test_build_index_sets_country_from_partition(tmp_path: Path) -> None:
+    cx, cy = to_utm(1.83, 41.59)
+    _write_grid(tmp_path, "cat", (cx - 500, cy - 500, cx + 500, cy + 500))
+    _write_grid(tmp_path, "alps", (cx - 500, cy - 500, cx + 500, cy + 500),
+                country="france")
+
+    index = deps.build_region_index(tmp_path)
+    assert {(e.name, e.country) for e in index} == {("cat", "spain"),
+                                                    ("alps", "france")}
+    assert [e.name for e in deps.regions_in_country(index, "france")] == ["alps"]
 
 
 def test_build_index_empty_when_data_dir_missing(tmp_path: Path) -> None:

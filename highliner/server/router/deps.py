@@ -1,7 +1,8 @@
 """Shared request-handling helpers for the routers.
 
 Holds the bbox-parsing helpers that translate ``bbox`` / ``bbox_lonlat`` query
-params into UTM or lon/lat tuples, plus the app.state accessor.
+params into UTM or lon/lat tuples, plus the anchor viewport filter and
+app.state accessor.
 """
 from dataclasses import dataclass
 from pathlib import Path
@@ -9,6 +10,8 @@ from pathlib import Path
 from fastapi import HTTPException, Request
 
 from highliner.core import config, geo
+from highliner.core.regions import country_for_region, region_dir
+from highliner.models.anchor import Anchor
 from highliner.server.repositories import chunked_store
 
 Bbox = tuple[float, float, float, float]
@@ -19,6 +22,7 @@ LonLatBox = tuple[float, float, float, float]
 @dataclass(frozen=True)
 class RegionEntry:
     name: str
+    country: str
     region_dir: Path
     grid: chunked_store.Grid
     lonlat_bounds: LonLatBox
@@ -35,14 +39,19 @@ def region_lonlat_bounds(grid: chunked_store.Grid) -> LonLatBox:
 
 
 def build_region_index(data_dir: Path) -> list[RegionEntry]:
-    """One RegionEntry per ``data/<region>/`` that has a grid.json."""
+    """One RegionEntry per ``data/<country>/<region>/`` that has a grid.json.
+    Region names are unique across countries, so the index stays flat."""
     out: list[RegionEntry] = []
     if not data_dir.exists():
         return out
-    for p in sorted(data_dir.iterdir()):
-        if (p / "grid.json").exists():
-            grid = chunked_store.read_grid(p)
-            out.append(RegionEntry(p.name, p, grid, region_lonlat_bounds(grid)))
+    for country_dir in sorted(data_dir.iterdir()):
+        if not country_dir.is_dir():
+            continue
+        for p in sorted(country_dir.iterdir()):
+            if (p / "grid.json").exists():
+                grid = chunked_store.read_grid(p)
+                out.append(RegionEntry(p.name, country_dir.name, p, grid,
+                                       region_lonlat_bounds(grid)))
     return out
 
 
@@ -66,17 +75,32 @@ def regions_in_view(
     return [e for e in index if _lonlat_overlaps(e.lonlat_bounds, view_lonlat)]
 
 
-def resolve_regions(request: Request, region: str | None,
-                    bbox: str | None, bbox_lonlat: str | None) -> list[RegionEntry]:
+def regions_in_country(
+        index: list[RegionEntry], country: str) -> list[RegionEntry]:
+    return [e for e in index if e.country == country]
+
+
+def resolve_regions(request: Request, region: str | None,  # noqa: PLR0913
+                    bbox: str | None, bbox_lonlat: str | None,
+                    country: str = config.DEFAULT_COUNTRY) -> list[RegionEntry]:
     """Regions to serve for a request. If ``region`` is given, that single region
     (read directly, may raise FileNotFoundError if absent); otherwise every
-    region whose extent overlaps the lon/lat viewport."""
+    region of ``country`` whose extent overlaps the lon/lat viewport."""
     if region is not None:
-        rdir = request.app.state.data_dir / region
+        rdir = region_dir(request.app.state.data_dir, region)
         grid = chunked_store.read_grid(rdir)
-        return [RegionEntry(region, rdir, grid, region_lonlat_bounds(grid))]
+        return [RegionEntry(region, country_for_region(region), rdir, grid,
+                            region_lonlat_bounds(grid))]
     view = parse_bbox_lonlat(bbox, bbox_lonlat)
-    return regions_in_view(get_region_index(request), view)
+    index = regions_in_country(get_region_index(request), country)
+    return regions_in_view(index, view)
+
+
+def clip_anchors(anchors: list[Anchor], bbox: Bbox) -> list[Anchor]:
+    """Anchors within a UTM ``(minx, miny, maxx, maxy)`` bbox. No cap."""
+    minx, miny, maxx, maxy = bbox
+    return [a for a in anchors
+            if minx <= a.x <= maxx and miny <= a.y <= maxy]
 
 
 def get_data_dir(request: Request) -> Path:

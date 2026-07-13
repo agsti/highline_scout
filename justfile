@@ -97,8 +97,9 @@ precompute-spain *args:
 precompute-spain-8 *args:
     uv run python scripts/precompute_spain.py --jobs 1 --chunk-workers 8 {{args}}
 
-# rsync data/ to the prod machine, skipping the huge raw-DTM temp folders
-# (mdt05_tiles/, mdt05_sheet_index/) that prod doesn't serve.
+# rsync data/ to the prod machine. The raw-DTM CNIG cache
+# (mdt05_tiles/, mdt05_sheet_index/) lives in the sibling cache/ folder, not
+# under data/, so it's never synced — prod doesn't serve it.
 # Override target on the CLI, e.g.:
 #   just deploy-data PROD_HOST=me@1.2.3.4 PROD_DATA_DIR=/srv/highliner/data
 # Preview first with `just deploy-data --dry-run`.
@@ -107,6 +108,4 @@ PROD_DATA_DIR := "/mnt/data/highliner"
 
 deploy-data ARGS="":
     rsync -avz --partial --progress --delete {{ARGS}} \
-      --exclude 'mdt05_tiles/' \
-      --exclude 'mdt05_sheet_index/' \
       data/ {{PROD_HOST}}:{{PROD_DATA_DIR}}/

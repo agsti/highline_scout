@@ -46,4 +46,4 @@ def test_precompute_density_command(monkeypatch: pytest.MonkeyPatch) -> None:
         return 7
     monkeypatch.setattr("highliner.etl.services.density.build_density", fake)
     cli.main(["precompute-density", "--region", "catalonia", "--data-dir", "/tmp/x"])
-    assert calls["region_dir"] == Path("/tmp/x") / "catalonia"
+    assert calls["region_dir"] == Path("/tmp/x") / "spain" / "catalonia"

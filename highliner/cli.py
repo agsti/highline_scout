@@ -3,7 +3,7 @@ import time
 from pathlib import Path
 
 from highliner.core import config
-from highliner.core.regions import defaults_for_region
+from highliner.core.regions import defaults_for_region, region_dir
 
 
 def _fmt_hms(seconds: float) -> str:
@@ -42,12 +42,12 @@ def _cmd_precompute(args: argparse.Namespace) -> None:
                                       chunk_m=chunk_m, report=report,
                                       crs=crs, dtm_source=dtm_source,
                                       workers=args.workers)
-    print(f"\nprocessed {n} chunks -> {Path(args.data_dir) / args.region}")
+    print(f"\nprocessed {n} chunks -> {region_dir(args.data_dir, args.region)}")
 
 
 def _cmd_precompute_density(args: argparse.Namespace) -> None:
     from highliner.etl.services import density
-    region_dir = Path(args.data_dir) / args.region
+    rdir = region_dir(args.data_dir, args.region)
     start = time.monotonic()
 
     def report(done: int, total: int) -> None:
@@ -55,13 +55,14 @@ def _cmd_precompute_density(args: argparse.Namespace) -> None:
         pct = 100.0 * done / total if total else 100.0
         print(f"\rpairs file {done}/{total} ({pct:4.1f}%)  "
               f"elapsed {_fmt_hms(elapsed)}", end="", flush=True)
-    n = density.build_density(region_dir, report=report)
-    print(f"\nwrote {n} density cells -> {region_dir / 'density'}")
+    n = density.build_density(rdir, report=report)
+    print(f"\nwrote {n} density cells -> {rdir / 'density'}")
 
 
 def _cmd_fetch_restrictions(args: argparse.Namespace) -> None:
     from highliner.etl.repositories.restrictions import fetch_all
-    print("Building national protected-area layers from data/restrictions/raw/ ...")
+    print("Building national protected-area layers from "
+          "data/spain/restrictions/raw/ ...")
     fetch_all()
 
 

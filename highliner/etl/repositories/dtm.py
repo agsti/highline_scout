@@ -300,19 +300,17 @@ def _download_cnig_sheet(session: requests.Session, sec: str, filename: str,
     return dest
 
 
-def _cnig_cache_root(tiles_dir: Path) -> Path:
-    tiles_dir = Path(tiles_dir)
-    if tiles_dir.parent.name == "tiles":
-        return tiles_dir.parent.parent.parent
-    return tiles_dir.parent.parent
+def _fetch_cnig_tiles(bbox: Bbox, cache_root: Path, crs: str) -> list[Path]:
+    """Fetch CNIG MDT05 sheets into the persistent ``cache_root``.
 
-
-def _fetch_cnig_tiles(bbox: Bbox, tiles_dir: Path, crs: str) -> list[Path]:
-    data_dir = _cnig_cache_root(tiles_dir)
+    National sheets and the sheet-index resolution are reused across regions
+    and re-runs, so they live in a country-scoped cache outside the per-region
+    data tree and can be wiped without touching precomputed output."""
+    cache_root = Path(cache_root)
     session = _cnig_session()
     out: list[Path] = []
-    cache_dir = data_dir / "mdt05_tiles"
-    index_dir = data_dir / "mdt05_sheet_index"
+    cache_dir = cache_root / "mdt05_tiles"
+    index_dir = cache_root / "mdt05_sheet_index"
     for sec, filename in _cached_query_sheets(session, bbox, crs, index_dir):
         dest = cache_dir / filename
         # Retry the whole sheet download: the response body is streamed
@@ -355,17 +353,21 @@ def tile_specs(bbox: Bbox, res: float = NATIVE_RES, tile_px: int = MAX_TILE_PX
 
 def fetch_tiles(bbox: Bbox, tiles_dir: Path, res: float = NATIVE_RES,  # noqa: PLR0913
                 tile_px: int = MAX_TILE_PX, source: str = "icgc",
-                crs: str = "EPSG:25831") -> list[Path]:
+                crs: str = "EPSG:25831",
+                cnig_cache_dir: Path | None = None) -> list[Path]:
     """Download tiles covering ``bbox`` into ``tiles_dir``; reuse cached tiles;
     skip tiles whose response body is not raster data (out of coverage).
     Transient HTTP failures (rate limits, 5xx, timeouts) are retried with
     backoff and raised once ``TILE_RETRY_ATTEMPTS`` is exhausted, so a
     throttled run fails loudly instead of writing holes into the terrain.
-    Returns the paths that exist on disk."""
+    Returns the paths that exist on disk. The ``cnig`` source ignores
+    ``tiles_dir`` (its sheets persist in ``cnig_cache_dir``, required for it)."""
     tiles_dir = Path(tiles_dir)
     tiles_dir.mkdir(parents=True, exist_ok=True)
     if source == "cnig":
-        return _fetch_cnig_tiles(bbox, tiles_dir, crs)
+        if cnig_cache_dir is None:
+            raise ValueError("cnig source requires cnig_cache_dir")
+        return _fetch_cnig_tiles(bbox, cnig_cache_dir, crs)
     if source not in ("icgc", "idee"):
         raise RuntimeError(f"unknown DTM source '{source}'")
 

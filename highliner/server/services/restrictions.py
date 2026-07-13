@@ -37,16 +37,17 @@ def clip_to_features(layer_id: str, gdf: gpd.GeoDataFrame,
     return feats
 
 
-def features_in_view(data_dir: str | Path, bbox: Bbox,
+def features_in_view(data_dir: str | Path, bbox: Bbox, country: str,
                      layer_ids: list[str] | None = None,
                      limit: int | None = None) -> list[dict[str, Any]]:
-    """Load the stored restriction layers and clip them to a lon/lat ``bbox``,
-    returning tagged GeoJSON features. ``layer_ids`` restricts to a subset
+    """Load ``country``'s stored restriction layers and clip them to a lon/lat
+    ``bbox``, returning tagged GeoJSON features. Layers are read from
+    ``<data_dir>/<country>/restrictions``. ``layer_ids`` restricts to a subset
     (unknown ids ignored; ``None`` means all layers); ``limit`` short-circuits
     once that many features have accumulated so callers can cap the response."""
     ids = ([x for x in layer_ids if x in LAYERS] if layer_ids
            else list(LAYERS))
-    rdir = Path(data_dir) / "restrictions"
+    rdir = Path(data_dir) / country / "restrictions"
     feats: list[dict[str, Any]] = []
     for layer_id in ids:
         path = rdir / f"{layer_id}.parquet"

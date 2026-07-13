@@ -51,7 +51,7 @@ The map can overlay Catalan protected-area boundaries (Natura 2000 ZEC/ZEPA,
 PEIN, Parcs Naturals, Reserves de Fauna) so you can see whether a potential
 zone falls in a restricted area. Download them once from the Generalitat WFS:
 
-    just fetch-restrictions   # -> data/restrictions/<layer>.parquet
+    just fetch-restrictions   # -> data/spain/restrictions/<layer>.parquet
 
 Then toggle the layers from the **Restrictions** panel on the map. They are
 informational only — being outside a drawn area does not imply rigging is

@@ -9,11 +9,12 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Request
 
 from highliner.core import config, tiles
-from highliner.core.regions import defaults_for_region
+from highliner.core.regions import defaults_for_region, region_dir
 from highliner.server.repositories import chunked_store
 from highliner.server.router.deps import (
     get_region_index,
     parse_bbox_lonlat,
+    regions_in_country,
     regions_in_view,
 )
 
@@ -54,10 +55,11 @@ def _cells_to_features(cells: list[dict[str, Any]], zc: int,
 
 
 @router.get("/density")
-def density(
+def density(  # noqa: PLR0913
     request: Request,
     z: int,
     region: str | None = None,
+    country: str = config.DEFAULT_COUNTRY,
     bbox: str | None = None,
     bbox_lonlat: str | None = None,
 ) -> dict[str, Any]:
@@ -65,11 +67,12 @@ def density(
     data_dir = request.app.state.data_dir
 
     if region is not None:
-        density_dir = data_dir / region / "density"
+        rdir = region_dir(data_dir, region)
+        density_dir = rdir / "density"
         if not density_dir.is_dir():
             raise HTTPException(404, f"no density layer for region '{region}'")
         try:
-            crs = chunked_store.read_grid(data_dir / region).crs
+            crs = chunked_store.read_grid(rdir).crs
         except FileNotFoundError:
             crs = defaults_for_region(region).crs
         view = parse_bbox_lonlat(bbox, bbox_lonlat, crs)
@@ -78,10 +81,11 @@ def density(
         return {"type": "FeatureCollection",
                 "features": _cells_to_features(cells, zc, view)}
 
-    # region omitted: merge every indexed region that has this z-layer.
+    # region omitted: merge every ``country`` region that has this z-layer.
     view = parse_bbox_lonlat(bbox, bbox_lonlat)
+    index = regions_in_country(get_region_index(request), country)
     features: list[dict[str, Any]] = []
-    for entry in regions_in_view(get_region_index(request), view):
+    for entry in regions_in_view(index, view):
         path = entry.region_dir / "density" / f"z{zc}.json"
         if not path.exists():
             continue

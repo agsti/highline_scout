@@ -51,9 +51,14 @@ PRECOMPUTE_MAX_DH_M = 30.0
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="HIGHLINER_")
 
-    # Where ingested rasters/anchors live. Relative to the repo root, which is
-    # always the working directory the app is run from.
+    # Where derived per-country/region outputs live (anchors, pairs, density,
+    # restrictions). Relative to the repo root, which is always the working
+    # directory the app is run from. Laid out as <data_dir>/<country>/<region>.
     data_dir: Path = Path("data")
+
+    # Re-downloadable source cache, kept outside data_dir so it can be wiped
+    # without losing precomputed output. Laid out as <cache_dir>/<country>.
+    cache_dir: Path = Path("cache")
 
     # Telemetry. Every credential is optional and absent means disabled, so a
     # dev machine sends nothing without any configuration.
@@ -66,6 +71,11 @@ class Settings(BaseSettings):
 
 settings = Settings()
 DATA_DIR = settings.data_dir
+CACHE_DIR = settings.cache_dir
+
+# The country partition served when a request doesn't name one. Single source
+# of the default; every endpoint's `country` query param falls back to this.
+DEFAULT_COUNTRY = "spain"
 
 # Zoomed-out density pyramid
 DENSITY_ZOOM_LEVELS = range(6, 15)  # slippy-map zoom layers precomputed (z6..z14)

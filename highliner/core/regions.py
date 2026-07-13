@@ -6,6 +6,7 @@ by that service.
 """
 
 from dataclasses import dataclass
+from pathlib import Path
 
 from highliner.core import config
 
@@ -14,11 +15,14 @@ from highliner.core import config
 class RegionDefaults:
     crs: str
     dtm_source: str
+    country: str
 
 
-_PENINSULA_AND_BALEARICS = RegionDefaults(crs="EPSG:25830", dtm_source="cnig")
-_CANARIES = RegionDefaults(crs="EPSG:4083", dtm_source="cnig")
-_CATALONIA = RegionDefaults(crs=config.UTM_CRS, dtm_source="icgc")
+_PENINSULA_AND_BALEARICS = RegionDefaults(
+    crs="EPSG:25830", dtm_source="cnig", country="spain")
+_CANARIES = RegionDefaults(crs="EPSG:4083", dtm_source="cnig", country="spain")
+_CATALONIA = RegionDefaults(
+    crs=config.UTM_CRS, dtm_source="icgc", country="spain")
 
 
 REGION_DEFAULTS: dict[str, RegionDefaults] = {
@@ -47,3 +51,14 @@ REGION_DEFAULTS: dict[str, RegionDefaults] = {
 
 def defaults_for_region(region: str) -> RegionDefaults:
     return REGION_DEFAULTS.get(region, _CATALONIA)
+
+
+def country_for_region(region: str) -> str:
+    """The country a region belongs to (used as the top-level data/cache
+    partition). Unknown regions default to the shipped Catalonia/Spain data."""
+    return defaults_for_region(region).country
+
+
+def region_dir(data_dir: Path | str, region: str) -> Path:
+    """On-disk directory for a region's outputs: ``<data_dir>/<country>/<region>``."""
+    return Path(data_dir) / country_for_region(region) / region

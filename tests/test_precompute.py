@@ -137,6 +137,7 @@ def test_process_chunk_uses_chunk_scoped_transient_tiles(
         tile_px: int = _dtm.MAX_TILE_PX,
         source: str = "icgc",
         crs: str = config.UTM_CRS,
+        cnig_cache_dir: Path | None = None,
     ) -> list[Path]:
         seen.append(tiles_dir)
         return []
@@ -187,7 +188,7 @@ def test_precompute_writes_grid_and_all_chunks(
     n = precompute.precompute(
         "catalonia", bbox, tmp_path, chunk_m=10000.0,
         report=lambda done, total: seen.append((done, total)))
-    region_dir = tmp_path / "catalonia"
+    region_dir = tmp_path / "spain" / "catalonia"
 
     import json
     grid = json.loads((region_dir / "grid.json").read_text())
@@ -284,7 +285,8 @@ def test_precompute_writes_region_crs_and_source_defaults(
         tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     from highliner.etl.repositories import dtm as _dtm
 
-    seen: list[tuple[tuple[float, float, float, float], str, str]] = []
+    seen: list[tuple[tuple[float, float, float, float], str, str,
+                     Path | None]] = []
 
     def fake_fetch(  # noqa: PLR0913
         bbox: tuple[float, float, float, float],
@@ -293,19 +295,21 @@ def test_precompute_writes_region_crs_and_source_defaults(
         tile_px: int = _dtm.MAX_TILE_PX,
         source: str = "icgc",
         crs: str = config.UTM_CRS,
+        cnig_cache_dir: Path | None = None,
     ) -> list[Path]:
-        seen.append((bbox, source, crs))
+        seen.append((bbox, source, crs, cnig_cache_dir))
         return []
 
     monkeypatch.setattr(_dtm, "fetch_tiles", fake_fetch)
     bbox = (188000.0, 3060000.0, 198000.0, 3070000.0)
-    precompute.precompute("canarias", bbox, tmp_path, chunk_m=10000.0)
+    precompute.precompute("canarias", bbox, tmp_path, chunk_m=10000.0,
+                          cache_dir=tmp_path / "cache")
 
     import json
-    grid = json.loads((tmp_path / "canarias" / "grid.json").read_text())
+    grid = json.loads((tmp_path / "spain" / "canarias" / "grid.json").read_text())
     assert grid["crs"] == "EPSG:4083"
     assert grid["dtm_source"] == "cnig"
-    assert seen and seen[0][1:] == ("cnig", "EPSG:4083")
+    assert seen and seen[0][1:] == ("cnig", "EPSG:4083", tmp_path / "cache" / "spain")
 
 
 def _patch_seam_gap_download(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -337,7 +341,7 @@ def test_cross_chunk_pair_owned_by_exactly_one_partition(
     _patch_seam_gap_download(monkeypatch)
     bbox = (485000.0, 4646000.0, 505000.0, 4656000.0)   # two 10 km chunks side by side
     precompute.precompute("catalonia", bbox, tmp_path, chunk_m=10000.0)
-    region_dir = tmp_path / "catalonia"
+    region_dir = tmp_path / "spain" / "catalonia"
 
     from highliner.models.candidate import Candidate
     from highliner.server.repositories.candidates import load_candidates

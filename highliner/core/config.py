@@ -36,6 +36,9 @@ CHUNK_M = 10000.0           # side of each analysis chunk (meters)
 MAX_PAIR_LEN = 1000.0       # longest highline searched for / stored
 CHUNK_HALO_M = 1050.0       # halo so 1000 m pairs + sector radius cross the core edge
 MAX_VIEW_CHUNKS = 64        # serve guard: refuse a viewport overlapping more partitions
+PARTITION_CACHE_MAXSIZE = 512  # parsed partitions kept in the process-wide LRU;
+                            # columnar arrays are small, and panning re-hits the
+                            # same partition files so a warm cache skips disk+parse
 
 # Loose envelope the precomputed pairs are generated at; the live sliders only
 # narrow within it (defaults above are stricter and hide some real lines).

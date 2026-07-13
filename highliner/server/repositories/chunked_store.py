@@ -4,6 +4,11 @@ Layout under ``data/<region>/``:
     grid.json                    {"bbox": [...], "chunk_m": N, "crs": "..."}
     anchors/p_{cx}_{cy}.parquet  anchors per chunk
     pairs/q_{cx}_{cy}.parquet    candidate pairs per chunk
+
+Each overlapping partition is read through the process-wide columnar cache
+(``partition_cache``); the viewport window and the live slider thresholds are
+applied as vectorized masks, so only the rows a request actually needs become
+``Anchor``/``Candidate`` objects.
 """
 import json
 import math
@@ -14,9 +19,8 @@ from fastapi import HTTPException
 
 from highliner.core import config
 from highliner.models.anchor import Anchor
-from highliner.models.candidate import Candidate
-from highliner.server.repositories.anchors import load_anchors
-from highliner.server.repositories.candidates import load_candidates
+from highliner.models.candidate import Candidate, PairFilter
+from highliner.server.repositories import partition_cache
 
 Bbox = tuple[float, float, float, float]
 
@@ -58,7 +62,7 @@ def _expand(bbox: Bbox, m: float) -> Bbox:
 
 
 def load_anchors_in_bbox(region_dir: Path, bbox: Bbox) -> list[Anchor]:
-    """Anchors from the partitions overlapping ``bbox``.
+    """Anchors from the partitions overlapping ``bbox``, clipped to ``bbox``.
     Raises HTTPException(413) if too many chunks overlap."""
     region_dir = Path(region_dir)
     grid = read_grid(region_dir)
@@ -69,21 +73,17 @@ def load_anchors_in_bbox(region_dir: Path, bbox: Bbox) -> list[Anchor]:
     for cx, cy in idx:
         p = region_dir / "anchors" / f"p_{cx}_{cy}.parquet"
         if p.exists():
-            out.extend(load_anchors(p))
+            out.extend(partition_cache.anchor_columns(p).select(bbox))
     return out
 
 
-def _segment_intersects(c: Candidate, bbox: Bbox) -> bool:
-    minx, miny, maxx, maxy = bbox
-    return (min(c.a.x, c.b.x) <= maxx and max(c.a.x, c.b.x) >= minx
-            and min(c.a.y, c.b.y) <= maxy and max(c.a.y, c.b.y) >= miny)
-
-
-def load_pairs_in_bbox(region_dir: Path, bbox: Bbox) -> list[Candidate]:
+def load_pairs_in_bbox(region_dir: Path, bbox: Bbox,
+                       pair_filter: PairFilter | None = None) -> list[Candidate]:
     """Candidate pairs from the partitions overlapping ``bbox`` (expanded by
-    MAX_PAIR_LEN so pairs straddling the viewport edge are included), filtered to
-    those whose segment intersects the viewport. Raises HTTPException(413) if too
-    many chunks overlap."""
+    MAX_PAIR_LEN so pairs straddling the viewport edge are included), keeping
+    those whose segment intersects the viewport and, when ``pair_filter`` is
+    given, pass the live slider thresholds. Raises HTTPException(413) if too many
+    chunks overlap."""
     region_dir = Path(region_dir)
     grid = read_grid(region_dir)
     idx = chunk_indices_for_bbox(grid, _expand(bbox, config.MAX_PAIR_LEN))
@@ -93,5 +93,5 @@ def load_pairs_in_bbox(region_dir: Path, bbox: Bbox) -> list[Candidate]:
     for cx, cy in idx:
         p = region_dir / "pairs" / f"q_{cx}_{cy}.parquet"
         if p.exists():
-            out.extend(c for c in load_candidates(p) if _segment_intersects(c, bbox))
+            out.extend(partition_cache.pair_columns(p).select(bbox, pair_filter))
     return out

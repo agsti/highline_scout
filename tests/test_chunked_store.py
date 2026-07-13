@@ -7,7 +7,7 @@ from highliner.core import config
 from highliner.etl.repositories.anchors import save_anchors
 from highliner.etl.repositories.candidates import save_candidates
 from highliner.models.anchor import Anchor
-from highliner.models.candidate import Candidate
+from highliner.models.candidate import Candidate, PairFilter
 from highliner.server.repositories import chunked_store as store
 
 
@@ -37,10 +37,10 @@ def test_chunk_indices_clipped_to_grid(tmp_path: Path) -> None:
     assert set(idx) == {(cx, cy) for cx in range(3) for cy in range(2)}
 
 
-def _cand(x: float) -> Candidate:
+def _cand(x: float, exposure: float = 60.0) -> Candidate:
     a = Anchor(x=x, y=5000.0, elev=100.0, sectors=())
     b = Anchor(x=x + 40.0, y=5000.0, elev=100.0, sectors=())
-    return Candidate(a=a, b=b, length=40.0, exposure=60.0, height_diff=0.0)
+    return Candidate(a=a, b=b, length=40.0, exposure=exposure, height_diff=0.0)
 
 
 def test_load_anchors_in_bbox_only_overlapping(tmp_path: Path) -> None:
@@ -61,6 +61,26 @@ def test_load_pairs_in_bbox_only_overlapping(tmp_path: Path) -> None:
     save_candidates([_cand(15000.0)], region / "pairs" / "q_1_0.parquet")
     got = store.load_pairs_in_bbox(region, (0.0, 0.0, 9999.0, 10000.0))
     assert [round(c.a.x) for c in got] == [5000]
+
+
+def test_load_pairs_in_bbox_applies_filter(tmp_path: Path) -> None:
+    region = _grid(tmp_path)
+    (region / "pairs").mkdir()
+    save_candidates([_cand(5000.0, exposure=60.0), _cand(6000.0, exposure=15.0)],
+                    region / "pairs" / "q_0_0.parquet")
+    pf = PairFilter(min_len=0.0, max_len=1e9, min_exposure=30.0, max_dh=1e9)
+    got = store.load_pairs_in_bbox(region, (0.0, 0.0, 9999.0, 10000.0), pf)
+    assert [round(c.exposure) for c in got] == [60]
+
+
+def test_load_anchors_in_bbox_clips_within_partition(tmp_path: Path) -> None:
+    region = _grid(tmp_path)
+    (region / "anchors").mkdir()
+    save_anchors([Anchor(x=5000.0, y=5000.0, elev=10.0, sectors=()),
+                  Anchor(x=9000.0, y=5000.0, elev=20.0, sectors=())],
+                 region / "anchors" / "p_0_0.parquet")
+    got = store.load_anchors_in_bbox(region, (0.0, 0.0, 6000.0, 10000.0))
+    assert [round(a.x) for a in got] == [5000]
 
 
 def test_load_pairs_too_many_chunks_raises(

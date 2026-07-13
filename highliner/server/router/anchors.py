@@ -6,11 +6,7 @@ from highliner.core import config
 from highliner.models.anchor import Anchor
 from highliner.server.repositories import chunked_store
 from highliner.server.router import serializers
-from highliner.server.router.deps import (
-    clip_anchors,
-    parse_bbox_utm,
-    resolve_regions,
-)
+from highliner.server.router.deps import parse_bbox_utm, resolve_regions
 
 router = APIRouter()
 
@@ -26,8 +22,7 @@ def anchors(
     total = 0
     for entry in resolve_regions(request, region, bbox, bbox_lonlat):
         box = parse_bbox_utm(bbox, bbox_lonlat, entry.grid.crs)
-        clipped = clip_anchors(
-            chunked_store.load_anchors_in_bbox(entry.region_dir, box), box)
+        clipped = chunked_store.load_anchors_in_bbox(entry.region_dir, box)
         total += len(clipped)
         per_region.append((clipped, entry.grid.crs))
     if total > config.MAX_ANCHORS_IN_VIEW:

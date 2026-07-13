@@ -36,8 +36,9 @@ serve host="127.0.0.1" port="8000":
 test *args:
     uv run pytest {{args}}
 
-# Lint (ruff + file-length cap), type check (strict mypy), and dead-code scan.
-check: lint typecheck deadcode
+# Lint (ruff + file-length cap), type check (strict mypy), dead-code scan, and
+# the frontend suite. TS type errors surface separately, in `just build-web`.
+check: lint typecheck deadcode test-web
 
 # Lint with ruff, then enforce the 500-line file cap ruff can't express.
 # Pass extra ruff args, e.g. just lint --fix

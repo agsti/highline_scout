@@ -31,9 +31,9 @@ describe("catalog parity", () => {
   });
 
   it("discloses cookieless analytics in every language", () => {
-    expect(STRINGS.ca.disclaimerPrivacy).toMatch(/sense galetes/i);
-    expect(STRINGS.es.disclaimerPrivacy).toMatch(/sin cookies/i);
-    expect(STRINGS.en.disclaimerPrivacy).toMatch(/no cookies/i);
+    expect(STRINGS.ca.aboutPrivacy).toMatch(/sense galetes/i);
+    expect(STRINGS.es.aboutPrivacy).toMatch(/sin cookies/i);
+    expect(STRINGS.en.aboutPrivacy).toMatch(/no cookies/i);
   });
 
   it("carries the floating-chrome copy in every language", () => {

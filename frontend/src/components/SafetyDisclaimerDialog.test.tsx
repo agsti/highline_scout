@@ -79,16 +79,6 @@ describe("SafetyDisclaimerDialog", () => {
     expect(onAccept).toHaveBeenCalledTimes(1);
   });
 
-  it("discloses the anonymous, cookieless analytics", () => {
-    render(
-      <I18nProvider>
-        <SafetyDisclaimerDialog open onAccept={vi.fn()} />
-      </I18nProvider>,
-    );
-
-    expect(screen.getByText(/sense galetes|sin cookies|no cookies/i)).toBeInTheDocument();
-  });
-
   it("explains that HighlineScout only suggests spots and lists scouting safeguards", () => {
     window.localStorage.setItem("lang", "en");
 

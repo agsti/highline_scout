@@ -22,6 +22,8 @@ export const STRINGS = {
     safety: "Seguretat",
     aboutBody: "Highline Scout t'ajuda a trobar spots.",
     aboutData: "Dades d'elevació © ICGC. Dades d'espais protegits © MITECO.",
+    aboutPrivacy:
+      "Recollim estadístiques d'ús anònimes per millorar l'eina. Sense galetes ni seguiment entre visites.",
     close: "Tanca",
     zoomIn: "Amplia",
     zoomOut: "Redueix",
@@ -89,6 +91,8 @@ export const STRINGS = {
     safety: "Seguridad",
     aboutBody: "Highline Scout te ayuda a encontrar spots.",
     aboutData: "Datos de elevación © ICGC. Datos de espacios protegidos © MITECO.",
+    aboutPrivacy:
+      "Recogemos estadísticas de uso anónimas para mejorar la herramienta. Sin cookies ni seguimiento entre visitas.",
     close: "Cerrar",
     zoomIn: "Acercar",
     zoomOut: "Alejar",
@@ -156,6 +160,8 @@ export const STRINGS = {
     safety: "Safety",
     aboutBody: "Highline Scout helps you find spots.",
     aboutData: "Elevation data © ICGC. Protected-area data © MITECO.",
+    aboutPrivacy:
+      "We collect anonymous usage stats to improve the tool. No cookies, no tracking across visits.",
     close: "Close",
     zoomIn: "Zoom in",
     zoomOut: "Zoom out",

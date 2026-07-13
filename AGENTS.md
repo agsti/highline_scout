@@ -233,6 +233,13 @@ language for restrictions text; see i18n below).
     data/<region>/tiles/                          transient DTM tile cache, deleted once a chunk finishes
     data/<region>/density/z{z}.json               zoomed-out density pyramid (optional, `precompute-density`)
     data/restrictions/<id>.parquet                protected-area overlays
+    cache/mdt05_tiles/                            persistent CNIG MDT05 sheet cache (national, cross-region)
+    cache/mdt05_sheet_index/                      cached CNIG sheet-index catalog queries
+
+The `cache/` folder is a sibling of `data/` (not under it): it holds only
+re-downloadable CNIG DTM sheets shared across regions, so it can be wiped
+without losing any precomputed output. `data/` holds derived results plus the
+transient per-chunk `tiles/` scratch, deleted as each chunk finishes.
 
 ## Tuning
 

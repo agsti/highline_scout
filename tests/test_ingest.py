@@ -145,7 +145,7 @@ def test_fetch_tiles_idee_uses_tif_tiles_and_region_crs(
     assert {c[4] for c in calls} == {"EPSG:4083"}
 
 
-def test_fetch_tiles_cnig_uses_data_root_cache_for_chunk_dirs(
+def test_fetch_tiles_cnig_uses_sibling_cache_dir_for_chunk_dirs(
         tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     seen: list[Path] = []
 
@@ -167,7 +167,7 @@ def test_fetch_tiles_cnig_uses_data_root_cache_for_chunk_dirs(
         crs="EPSG:4083",
     )
 
-    assert paths == [tmp_path / "data" / "mdt05_tiles" / "sheet.tif"]
+    assert paths == [tmp_path / "cache" / "mdt05_tiles" / "sheet.tif"]
     assert seen == paths
 
 
@@ -199,7 +199,7 @@ def test_fetch_cnig_tiles_retries_broken_stream_then_succeeds(
     )
 
     assert attempts["n"] == 2                     # retried once after the broken stream
-    assert paths == [tmp_path / "data" / "mdt05_tiles" / "sheet.tif"]
+    assert paths == [tmp_path / "cache" / "mdt05_tiles" / "sheet.tif"]
 
 
 def test_fetch_cnig_tiles_raises_when_broken_stream_persists(

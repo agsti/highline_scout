@@ -301,10 +301,18 @@ def _download_cnig_sheet(session: requests.Session, sec: str, filename: str,
 
 
 def _cnig_cache_root(tiles_dir: Path) -> Path:
+    """Persistent CNIG sheet cache root, a ``cache/`` sibling of the data dir.
+
+    National MDT05 sheets and the sheet-index resolution are reused across
+    regions and re-runs, so they live outside the per-region ``data/`` tree
+    (which holds only derived outputs and transient tiles) in a sibling
+    ``cache/`` folder that can be wiped without touching precomputed data."""
     tiles_dir = Path(tiles_dir)
     if tiles_dir.parent.name == "tiles":
-        return tiles_dir.parent.parent.parent
-    return tiles_dir.parent.parent
+        data_dir = tiles_dir.parent.parent.parent
+    else:
+        data_dir = tiles_dir.parent.parent
+    return data_dir.parent / "cache"
 
 
 def _fetch_cnig_tiles(bbox: Bbox, tiles_dir: Path, crs: str) -> list[Path]:

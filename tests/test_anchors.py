@@ -2,7 +2,12 @@ from pathlib import Path
 
 from highliner.etl.repositories.anchors import save_anchors
 from highliner.models.anchor import Anchor
-from highliner.server.repositories.anchors import load_anchors
+from highliner.server.repositories.partition_cache import read_anchor_columns
+
+
+def _load_anchors(path: Path) -> list[Anchor]:
+    """All anchors in a partition (covering bbox), via the columnar read."""
+    return read_anchor_columns(path).select((-1e18, -1e18, 1e18, 1e18))
 
 
 def test_to_geojson_points_and_sectors() -> None:
@@ -33,7 +38,7 @@ def test_roundtrip(tmp_path: Path) -> None:
     ]
     path = tmp_path / "anchors.parquet"
     save_anchors(anchors, path)
-    loaded = load_anchors(path)
+    loaded = _load_anchors(path)
     assert len(loaded) == 2
     assert loaded[0].sectors == ((80.0, 100.0, 35.0),)
     assert loaded[1].x == 150.0

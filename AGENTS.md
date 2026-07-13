@@ -141,10 +141,11 @@ the server). `cli.py` stays at the top since it drives both stages:
       server/                serving
         app.py               FastAPI factory: wires routers, CORS, and the
                              frontend/dist/ static mount
-        repositories/        chunked_store (viewport reads), anchors + candidates
-                             (parquet read sides), restrictions (load stored layers)
-        services/            zones, pairing.filter_candidates, restrictions
-                             (serving helpers)
+        repositories/        chunked_store (viewport reads), partition_cache
+                             (process-wide columnar LRU + vectorized viewport/
+                             slider masks), candidates (parquet read side),
+                             restrictions (load stored layers)
+        services/            zones, restrictions (serving helpers)
         router/              HTTP layer: one APIRouter per resource (regions,
                              zones, anchors, density, restrictions) plus
                              deps.py (bbox parsing, region cache, app.state access)
@@ -183,10 +184,15 @@ on every request — no DTM raster is ever touched at serve time.
    `frontend/` (Leaflet map), served in production from its `frontend/dist/` build.
    On each `GET /zones` (`server/router/zones.py`) it reads the precomputed pair
    partitions overlapping the viewport (`server/repositories/chunked_store.py`),
-   narrows them with the live `min_len`/`max_len`/`min_exposure`/`max_dh`
-   sliders (`server/services/pairing.filter_candidates`), and clusters them into zones
-   (`server/services/zones.py`). `GET /anchors` reads the overlapping anchor partitions
-   the same way.
+   narrowing them by both the viewport window and the live
+   `min_len`/`max_len`/`min_exposure`/`max_dh` sliders — passed down as a
+   `PairFilter` and applied as vectorized masks over the cached partition
+   columns, so only surviving pairs become `Candidate` objects — then clusters
+   them into zones (`server/services/zones.py`). `GET /anchors` reads the
+   overlapping anchor partitions the same way, clipped to the viewport at read
+   time. Partitions are parsed once into NumPy columns and cached process-wide
+   (`server/repositories/partition_cache.py`), so panning re-hits warm
+   partitions without re-reading or re-parsing.
 
 **Pairing** (`etl/services/pairing.py`): for anchor pairs within `max_len`, gates on
 length, height difference, a **directional check** (each anchor's bearing to the

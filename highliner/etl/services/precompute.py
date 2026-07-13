@@ -15,9 +15,9 @@ from pathlib import Path
 
 from highliner.core import config
 from highliner.core.regions import country_for_region, defaults_for_region, region_dir
+from highliner.etl.chunk.anchors import save_anchors
+from highliner.etl.chunk.candidates import save_candidates
 from highliner.etl.repositories import dtm
-from highliner.etl.repositories.anchors import save_anchors
-from highliner.etl.repositories.candidates import save_candidates
 from highliner.etl.services.pairing import find_candidates
 from highliner.etl.services.terrain import extract_anchors
 from highliner.models.anchor import Anchor

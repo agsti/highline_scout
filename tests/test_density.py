@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 
 from highliner.core import config, tiles
-from highliner.etl.repositories.candidates import save_candidates
+from highliner.etl.chunk.candidates import save_candidates
 from highliner.etl.services import density
 from highliner.models.anchor import Anchor
 from highliner.models.candidate import Candidate

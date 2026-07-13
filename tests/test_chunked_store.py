@@ -4,8 +4,8 @@ from pathlib import Path
 import pytest
 from fastapi import HTTPException
 from highliner.core import config
-from highliner.etl.repositories.anchors import save_anchors
-from highliner.etl.repositories.candidates import save_candidates
+from highliner.etl.chunk.anchors import save_anchors
+from highliner.etl.chunk.candidates import save_candidates
 from highliner.models.anchor import Anchor
 from highliner.models.candidate import Candidate, PairFilter
 from highliner.server.repositories import chunked_store as store

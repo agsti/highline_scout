@@ -1,7 +1,7 @@
 """Read candidate pairs from parquet partitions (read side).
 
 The write side (`save_candidates`) and the stored-column layout live in
-`highliner.etl.repositories.candidates`. Serve-time reads go through the cached,
+`highliner.etl.chunk.candidates`. Serve-time reads go through the cached,
 columnar path in `highliner.server.repositories.partition_cache`; this whole-file
 materializer is kept for the offline density aggregation, which streams every
 partition exactly once (so caching would only waste memory).

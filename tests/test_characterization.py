@@ -10,8 +10,8 @@ intentional.
 import numpy as np
 import pytest
 from affine import Affine
-from highliner.etl.services.pairing import find_candidates
-from highliner.etl.services.terrain import extract_anchors
+from highliner.etl.chunk.pairing import find_candidates
+from highliner.etl.chunk.terrain import extract_anchors
 from highliner.models.anchor import Anchor
 from highliner.models.raster import Raster
 from scipy.ndimage import gaussian_filter
@@ -80,7 +80,7 @@ def test_batch_blocking_does_not_change_results(
         monkeypatch: pytest.MonkeyPatch) -> None:
     """The blocked batch sweeps must be exact: forcing pathologically small
     blocks (many boundary crossings) yields identical anchors and pairs."""
-    from highliner.etl.services import pairing, terrain
+    from highliner.etl.chunk import pairing, terrain
 
     raster = terraced_raster()
     kw = dict(max_len=200.0, min_len=10.0, min_exposure=10.0, max_dh=30.0)

@@ -1,5 +1,5 @@
 import numpy as np
-from highliner.etl.services import terrain
+from highliner.etl.chunk import terrain
 
 
 def test_flat_is_zero_slope() -> None:

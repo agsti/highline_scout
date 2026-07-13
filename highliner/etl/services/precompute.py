@@ -14,7 +14,7 @@ from collections.abc import Callable, Iterator
 from pathlib import Path
 
 from highliner.core import config
-from highliner.core.regions import defaults_for_region
+from highliner.core.regions import country_for_region, defaults_for_region, region_dir
 from highliner.etl.repositories import dtm
 from highliner.etl.repositories.anchors import save_anchors
 from highliner.etl.repositories.candidates import save_candidates
@@ -53,7 +53,8 @@ def _cleanup_transient_tiles(tiles: list[Path], tiles_dir: Path) -> None:
 def process_chunk(cx: int, cy: int, core_bbox: Bbox, region_dir: Path,  # noqa: PLR0913
                   halo: float = config.CHUNK_HALO_M,
                   crs: str = config.UTM_CRS,
-                  dtm_source: str = "icgc") -> int:
+                  dtm_source: str = "icgc",
+                  cnig_cache_dir: Path | None = None) -> int:
     """Process one chunk into anchor + pair partitions. Returns the number of
     pairs kept. Idempotent: a chunk whose pair partition exists is skipped
     (returns -1)."""
@@ -67,7 +68,8 @@ def process_chunk(cx: int, cy: int, core_bbox: Bbox, region_dir: Path,  # noqa: 
     tiles_dir.mkdir(parents=True, exist_ok=True)
     try:
         tiles = dtm.fetch_tiles(halo_bbox, tiles_dir,
-                                source=dtm_source, crs=crs)
+                                source=dtm_source, crs=crs,
+                                cnig_cache_dir=cnig_cache_dir)
     except Exception:
         # Failed download (e.g. exhausted rate-limit retries): drop the
         # partial tiles and re-raise so the chunk stays unfinished/retriable.
@@ -126,19 +128,23 @@ def precompute(  # noqa: PLR0913
         report: Callable[[int, int], None] | None = None,
         crs: str | None = None,
         dtm_source: str | None = None,
-        workers: int = 1) -> int:
-    """Precompute anchors + pairs for ``bbox`` under ``data_dir/<region>``.
-    Writes grid.json, then processes every chunk (skipping finished ones).
-    Returns the number of chunks."""
+        workers: int = 1,
+        cache_dir: Path | None = None) -> int:
+    """Precompute anchors + pairs for ``bbox`` under
+    ``data_dir/<country>/<region>``. Writes grid.json, then processes every
+    chunk (skipping finished ones). Returns the number of chunks. The CNIG
+    source cache is kept per-country under ``cache_dir`` (default
+    ``config.CACHE_DIR``), outside ``data_dir``."""
     if workers < 1:
         raise ValueError("workers must be >= 1")
 
-    region_dir = Path(data_dir) / region
+    rdir = region_dir(data_dir, region)
+    cnig_cache_dir = Path(cache_dir or config.CACHE_DIR) / country_for_region(region)
     defaults = defaults_for_region(region)
     crs = crs or defaults.crs
     dtm_source = dtm_source or defaults.dtm_source
-    region_dir.mkdir(parents=True, exist_ok=True)
-    (region_dir / "grid.json").write_text(json.dumps(
+    rdir.mkdir(parents=True, exist_ok=True)
+    (rdir / "grid.json").write_text(json.dumps(
         {"bbox": list(bbox), "chunk_m": chunk_m,
          "crs": crs, "dtm_source": dtm_source}))
 
@@ -146,7 +152,8 @@ def precompute(  # noqa: PLR0913
     total = len(chunks)
     if workers == 1:
         for i, (cx, cy, core) in enumerate(chunks, start=1):
-            process_chunk(cx, cy, core, region_dir, crs=crs, dtm_source=dtm_source)
+            process_chunk(cx, cy, core, rdir, crs=crs, dtm_source=dtm_source,
+                          cnig_cache_dir=cnig_cache_dir)
             if report is not None:
                 report(i, total)
         return total
@@ -154,8 +161,9 @@ def precompute(  # noqa: PLR0913
     done = 0
     with concurrent.futures.ProcessPoolExecutor(max_workers=workers) as pool:
         futures = [
-            pool.submit(process_chunk, cx, cy, core, region_dir,
-                        crs=crs, dtm_source=dtm_source)
+            pool.submit(process_chunk, cx, cy, core, rdir,
+                        crs=crs, dtm_source=dtm_source,
+                        cnig_cache_dir=cnig_cache_dir)
             for cx, cy, core in chunks
         ]
         for future in concurrent.futures.as_completed(futures):

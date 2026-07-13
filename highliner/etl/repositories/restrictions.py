@@ -1,7 +1,7 @@
 """Build protected-area overlay layers for all of Spain and store them locally.
 
 Source: MITECO's (national) Banco de Datos de la Naturaleza files, placed
-under ``data/restrictions/raw/`` by ``just fetch-restrictions``:
+under ``data/spain/restrictions/raw/`` by ``just fetch-restrictions``:
 
     rn2000  Red Natura 2000 GML (INSPIRE ProtectedSites), drives ``zepa`` and
             ``zec`` by filtering on RN2000 designation
@@ -21,7 +21,7 @@ We derive three overlay layers relevant to highline access:
     enp   Protected Natural Area             (enp, all features)
 
 Each derived layer is simplified (geometry detail is far finer than map scale
-needs) and written to ``data/restrictions/<id>.parquet`` with only a
+needs) and written to ``data/spain/restrictions/<id>.parquet`` with only a
 normalized ``name`` property.
 
 This module owns the build side: transforming the layers from the raw files
@@ -39,7 +39,10 @@ import pandas as pd
 from highliner.core import config
 from highliner.core.restrictions import LAYERS
 
-RAW_DIR = Path(config.DATA_DIR) / "restrictions" / "raw"
+# The MITECO overlays cover Spain, so they live under that country's data dir.
+RESTRICTIONS_COUNTRY = "spain"
+RESTRICTIONS_DIR = Path(config.DATA_DIR) / RESTRICTIONS_COUNTRY / "restrictions"
+RAW_DIR = RESTRICTIONS_DIR / "raw"
 SOURCE_GLOBS: dict[str, tuple[str, ...]] = {
     "rn2000": ("*.gml",),
     "enp": ("*.geojson", "*.json"),
@@ -149,9 +152,9 @@ def build_layer(layer_id: str,
 def fetch_all(dest_dir: Path | None = None,
               raw_dir: Path | None = None) -> dict[str, Path]:
     """Build every layer from the local national files under ``raw_dir``
-    (default ``data/restrictions/raw/``) and write
-    ``data/restrictions/<id>.parquet``."""
-    dest_dir = Path(dest_dir or (config.DATA_DIR / "restrictions"))
+    (default ``data/spain/restrictions/raw/``) and write
+    ``data/spain/restrictions/<id>.parquet``."""
+    dest_dir = Path(dest_dir or RESTRICTIONS_DIR)
     dest_dir.mkdir(parents=True, exist_ok=True)
     source_cache: dict[str, gpd.GeoDataFrame] = {}
     written: dict[str, Path] = {}

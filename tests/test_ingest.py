@@ -145,7 +145,7 @@ def test_fetch_tiles_idee_uses_tif_tiles_and_region_crs(
     assert {c[4] for c in calls} == {"EPSG:4083"}
 
 
-def test_fetch_tiles_cnig_uses_sibling_cache_dir_for_chunk_dirs(
+def test_fetch_tiles_cnig_uses_explicit_cache_dir(
         tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     seen: list[Path] = []
 
@@ -162,13 +162,21 @@ def test_fetch_tiles_cnig_uses_sibling_cache_dir_for_chunk_dirs(
 
     paths = ingest.fetch_tiles(
         (188000, 3060000, 198000, 3070000),
-        tmp_path / "data" / "canarias" / "tiles" / "chunk_0_0_123",
+        tmp_path / "data" / "spain" / "canarias" / "tiles" / "chunk_0_0_123",
         source="cnig",
         crs="EPSG:4083",
+        cnig_cache_dir=tmp_path / "cache" / "spain",
     )
 
-    assert paths == [tmp_path / "cache" / "mdt05_tiles" / "sheet.tif"]
+    assert paths == [tmp_path / "cache" / "spain" / "mdt05_tiles" / "sheet.tif"]
     assert seen == paths
+
+
+def test_fetch_tiles_cnig_requires_cache_dir(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="cnig_cache_dir"):
+        ingest.fetch_tiles(
+            (188000, 3060000, 198000, 3070000),
+            tmp_path / "tiles", source="cnig", crs="EPSG:4083")
 
 
 def test_fetch_cnig_tiles_retries_broken_stream_then_succeeds(
@@ -193,13 +201,14 @@ def test_fetch_cnig_tiles_retries_broken_stream_then_succeeds(
 
     paths = ingest.fetch_tiles(
         (188000, 3060000, 198000, 3070000),
-        tmp_path / "data" / "canarias" / "tiles" / "chunk_0_0_123",
+        tmp_path / "data" / "spain" / "canarias" / "tiles" / "chunk_0_0_123",
         source="cnig",
         crs="EPSG:4083",
+        cnig_cache_dir=tmp_path / "cache" / "spain",
     )
 
     assert attempts["n"] == 2                     # retried once after the broken stream
-    assert paths == [tmp_path / "cache" / "mdt05_tiles" / "sheet.tif"]
+    assert paths == [tmp_path / "cache" / "spain" / "mdt05_tiles" / "sheet.tif"]
 
 
 def test_fetch_cnig_tiles_raises_when_broken_stream_persists(
@@ -216,9 +225,10 @@ def test_fetch_cnig_tiles_raises_when_broken_stream_persists(
     with pytest.raises(requests.exceptions.ChunkedEncodingError):
         ingest.fetch_tiles(
             (188000, 3060000, 198000, 3070000),
-            tmp_path / "data" / "canarias" / "tiles" / "chunk_0_0_123",
+            tmp_path / "data" / "spain" / "canarias" / "tiles" / "chunk_0_0_123",
             source="cnig",
             crs="EPSG:4083",
+            cnig_cache_dir=tmp_path / "cache" / "spain",
         )
 
 

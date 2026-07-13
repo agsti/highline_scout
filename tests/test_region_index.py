@@ -9,8 +9,8 @@ from tests.helpers import to_utm
 
 def _write_grid(data_dir: Path, name: str,
                 bbox: tuple[float, float, float, float],
-                crs: str | None = None) -> None:
-    rdir = data_dir / name
+                crs: str | None = None, country: str = "spain") -> None:
+    rdir = data_dir / country / name
     rdir.mkdir(parents=True)
     grid: dict[str, Any] = {"bbox": list(bbox), "chunk_m": 10000.0}
     if crs is not None:

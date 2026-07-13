@@ -22,7 +22,7 @@ def _write_region(data_dir: Path, region: str,  # noqa: PLR0913
                   chunk_m: float = 10000.0,
                   crs: str | None = None) -> None:
     """Write a minimal one-chunk region in the layout the API expects."""
-    rdir = data_dir / region
+    rdir = data_dir / "spain" / region
     (rdir / "anchors").mkdir(parents=True)
     (rdir / "pairs").mkdir(parents=True)
     grid = {"bbox": list(bbox), "chunk_m": chunk_m}
@@ -179,7 +179,7 @@ def _write_restriction_layer(
     """Write a one-polygon restriction layer (lon/lat) to data_dir."""
     import geopandas as gpd
     from shapely.geometry import box
-    rdir = data_dir / "restrictions"
+    rdir = data_dir / "spain" / "restrictions"
     rdir.mkdir(parents=True, exist_ok=True)
     w, s, e, n = lonlat_box
     gdf = gpd.GeoDataFrame({"name": [name]}, geometry=[box(w, s, e, n)],

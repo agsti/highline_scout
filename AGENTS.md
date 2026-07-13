@@ -26,7 +26,7 @@ system interpreter's plain `venv` is known-broken here.
     just lint --fix                # ruff, applying safe autofixes
     just deadcode                  # vulture, on its own
     just dev                       # FastAPI dev server, auto-reload, :8000
-    just fetch-restrictions        # download protected-area layers -> data/restrictions/
+    just fetch-restrictions        # download protected-area layers -> data/spain/restrictions/
 
 CI runs `ruff check`, the file-length cap, `mypy`, `vulture` and `pytest`;
 `pre-commit install` runs everything but the tests on commit. Ruff is lint-only
@@ -216,30 +216,39 @@ covering all of Spain, built from MITECO's (national) Banco de Datos de la
 Naturaleza files — Red Natura 2000 GML (INSPIRE ProtectedSites) and Espacios
 Naturales Protegidos GeoJSON, each shipped as a peninsula+Baleares file and a
 Canarias file in different CRSes. `just fetch-restrictions` downloads the raw
-files into `data/restrictions/raw/` and runs `highliner fetch-restrictions`
+files into `data/spain/restrictions/raw/` and runs `highliner fetch-restrictions`
 to derive three layers — `zepa` (Special Protection Area for Birds) and `zec`
 (Site/Area of Community Importance), both filtered from the RN2000 GML by
 designation code (parsed from the raw XML, since GDAL doesn't expose it as an
 attribute), plus `enp` (Protected Natural Areas) from the ENP GeoJSON —
-written to `data/restrictions/<id>.parquet` and clipped to the viewport on
+written to `data/spain/restrictions/<id>.parquet` and clipped to the viewport on
 `GET /restrictions`. Tooltips are in English (the base/source-of-truth
 language for restrictions text; see i18n below).
 
 ## Data layout (gitignored)
 
-    data/<region>/grid.json                       {bbox, chunk_m}
-    data/<region>/anchors/p_{cx}_{cy}.parquet     anchors per chunk
-    data/<region>/pairs/q_{cx}_{cy}.parquet       candidate pairs per chunk (exposure baked in)
-    data/<region>/tiles/                          transient DTM tile cache, deleted once a chunk finishes
-    data/<region>/density/z{z}.json               zoomed-out density pyramid (optional, `precompute-density`)
-    data/restrictions/<id>.parquet                protected-area overlays
-    cache/mdt05_tiles/                            persistent CNIG MDT05 sheet cache (national, cross-region)
-    cache/mdt05_sheet_index/                      cached CNIG sheet-index catalog queries
+Both `data/` and `cache/` are partitioned by country at the top level (all
+current data is `spain`); more countries slot in as sibling folders. A region's
+country is looked up in `REGION_DEFAULTS` (`core/regions.py`), and
+`regions.region_dir(data_dir, region)` resolves `<data_dir>/<country>/<region>`
+— the single place the mapping is applied.
+
+    data/<country>/<region>/grid.json                    {bbox, chunk_m, crs, dtm_source}
+    data/<country>/<region>/anchors/p_{cx}_{cy}.parquet  anchors per chunk
+    data/<country>/<region>/pairs/q_{cx}_{cy}.parquet    candidate pairs per chunk (exposure baked in)
+    data/<country>/<region>/tiles/                       transient DTM tile cache, deleted once a chunk finishes
+    data/<country>/<region>/density/z{z}.json            zoomed-out density pyramid (optional, `precompute-density`)
+    data/<country>/restrictions/<id>.parquet             protected-area overlays (national per country)
+    cache/<country>/mdt05_tiles/                         persistent CNIG MDT05 sheet cache (national, cross-region)
+    cache/<country>/mdt05_sheet_index/                   cached CNIG sheet-index catalog queries
 
 The `cache/` folder is a sibling of `data/` (not under it): it holds only
-re-downloadable CNIG DTM sheets shared across regions, so it can be wiped
-without losing any precomputed output. `data/` holds derived results plus the
-transient per-chunk `tiles/` scratch, deleted as each chunk finishes.
+re-downloadable CNIG DTM sheets shared across a country's regions, so it can be
+wiped without losing any precomputed output. `data/` holds derived results plus
+the transient per-chunk `tiles/` scratch, deleted as each chunk finishes. The
+server discovers regions by scanning `data/*/*/grid.json`, so region names must
+stay unique across countries; restriction overlays are read from every
+`data/<country>/restrictions/` present.
 
 ## Tuning
 

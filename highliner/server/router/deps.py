@@ -10,6 +10,7 @@ from pathlib import Path
 from fastapi import HTTPException, Request
 
 from highliner.core import config, geo
+from highliner.core.regions import region_dir
 from highliner.models.anchor import Anchor
 from highliner.server.repositories import chunked_store
 
@@ -37,14 +38,18 @@ def region_lonlat_bounds(grid: chunked_store.Grid) -> LonLatBox:
 
 
 def build_region_index(data_dir: Path) -> list[RegionEntry]:
-    """One RegionEntry per ``data/<region>/`` that has a grid.json."""
+    """One RegionEntry per ``data/<country>/<region>/`` that has a grid.json.
+    Region names are unique across countries, so the index stays flat."""
     out: list[RegionEntry] = []
     if not data_dir.exists():
         return out
-    for p in sorted(data_dir.iterdir()):
-        if (p / "grid.json").exists():
-            grid = chunked_store.read_grid(p)
-            out.append(RegionEntry(p.name, p, grid, region_lonlat_bounds(grid)))
+    for country_dir in sorted(data_dir.iterdir()):
+        if not country_dir.is_dir():
+            continue
+        for p in sorted(country_dir.iterdir()):
+            if (p / "grid.json").exists():
+                grid = chunked_store.read_grid(p)
+                out.append(RegionEntry(p.name, p, grid, region_lonlat_bounds(grid)))
     return out
 
 
@@ -74,7 +79,7 @@ def resolve_regions(request: Request, region: str | None,
     (read directly, may raise FileNotFoundError if absent); otherwise every
     region whose extent overlaps the lon/lat viewport."""
     if region is not None:
-        rdir = request.app.state.data_dir / region
+        rdir = region_dir(request.app.state.data_dir, region)
         grid = chunked_store.read_grid(rdir)
         return [RegionEntry(region, rdir, grid, region_lonlat_bounds(grid))]
     view = parse_bbox_lonlat(bbox, bbox_lonlat)

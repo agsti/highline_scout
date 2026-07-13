@@ -29,7 +29,10 @@ export function initAnalytics(
   hostname: string = window.location.hostname,
 ): Promise<void> {
   if (!shouldEnableAnalytics(isProd, hostname)) return Promise.resolve();
-  loading ??= loadAnalytics();
+  loading ??= loadAnalytics().catch(() => {
+    queuedEvents = [];
+    loading = undefined;
+  });
   return loading;
 }
 

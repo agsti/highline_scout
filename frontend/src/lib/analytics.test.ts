@@ -55,8 +55,18 @@ describe("capture", () => {
     const { initAnalytics, capture } = await loadModule();
     await initAnalytics(false, "highlinescout.com");
     capture("zone_opened", { n_pairs: 3 });
+    expect(loadPosthogMock).not.toHaveBeenCalled();
     expect(initMock).not.toHaveBeenCalled();
     expect(captureMock).not.toHaveBeenCalled();
+  });
+
+  it("does not load PostHog on a local production host", async () => {
+    const { initAnalytics } = await loadModule();
+
+    await initAnalytics(true, "localhost");
+
+    expect(loadPosthogMock).not.toHaveBeenCalled();
+    expect(initMock).not.toHaveBeenCalled();
   });
 
   it("loads PostHog only after the production gate passes", async () => {
@@ -96,6 +106,22 @@ describe("capture", () => {
       ["filter_changed", { min_len: 20 }],
       ["zone_opened", { n_pairs: 3 }],
     ]);
+  });
+
+  it("absorbs a loader failure and discards pending events before a retry", async () => {
+    loadPosthogMock.mockRejectedValueOnce(new Error("PostHog unavailable"));
+    const { capture, initAnalytics } = await loadModule();
+
+    const initializing = initAnalytics(true, "highlinescout.com");
+    capture("filter_changed", { min_len: 20 });
+    await expect(initializing).resolves.toBeUndefined();
+
+    capture("zone_opened", { n_pairs: 3 });
+    expect(captureMock).not.toHaveBeenCalled();
+
+    await initAnalytics(true, "highlinescout.com");
+    expect(initMock).toHaveBeenCalledTimes(1);
+    expect(captureMock).not.toHaveBeenCalled();
   });
 
   it("forwards events after PostHog loads", async () => {

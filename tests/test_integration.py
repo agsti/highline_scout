@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
-from highliner.etl.services import precompute
+from highliner.etl.chunk import precompute
 from highliner.server.app import create_app
 
 

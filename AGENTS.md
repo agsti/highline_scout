@@ -134,12 +134,18 @@ the server). Command entry points live beside the stage they drive:
                              overlay registry both stages consume)
       models/                shared pure domain dataclasses: anchor, candidate, zone, raster
       etl/                   offline precompute pipeline
-        chunk/main.py        chunk-precompute command
+        chunk/               complete chunk-precompute pipeline: command, orchestration,
+                             DTM download, terrain extraction, pairing, and parquet writers
+          main.py            chunk-precompute command
+          precompute.py      chunk-grid orchestration
+          dtm.py             ICGC/IGN WCS terrain download
+          terrain.py         anchor extraction
+          pairing.py         candidate pairing
+          anchors.py         anchor parquet writer
+          candidates.py      candidate parquet writer
         density/main.py      density-precompute command
-        repositories/        dtm (ICGC/IGN WCS), anchors (parquet write side),
-                             candidates (parquet write side), restrictions
-                             (build national MITECO layers)
-        services/            terrain, pairing.find_candidates, precompute, density
+        repositories/        restrictions (build national MITECO layers)
+        services/            density
       server/                serving
         main.py              server command
         app.py               FastAPI factory: wires routers, CORS, and the
@@ -168,20 +174,20 @@ Two stages. All geospatial work is done offline by `precompute` and cached as
 parquet partitions; the server only does cheap in-viewport reads and filtering
 on every request — no DTM raster is ever touched at serve time.
 
-1. **Precompute** (`highliner-etl-chunk`, `etl/services/precompute.py`) — tiles
+1. **Precompute** (`highliner-etl-chunk`, `etl/chunk/precompute.py`) — tiles
    the region's bbox into `chunk_m`-sized squares (`chunk_grid`). For each chunk
    (`process_chunk`): downloads ICGC bare-earth DTM tiles (5 m, EPSG:25831) over
-   a WCS endpoint for the chunk's core plus a halo (`etl/repositories/dtm.py`; each
+   a WCS endpoint for the chunk's core plus a halo (`etl/chunk/dtm.py`; each
    WCS request is capped at ~140 KB, so tiles are downloaded individually and
-   merged in memory), runs `extract_anchors` (`etl/services/terrain.py` — slope
+   merged in memory), runs `extract_anchors` (`etl/chunk/terrain.py` — slope
    threshold, directional drop-sector sweep, greedy non-max-suppression spacing)
-   to get anchors, then `find_candidates` (`etl/services/pairing.py`) to get
+   to get anchors, then `find_candidates` (`etl/chunk/pairing.py`) to get
    candidate pairs (length / height-diff / directional / exposure gated,
    exposure computed by sampling the raster between each pair) at a loose
    envelope. Anchors owned by the chunk's core and pairs whose canonical endpoint
    falls in the core are written as `anchors/p_{cx}_{cy}.parquet` /
-   `pairs/q_{cx}_{cy}.parquet` (`etl/repositories/anchors.py`,
-   `etl/repositories/candidates.py`); the raw DTM tiles are deleted afterward —
+   `pairs/q_{cx}_{cy}.parquet` (`etl/chunk/anchors.py`,
+   `etl/chunk/candidates.py`); the raw DTM tiles are deleted afterward —
    nothing raster-shaped persists.
 
 2. **Serve** (`server/app.py` + `server/router/`) — FastAPI + a Vite/React frontend in

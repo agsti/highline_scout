@@ -4,7 +4,7 @@ from typing import cast
 
 import pytest
 from highliner.core import config
-from highliner.etl.services import precompute
+from highliner.etl.chunk import precompute
 
 
 def test_chunk_grid_tiles_bbox() -> None:

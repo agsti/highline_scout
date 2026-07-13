@@ -4,7 +4,7 @@ from pathlib import Path
 
 from highliner.core import config
 from highliner.core.regions import defaults_for_region, region_dir
-from highliner.etl.services import precompute as precompute_service
+from highliner.etl.chunk import precompute as precompute_service
 
 
 def _fmt_hms(seconds: float) -> str:

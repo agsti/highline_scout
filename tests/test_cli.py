@@ -34,7 +34,7 @@ def test_chunk_command_uses_region_defaults(monkeypatch: pytest.MonkeyPatch) -> 
         calls.update(region=region, bbox=bbox, data_dir=data_dir, **kwargs)
         return 1
 
-    monkeypatch.setattr("highliner.etl.services.precompute.precompute", fake)
+    monkeypatch.setattr("highliner.etl.chunk.precompute.precompute", fake)
     chunk_main.main(["--region", "catalonia", "--data-dir", "/tmp/x",
                      "--bbox", "0,0,10000,10000", "--chunk-km", "10",
                      "--workers", "4"])
@@ -71,7 +71,11 @@ def test_restrictions_command_builds_layers(
 def test_project_defines_focused_command_scripts() -> None:
     project = Path("pyproject.toml").read_text()
     assert 'highliner-server = "highliner.server.main:main"' in project
-    assert 'highliner-etl-chunk = "highliner.etl.chunk.main:main"' in project
     assert 'highliner-etl-density = "highliner.etl.density.main:main"' in project
     assert 'highliner-restrictions = "highliner.restrictions.main:main"' in project
     assert "highliner.cli:main" not in project
+
+
+def test_chunk_entry_point_declared() -> None:
+    project = Path("pyproject.toml").read_text()
+    assert 'highliner-etl-chunk = "highliner.etl.chunk.main:main"' in project

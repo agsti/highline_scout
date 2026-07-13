@@ -177,8 +177,10 @@ type ExcludeRestrictionAreaMode = Exclude<RestrictionAreaMode, "informative">;
 
 function polygonIsInside(zone: PolygonGeometry, restriction: PolygonGeometry): boolean {
   const [zoneExterior] = zone.coordinates;
+  const [, ...restrictionHoles] = restriction.coordinates;
   return (
     zoneExterior.every((point) => pointInPolygon(point, restriction)) &&
-    !restriction.coordinates.some((ring) => ringsCross(zoneExterior, ring))
+    !restriction.coordinates.some((ring) => ringsCross(zoneExterior, ring)) &&
+    !restrictionHoles.some((hole) => pointInPolygon(hole[0], zone))
   );
 }

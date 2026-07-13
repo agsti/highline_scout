@@ -156,6 +156,22 @@ describe("restriction filters", () => {
     ]);
   });
 
+  it("keeps a zone that surrounds a restriction hole in exclude-inside mode", () => {
+    const surroundsHole = zone([square(3, 3, 7, 7)]);
+    const zones: ZoneFeatureCollection = {
+      type: "FeatureCollection",
+      features: [surroundsHole],
+    };
+    const restrictions: RestrictionFeatureCollection = {
+      type: "FeatureCollection",
+      features: [restriction([square(0, 0, 10, 10), square(4, 4, 6, 6)])],
+    };
+
+    expect(filterZonesByRestrictions(zones, restrictions, "exclude-inside").features).toEqual([
+      surroundsHole,
+    ]);
+  });
+
   it("filters zones in a non-first MultiPolygon constituent in both exclusion modes", () => {
     const inSecondPolygon = zone([square(10.5, 10.5, 11.5, 11.5)]);
     const outsideZone = zone([square(6, 6, 7, 7)]);

@@ -52,11 +52,15 @@ export function useZoneDensityLayer(options: {
   const layerLanguageRef = useRef<Lang | null>(null);
   const layerMapRef = useRef<L.Map | null>(null);
   const tRef = useRef(options.t);
+  const restrictionAreaModeRef = useRef(options.restrictionAreaMode);
+  const restrictionFeaturesRef = useRef(options.restrictionFeatures);
   const statusRef = useRef<MapStatus>({ kind: "idle" });
   const [isLoading, setIsLoading] = useState(false);
   const [mapReady, setMapReady] = useState(false);
 
   tRef.current = options.t;
+  restrictionAreaModeRef.current = options.restrictionAreaMode;
+  restrictionFeaturesRef.current = options.restrictionFeatures;
 
   function renderStatus() {
     switch (statusRef.current.kind) {
@@ -89,8 +93,8 @@ export function useZoneDensityLayer(options: {
       type: "FeatureCollection",
       features: shownZoneFeaturesRef.current,
     };
-    const visible = options.restrictionAreaMode === "exclude"
-      ? filterZonesByRestrictions(collection, options.restrictionFeatures)
+    const visible = restrictionAreaModeRef.current === "exclude"
+      ? filterZonesByRestrictions(collection, restrictionFeaturesRef.current)
       : collection;
     layer.clearLayers();
     layer.addData(visible);

@@ -183,6 +183,21 @@ describe("useZoneDensityLayer", () => {
     await waitFor(() => expect(mocks.zoneLayer.addData).toHaveBeenLastCalledWith(featureCollection([zoneB])));
   });
 
+  it("filters a deferred zone response using the current restriction state", async () => {
+    const response = deferred<ZoneFeatureCollection>();
+    mocks.fetchZones.mockReturnValue(response.promise);
+    const view = renderHarness();
+
+    view.rerender(
+      <I18nProvider>
+        <Harness restrictionAreaMode="exclude" restrictionFeatures={overlappingRestriction} />
+      </I18nProvider>,
+    );
+    await act(async () => response.resolve(featureCollection([zoneA, zoneB])));
+
+    await waitFor(() => expect(mocks.zoneLayer.addData).toHaveBeenLastCalledWith(featureCollection([zoneB])));
+  });
+
   it("keeps density data unfiltered when restrictions are excluded", async () => {
     getZoom.mockReturnValue(DENSITY_MAX_ZOOM);
     const density: DensityFeatureCollection = {

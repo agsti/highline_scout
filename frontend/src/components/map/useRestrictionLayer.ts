@@ -51,6 +51,8 @@ export function useRestrictionLayer(options: {
       options.onRestrictionStatus?.("");
       return;
     }
+    layer.clearLayers();
+    options.onFeaturesChange?.(emptyCollection);
     const controller = new AbortController();
     fetchRestrictions(
       { bboxLonLat: bboxLonLatParam(map.getBounds()), layers: options.enabledRestrictions },

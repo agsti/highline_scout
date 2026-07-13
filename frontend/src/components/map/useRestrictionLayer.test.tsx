@@ -1,5 +1,5 @@
 import L from "leaflet";
-import { render, waitFor } from "@testing-library/react";
+import { act, render, waitFor } from "@testing-library/react";
 import { useRef, type MutableRefObject } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError, fetchRestrictions } from "@/lib/api";
@@ -32,12 +32,28 @@ const restrictionLayers: RestrictionLayerMeta[] = [
   { id: "zepa", label: "ZEPA", tooltip: "tooltip", highlight: "tooltip", color: "#0a0" },
 ];
 
-function RestrictionHarness({ enabledRestrictions, providedMapRef }: { enabledRestrictions: string[]; providedMapRef?: MutableRefObject<L.Map | null> }) {
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((promiseResolve) => {
+    resolve = promiseResolve;
+  });
+  return { promise, resolve };
+}
+
+function RestrictionHarness({
+  enabledRestrictions,
+  viewportRevision = 0,
+  providedMapRef,
+}: {
+  enabledRestrictions: string[];
+  viewportRevision?: number;
+  providedMapRef?: MutableRefObject<L.Map | null>;
+}) {
   const fallbackMapRef = useRef<L.Map | null>(map);
   const { t } = useI18n();
   useRestrictionLayer({
     mapRef: providedMapRef ?? fallbackMapRef,
-    viewportRevision: 0,
+    viewportRevision,
     enabledRestrictions,
     restrictionLayers,
     t,
@@ -48,8 +64,10 @@ function RestrictionHarness({ enabledRestrictions, providedMapRef }: { enabledRe
   return null;
 }
 
-function renderHarness(enabledRestrictions: string[]) {
-  return render(<I18nProvider><RestrictionHarness enabledRestrictions={enabledRestrictions} /></I18nProvider>);
+function renderHarness(enabledRestrictions: string[], viewportRevision = 0) {
+  return render(
+    <I18nProvider><RestrictionHarness enabledRestrictions={enabledRestrictions} viewportRevision={viewportRevision} /></I18nProvider>,
+  );
 }
 
 describe("useRestrictionLayer", () => {
@@ -92,11 +110,44 @@ describe("useRestrictionLayer", () => {
     await waitFor(() => expect(onFeaturesChange).toHaveBeenCalledWith(collection));
   });
 
+  it("clears and publishes empty restrictions before a replacement request resolves", async () => {
+    const initial: RestrictionFeatureCollection = {
+      type: "FeatureCollection",
+      features: [{
+        type: "Feature",
+        geometry: { type: "Polygon", coordinates: [[[1, 2], [1, 3], [2, 3], [1, 2]]] },
+        properties: { layer: "zepa" },
+      }],
+    };
+    const replacement = deferred<RestrictionFeatureCollection>();
+    mocks.fetchRestrictions.mockResolvedValueOnce(initial).mockReturnValueOnce(replacement.promise);
+    const view = renderHarness(["zepa"]);
+    await waitFor(() => expect(onFeaturesChange).toHaveBeenCalledWith(initial));
+    onFeaturesChange.mockClear();
+    mocks.restrictionLayer.clearLayers.mockClear();
+
+    view.rerender(
+      <I18nProvider><RestrictionHarness enabledRestrictions={["zepa"]} viewportRevision={1} /></I18nProvider>,
+    );
+
+    await waitFor(() => expect(mocks.restrictionLayer.clearLayers).toHaveBeenCalledTimes(1));
+    expect(onFeaturesChange).toHaveBeenCalledWith({ type: "FeatureCollection", features: [] });
+    await act(async () => replacement.resolve(initial));
+  });
+
   it("turns a 413 response into localized zoom guidance", async () => {
     mocks.fetchRestrictions.mockRejectedValue(new ApiError(413, "too many"));
     renderHarness(["zepa"]);
 
     await waitFor(() => expect(onRestrictionStatus).toHaveBeenCalledWith("amplia per veure espais protegits"));
+    expect(onFeaturesChange).toHaveBeenCalledWith({ type: "FeatureCollection", features: [] });
     expect(onError).not.toHaveBeenCalled();
+  });
+
+  it("publishes an empty collection after a failed restriction request", async () => {
+    mocks.fetchRestrictions.mockRejectedValue(new Error("offline"));
+    renderHarness(["zepa"]);
+
+    await waitFor(() => expect(onFeaturesChange).toHaveBeenCalledWith({ type: "FeatureCollection", features: [] }));
   });
 });

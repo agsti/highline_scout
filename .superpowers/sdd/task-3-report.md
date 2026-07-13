@@ -1,76 +1,106 @@
-# Task 3 Report: LanguageSwitcher segmented variant
+# Task 3 report: map restriction filtering
 
-## Status: DONE
+## Scope
 
-## Files changed
+Implemented only the Task 3 map integration: restriction fetches now publish the
+active collection, `MapView` passes that collection and the existing area mode to
+the zone/density hook, and zone rendering excludes overlapping restriction
+polygons in `exclude` mode. The density rendering path remains unfiltered.
+Anchor filtering was not changed.
 
-### `frontend/src/components/LanguageSwitcher.tsx`
-- Added `LanguageSwitcherProps` with `variant?: "pill" | "segmented"`, defaulting to `"pill"`.
-- `SHORT` and `NAMES` maps are byte-for-byte unchanged. `LANGS`/`setLang` usage unchanged — a single `LANGS.map` loop renders both variants; no duplication.
-- Group `div`: segmented variant adds `rounded-[8px] bg-accent p-0.5` (container radius per handoff, not `rounded-lg`); pill keeps `pr-1`.
-- Segment `button`: segmented uses `rounded-[6px] px-2 py-1 text-[11px]` (segment radius per handoff, not `rounded-md`); pill keeps the original `rounded-full px-[9px] py-[7px] text-[11px] md:px-[11px] md:py-2 md:text-xs`.
-- Active-state styling branches by variant: segmented active gets `bg-card font-bold text-primary-deep shadow-[0_1px_3px_rgba(22,48,42,0.12)]` (the one permitted raw-value shadow, per the handoff's fixed alpha); pill active keeps `bg-primary font-bold text-primary-foreground`.
-- Inactive hover branches too: segmented uses `hover:bg-card/60` (since `hover:bg-accent` would be invisible against the segmented track's own `bg-accent`); pill keeps `hover:bg-accent`.
-- All classes use existing design tokens (`primary-deep`, `card`, `accent`, `muted-foreground`, `primary`, `primary-foreground`); the only raw value is the mandated shadow.
+## Test-first evidence
 
-### `frontend/src/components/LanguageSwitcher.test.tsx`
-- Appended a new `describe("LanguageSwitcher segmented variant", ...)` block (verbatim from the brief) with two tests:
-  1. `wraps the segments in an accent track and lifts the active one` — asserts the group has `bg-accent` and the active segment (`Català`) has `bg-card` while the inactive one (`Español`) does not.
-  2. `still switches language in the segmented variant` — clicks `English` and asserts `aria-pressed="true"`.
-- The two pre-existing `describe("LanguageSwitcher", ...)` pill-variant tests were left completely unchanged.
+1. Added tests that require an empty feature collection when no restriction layer
+   is selected and the complete fetched collection after a successful request.
+2. Added zone-hook coverage that rerenders with `exclude` plus an overlapping
+   square restriction, expecting only the disjoint zone in the final Leaflet
+   `addData` call.
+3. Added density-mode coverage that rerenders with the same exclusion data and
+   verifies the original density collection is still passed to Leaflet.
+4. Ran the focused hook suites before implementation. They failed because the
+   publication callback and restriction filtering did not yet exist (4 failing,
+   5 passing); the changed dedup expectation also showed the old incremental
+   Leaflet behavior before full zone rerendering was added.
 
-## Consumers verified untouched
-- `frontend/src/components/FloatingNav.tsx:19` — `<LanguageSwitcher />` (no props) — not edited.
-- `frontend/src/components/SafetyDisclaimerDialog.tsx:34` — `<LanguageSwitcher />` (no props) — not edited.
-Both fall through to the `variant = "pill"` default, so their rendered output is unchanged.
+## Implementation notes
 
-## Test commands and real output
+- `useRestrictionLayer` publishes an empty collection for empty selection and
+  non-aborted fetch failures. It publishes a successful collection immediately
+  before adding it to its Leaflet overlay, and ignores aborted successful
+  responses.
+- `useZoneDensityLayer` retains raw deduplicated zone features and centralizes
+  Leaflet redraws in `renderZones()`. That helper clears the zone layer, filters
+  only when the mode is `exclude`, and redraws after a zone response, a zone
+  layer recreation, or restriction state changes.
+- `MapView` owns the current restriction collection and wires it between the
+  restriction and zone hooks.
 
-Note: the shell has a broken nvm zsh hook (known issue, see MEMORY.md `node-shell-broken`). Worked around per-invocation with:
-`unset -f npm node npx _load_nvm; export PATH="$HOME/.nvm/versions/node/v20.20.2/bin:$PATH"`
+## Verification
 
-### Step 2 — run tests before implementing (expected FAIL)
-Command: `cd frontend && npm test -- LanguageSwitcher`
+Focused tests (using the repository's Node binary because `npm` is unavailable
+on PATH):
 
-```
- ❯ src/components/LanguageSwitcher.test.tsx (4 tests | 1 failed) 87ms
-   × LanguageSwitcher segmented variant > wraps the segments in an accent track and lifts the active one 5ms
-     → expect(element).toHaveClass("bg-accent")
-
-Expected the element to have class:
-  bg-accent
-Received:
-  flex items-center gap-0.5 pr-1
-
- Test Files  1 failed (1)
-      Tests  1 failed | 3 passed (4)
+```text
+2 test files passed; 9 tests passed
 ```
 
-This confirms the failure predicted by the brief (the group had no `bg-accent` since the variant didn't exist yet; Vitest's esbuild transform doesn't do a separate type-check pass, so the TS prop-rejection surfaced as this runtime assertion failure instead of a compile error — `tsc --noEmit` below is what actually enforces the type).
+Production build:
 
-### Step 4 — run tests after implementing (expected PASS)
-Command: `cd frontend && npm test -- LanguageSwitcher`
-
-```
- ✓ src/components/LanguageSwitcher.test.tsx (4 tests) 104ms
-
- Test Files  1 passed (1)
-      Tests  4 passed (4)
+```text
+tsc -b passed; vite build passed
 ```
 
-All 4 tests pass: the 2 new segmented-variant tests plus the 2 pre-existing pill-variant tests (regression guard), confirmed passing unchanged.
+Vite emitted its pre-existing chunk-size advisory; it did not affect the
+successful build.
 
-### Type check
-Command: `cd frontend && npx tsc --noEmit`
-Output: (empty — no errors)
+## Self-review
 
-## Commit
+- The restriction geometry is only consulted in the zone rendering helper;
+  density data is not filtered or refetched on restriction changes.
+- A restriction response that resolves after its request is aborted cannot
+  overwrite the current map state.
+- No anchor-layer code or tests were modified.
+
+## Follow-up: review race-condition fixes
+
+### Findings addressed
+
+1. A deferred `/zones` response previously called `renderZones()` through the
+   request effect's closure, so it could apply an outdated restriction mode or
+   feature collection. `useZoneDensityLayer` now maintains current restriction
+   mode and features in refs; `renderZones()` reads those refs at render time.
+2. A replacement enabled restriction request left the previous overlay and
+   published geometry in place until it settled, allowing stale geometry to
+   filter zones. `useRestrictionLayer` now clears its overlay and publishes the
+   empty collection synchronously before starting every enabled request.
+
+### Test-first evidence
+
+Added the following tests before the corresponding production changes and ran
+them against the pre-fix implementation:
+
+- Deferred zone response after switching to `exclude` mode expected only the
+  non-overlapping zone, but the old closure rendered both zones.
+- Replacement restriction request after a successful response expected an
+  immediate clear and empty publication, but the old hook made neither change.
+
+The focused run before the fix reported exactly these two failures (10 passing,
+2 failing). The restriction suite additionally now checks that both 413 and
+ordinary failed requests publish the empty collection.
+
+### Verification
+
+Focused hooks after the fix:
+
+```text
+2 test files passed; 12 tests passed
 ```
-f5f7604da6c77bee61e0c6ef1573af9e6986cc7c feat(web): add segmented variant to LanguageSwitcher
- 2 files changed, 55 insertions(+), 6 deletions(-)
-```
-Only `src/components/LanguageSwitcher.tsx` and `src/components/LanguageSwitcher.test.tsx` were staged and committed (an unrelated pre-existing modification to `.superpowers/sdd/task-2-report.md` was left out of this commit).
 
-## Concerns
-- `.superpowers/sdd/task-3-report.md` previously held a report for an unrelated "anchor and restriction overlay extraction" task (from a different plan, `docs/superpowers/plans/2026-07-12-map-view-decomposition.md`). That content has been overwritten with this task's report — flag in case that other report needs to be preserved elsewhere.
-- Otherwise none functional: diff matches the brief's prescribed code exactly; both existing consumers verified unedited and unaffected.
+Production build:
+
+```text
+tsc -b passed; vite build passed
+```
+
+Vite emitted its existing advisory about a minified chunk exceeding 500 kB; the
+build itself completed successfully.

@@ -172,6 +172,21 @@ describe("AppShell", () => {
     expect(screen.getByRole("button", { name: "Cerrar controles" })).toBeInTheDocument();
   });
 
+  it("paints the dialog overlay above the floating chrome", () => {
+    render(
+      <I18nProvider>
+        <Dialog open>
+          <DialogContent closeLabel="Close">
+            <div>dialog body</div>
+          </DialogContent>
+        </Dialog>
+      </I18nProvider>,
+    );
+
+    const overlay = document.querySelector('[data-state="open"][class*="fixed inset-0"]');
+    expect(overlay).toHaveClass("z-[1200]");
+  });
+
   it("does not leave the document body non-interactive when the mobile sheet is closed", () => {
     render(
       <I18nProvider>

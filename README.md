@@ -37,10 +37,10 @@ This project uses [`uv`](https://docs.astral.sh/uv/). The geospatial stack
 ## Use
 
     # 1. precompute anchors + candidate pairs for a bbox (EPSG:25831 meters)
-    .venv/bin/highliner precompute --region montserrat \
+    .venv/bin/highliner-etl-chunk --region montserrat \
         --bbox 402000,4606000,406000,4610000
     # 2. serve the map
-    .venv/bin/highliner serve
+    .venv/bin/highliner-server
     # open http://127.0.0.1:8000/
 
 Tune extraction/pairing defaults in `highliner/core/config.py`.

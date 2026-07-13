@@ -1,8 +1,8 @@
 """Run precompute for the non-Catalonia Spain regions.
 
 This is intentionally a thin orchestration wrapper around the public
-``highliner`` CLI, so each region remains resumable through the normal chunk
-partition skip behavior.
+``highliner-etl-chunk`` and ``highliner-etl-density`` commands, so each region
+remains resumable through the normal chunk partition skip behavior.
 """
 
 from __future__ import annotations
@@ -19,6 +19,12 @@ from pathlib import Path
 class Region:
     name: str
     bbox: str
+
+
+@dataclass(frozen=True)
+class Commands:
+    chunk: str
+    density: str
 
 
 REGIONS = [
@@ -49,12 +55,12 @@ def run(cmd: list[str]) -> None:
     subprocess.run(cmd, check=True)
 
 
-def run_region(region: Region, highliner: str, data_dir: str,
+def run_region(region: Region, commands: Commands, data_dir: str,
                chunk_workers: int) -> None:
-    run([highliner, "precompute", "--data-dir", data_dir,
+    run([commands.chunk, "--data-dir", data_dir,
          "--region", region.name, f"--bbox={region.bbox}",
          "--workers", str(chunk_workers)])
-    run([highliner, "precompute-density", "--data-dir", data_dir,
+    run([commands.density, "--data-dir", data_dir,
          "--region", region.name])
 
 
@@ -83,13 +89,13 @@ def _select_regions(start_at: str | None, only: list[str] | None) -> list[Region
     return regions
 
 
-def _run_parallel(regions: list[Region], highliner: str, data_dir: str,
+def _run_parallel(regions: list[Region], commands: Commands, data_dir: str,
                   jobs: int, chunk_workers: int) -> None:
     print(f"running {len(regions)} regions with {jobs} jobs "
           f"and {chunk_workers} chunk workers each", flush=True)
     with concurrent.futures.ThreadPoolExecutor(max_workers=jobs) as pool:
         futures = {
-            pool.submit(run_region, region, highliner, data_dir,
+            pool.submit(run_region, region, commands, data_dir,
                         chunk_workers): region
             for region in regions
         }
@@ -111,12 +117,15 @@ def main() -> None:
         raise SystemExit("--chunk-workers must be >= 1")
 
     regions = _select_regions(args.start_at, args.only)
-    highliner = str(Path(".venv/bin/highliner"))
+    commands = Commands(
+        chunk=str(Path(".venv/bin/highliner-etl-chunk")),
+        density=str(Path(".venv/bin/highliner-etl-density")),
+    )
     if args.jobs == 1:
         for region in regions:
-            run_region(region, highliner, args.data_dir, args.chunk_workers)
+            run_region(region, commands, args.data_dir, args.chunk_workers)
         return
-    _run_parallel(regions, highliner, args.data_dir, args.jobs,
+    _run_parallel(regions, commands, args.data_dir, args.jobs,
                   args.chunk_workers)
 
 

@@ -18,9 +18,9 @@ def test_precompute_spain_forwards_chunk_workers(
     precompute_spain.main()
 
     assert commands[0][-2:] == ["--workers", "5"]
-    assert commands[0][:3] == [".venv/bin/highliner", "precompute", "--data-dir"]
+    assert commands[0][:2] == [".venv/bin/highliner-etl-chunk", "--data-dir"]
     assert commands[1] == [
-        ".venv/bin/highliner", "precompute-density",
+        ".venv/bin/highliner-etl-density",
         "--data-dir", "/tmp/highliner-data",
         "--region", "madrid",
     ]

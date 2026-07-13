@@ -46,6 +46,9 @@ export function SeoHead({ page }: SeoHeadProps) {
     title.setAttribute("data-seo", "title");
     title.textContent = page.title;
     if (!title.parentElement) document.head.append(title);
+    document.head.querySelectorAll("title").forEach((duplicate) => {
+      if (duplicate !== title) duplicate.remove();
+    });
 
     upsertHeadNode("meta", "description", { name: "description", content: page.description });
     upsertHeadNode("link", "canonical", { rel: "canonical", href: canonical });

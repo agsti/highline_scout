@@ -37,7 +37,13 @@ describe("PublicApp", () => {
     );
   });
 
-  it("replaces unmarked alternate links and JSON-LD", () => {
+  it("replaces duplicate unmarked titles, alternate links, and JSON-LD", () => {
+    document.head.querySelectorAll("title").forEach((title) => title.remove());
+    for (const text of ["Legacy title", "Another legacy title"]) {
+      const title = document.createElement("title");
+      title.textContent = text;
+      document.head.append(title);
+    }
     for (const lang of ["ca", "es", "en", "x-default"]) {
       const alternate = document.createElement("link");
       alternate.rel = "alternate";
@@ -52,6 +58,10 @@ describe("PublicApp", () => {
 
     renderPublicApp("/ca/how-it-works");
 
+    expect(document.head.querySelectorAll("title")).toHaveLength(1);
+    expect(document.head.querySelector("title")?.textContent).toBe(
+      "Com funciona | Highline Scout",
+    );
     for (const lang of ["ca", "es", "en", "x-default"]) {
       expect(
         document.head.querySelectorAll(`link[rel="alternate"][hreflang="${lang}"]`),

@@ -1,8 +1,7 @@
 """Shared request-handling helpers for the routers.
 
 Holds the bbox-parsing helpers that translate ``bbox`` / ``bbox_lonlat`` query
-params into UTM or lon/lat tuples, plus the anchor viewport filter and
-app.state accessor.
+params into UTM or lon/lat tuples, plus the app.state accessor.
 """
 from dataclasses import dataclass
 from pathlib import Path
@@ -11,7 +10,6 @@ from fastapi import HTTPException, Request
 
 from highliner.core import config, geo
 from highliner.core.regions import country_for_region, region_dir
-from highliner.models.anchor import Anchor
 from highliner.server.repositories import chunked_store
 
 Bbox = tuple[float, float, float, float]
@@ -94,13 +92,6 @@ def resolve_regions(request: Request, region: str | None,  # noqa: PLR0913
     view = parse_bbox_lonlat(bbox, bbox_lonlat)
     index = regions_in_country(get_region_index(request), country)
     return regions_in_view(index, view)
-
-
-def clip_anchors(anchors: list[Anchor], bbox: Bbox) -> list[Anchor]:
-    """Anchors within a UTM ``(minx, miny, maxx, maxy)`` bbox. No cap."""
-    minx, miny, maxx, maxy = bbox
-    return [a for a in anchors
-            if minx <= a.x <= maxx and miny <= a.y <= maxy]
 
 
 def get_data_dir(request: Request) -> Path:

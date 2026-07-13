@@ -30,9 +30,9 @@ function MenuItem({ icon, label, hint, onClick }: MenuItemProps) {
         {icon}
       </span>
       <span className="flex-1">{label}</span>
-      {hint ? (
-        <span className="text-[11px] font-semibold text-muted-foreground">{hint}</span>
-      ) : null}
+      <span aria-live="polite" className="text-[11px] font-semibold text-muted-foreground">
+        {hint ?? ""}
+      </span>
     </button>
   );
 }

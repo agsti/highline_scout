@@ -84,8 +84,14 @@ describe("NavMenu", () => {
     renderMenu();
 
     await openMenu(user);
-    await user.click(screen.getByRole("button", { name: "Send feedback" }));
+    const feedbackButton = screen.getByRole("button", { name: "Send feedback" });
+    const hint = feedbackButton.querySelector('[aria-live="polite"]');
+    expect(hint).toBeInTheDocument();
+    expect(hint).toHaveTextContent("");
 
+    await user.click(feedbackButton);
+
+    expect(hint).toHaveTextContent("Coming soon");
     expect(screen.getByText("Coming soon")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Safety" })).toBeInTheDocument();
   });

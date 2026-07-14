@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
-from typing import Any
 from types import SimpleNamespace
+from typing import Any
 
 from highliner.server.router import deps
 
@@ -84,7 +84,8 @@ def test_get_region_index_is_cached(tmp_path: Path) -> None:
 
 
 def test_get_country_index_is_cached(tmp_path: Path) -> None:
-    request = SimpleNamespace(app=SimpleNamespace(state=SimpleNamespace(data_dir=tmp_path)))
+    state = SimpleNamespace(data_dir=tmp_path)
+    request = SimpleNamespace(app=SimpleNamespace(state=state))
 
     first = deps.get_country_index(request)  # type: ignore[arg-type]
     second = deps.get_country_index(request)  # type: ignore[arg-type]

@@ -113,6 +113,24 @@ def test_inits_are_noops_without_credentials() -> None:
     assert init_sentry(Settings(sentry_dsn=None)) is False
 
 
+def test_init_posthog_sets_the_key_the_sdk_reads() -> None:
+    """The armed key must land on `posthog.api_key`.
+
+    posthog.setup() — which capture() calls internally — builds the default
+    client from `posthog.api_key`. The module also carries a vestigial
+    `project_api_key` global that nothing reads; assigning to that one leaves
+    the client with an empty key, which it logs and then disables itself.
+    """
+    try:
+        assert init_posthog(Settings(posthog_key="phc_test")) is True
+
+        assert posthog.api_key == "phc_test"
+        assert posthog.host == "https://eu.i.posthog.com"
+    finally:
+        posthog.api_key = None
+        init_posthog(Settings(posthog_key=None))
+
+
 def test_capture_server_event_is_silent_when_disabled(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

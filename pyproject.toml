@@ -73,7 +73,7 @@ ignore_decorators = [
 ignore_names = [
     "model_config",     # pydantic-settings reads it off the Settings class
     "dispatch",         # Starlette's BaseHTTPMiddleware entry point
-    "project_api_key",  # set on the posthog module, consumed inside the library
+    "api_key",          # set on the posthog module, read by its setup()
     "cls",              # bound by @classmethod; validators don't touch it
     # LayerSpec TypedDict keys: declared for typing, read as dict subscripts.
     "label", "color", "name_field", "tooltip", "highlight",

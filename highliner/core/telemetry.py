@@ -60,7 +60,9 @@ def init_posthog(settings: Settings) -> bool:
     if not settings.posthog_key:
         _posthog_enabled = False
         return False
-    posthog.project_api_key = settings.posthog_key
+    # `api_key`, not `project_api_key`: the latter is a vestigial module global
+    # the v7 SDK never reads, so the default client would be built keyless.
+    posthog.api_key = settings.posthog_key
     posthog.host = settings.posthog_host
     _posthog_enabled = True
     return True

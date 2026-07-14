@@ -17,6 +17,8 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--data-dir", default=str(config.DATA_DIR))
     parser.add_argument("--region", required=True)
     parser.add_argument("--country", default=config.DEFAULT_COUNTRY)
+    parser.add_argument("--workers", type=int, default=1,
+                        help="number of pair-file batches to aggregate concurrently")
     args = parser.parse_args(argv)
     rdir = Path(args.data_dir) / args.country / args.region
     start = time.monotonic()
@@ -27,6 +29,8 @@ def main(argv: list[str] | None = None) -> None:
         print(f"\rpairs file {done}/{total} ({pct:4.1f}%)  "
               f"elapsed {_fmt_hms(elapsed)}", end="", flush=True)
 
-    n = builder.build_density(rdir, report=report, country=args.country,
-                              data_dir=args.data_dir)
+    restrictions_dir = Path(args.data_dir) / args.country / "restrictions"
+    n = builder.build_density(rdir, report=report,
+                              restrictions_dir=restrictions_dir,
+                              workers=args.workers)
     print(f"\nwrote {n} density cells -> {rdir / 'density'}")

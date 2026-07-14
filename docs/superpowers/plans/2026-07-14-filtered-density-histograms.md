@@ -392,3 +392,76 @@ git commit -m "docs: describe filtered density precompute"
 ~~~
 
 Skip this step if no AGENTS.md change is required.
+
+### Task 7: Parallelize density aggregation and remove quadratic JSON assembly
+
+**Files:**
+- Modify: highliner/etl/density/builder.py
+- Modify: highliner/etl/density/main.py
+- Modify: tests/test_density.py
+- Modify: tests/test_cli.py
+
+**Interfaces:**
+- build_density adds workers: int = 1 and raises ValueError for values below one.
+- The CLI adds --workers, defaulting to one, and forwards it to build_density.
+- A worker processes an assigned batch of pair partitions after a process initializer
+  has loaded country restriction layers once; the parent merges worker summaries.
+
+- [ ] **Step 1: Write failing parallel-equivalence and CLI tests**
+
+~~~python
+def test_parallel_density_matches_single_worker_output(tmp_path: Path) -> None:
+    region = _write_two_pair_partitions(tmp_path)
+    builder.build_density(region, zoom_levels=[12], workers=1, data_dir=tmp_path)
+    serial = (region / "density" / "z12.json").read_text()
+    builder.build_density(region, zoom_levels=[12], workers=2, data_dir=tmp_path)
+    assert (region / "density" / "z12.json").read_text() == serial
+
+def test_density_rejects_invalid_worker_count(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="workers"):
+        builder.build_density(tmp_path, workers=0)
+
+def test_density_cli_forwards_workers(monkeypatch: pytest.MonkeyPatch) -> None:
+    density_main.main(["--region", "catalonia", "--workers", "3"])
+    assert calls["workers"] == 3
+~~~
+
+- [ ] **Step 2: Verify RED**
+
+Run: uv run pytest tests/test_density.py tests/test_cli.py -v
+
+Expected: FAIL because density build has no workers argument and the CLI does not
+recognize --workers.
+
+- [ ] **Step 3: Implement batched worker aggregation**
+
+~~~python
+def build_density(..., workers: int = 1) -> int:
+    if workers < 1:
+        raise ValueError("workers must be >= 1")
+    batches = _split_files(pair_files, workers)
+    if workers == 1:
+        partials = [_build_partial(batches[0], zooms, crs, restrictions_dir)]
+    else:
+        with ProcessPoolExecutor(max_workers=workers, initializer=_init_worker,
+                                 initargs=(restrictions_dir, crs)) as pool:
+            partials = list(pool.map(_build_partial_from_worker, batches))
+    cells, histograms = _merge_partials(partials)
+~~~
+
+Keep the restriction GeoDataFrames in worker-local module state initialized once.
+Store histograms as a nested cell-key map while reading candidates, so row
+serialization is a direct sorted iteration over that cell's rows.
+
+- [ ] **Step 4: Verify GREEN**
+
+Run: uv run pytest tests/test_density.py tests/test_cli.py -v
+
+Expected: PASS, including byte-equivalent serial and two-worker JSON output.
+
+- [ ] **Step 5: Commit**
+
+~~~bash
+git add highliner/etl/density/builder.py highliner/etl/density/main.py tests/test_density.py tests/test_cli.py
+git commit -m "perf: parallelize density precompute"
+~~~

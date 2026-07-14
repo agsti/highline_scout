@@ -146,6 +146,11 @@ def _density_rows(zoom: int, cells: dict[CellKey, CellSummary],
     return rows
 
 
+def _is_complete_density(path: Path) -> bool:
+    """A completed density layer is a nonempty final JSON file."""
+    return path.is_file() and path.stat().st_size > 0
+
+
 def build_density(region_dir: Path,
                   zoom_levels: Iterable[int] = config.DENSITY_ZOOM_LEVELS,
                   report: Callable[[int, int], None] | None = None,
@@ -156,11 +161,16 @@ def build_density(region_dir: Path,
     if workers < 1:
         raise ValueError("workers must be >= 1")
     region_dir = Path(region_dir)
+    out_dir = region_dir / "density"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    zooms = [zoom for zoom in zoom_levels
+             if not _is_complete_density(out_dir / f"z{zoom}.json")]
+    if not zooms:
+        return 0
     try:
         crs = chunked_store.read_grid(region_dir).crs
     except FileNotFoundError:
         crs = defaults_for_region(region_dir.name).crs
-    zooms = list(zoom_levels)
     pair_files = sorted((region_dir / "pairs").glob("q_*.parquet"))
     restrictions_dir = restrictions_dir or (
         Path(config.DATA_DIR) / config.DEFAULT_COUNTRY / "restrictions")
@@ -181,8 +191,6 @@ def build_density(region_dir: Path,
         work = ParallelWork(tuple(zooms), crs, restrictions_dir, workers, total)
         _build_parallel(batches, work, cells, histograms, report)
 
-    out_dir = region_dir / "density"
-    out_dir.mkdir(parents=True, exist_ok=True)
     written = 0
     for z in zooms:
         rows = _density_rows(z, cells, histograms)

@@ -115,3 +115,29 @@ def test_parallel_density_matches_single_worker_output(tmp_path: Path) -> None:
 def test_density_rejects_invalid_worker_count(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="workers"):
         builder.build_density(tmp_path, workers=0)
+
+
+def test_existing_nonempty_zoom_is_skipped(tmp_path: Path) -> None:
+    near = to_utm(1.83, 41.59)
+    region = _write_region(tmp_path, [_pair(near[0], near[1], exposure=30.0)])
+    density_file = region / "density" / "z12.json"
+    density_file.parent.mkdir()
+    density_file.write_text('[{"complete": true}]')
+
+    written = builder.build_density(region, zoom_levels=[12])
+
+    assert written == 0
+    assert density_file.read_text() == '[{"complete": true}]'
+
+
+def test_existing_empty_zoom_is_rebuilt(tmp_path: Path) -> None:
+    near = to_utm(1.83, 41.59)
+    region = _write_region(tmp_path, [_pair(near[0], near[1], exposure=30.0)])
+    density_file = region / "density" / "z12.json"
+    density_file.parent.mkdir()
+    density_file.touch()
+
+    written = builder.build_density(region, zoom_levels=[12])
+
+    assert written == 1
+    assert density_file.stat().st_size > 0

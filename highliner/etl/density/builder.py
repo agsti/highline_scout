@@ -1,11 +1,11 @@
 """Offline builder for the zoomed-out density pyramid."""
 import concurrent.futures
-import json
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 from highliner.core import config, geo, tiles
 from highliner.core.density import bucket_for
 from highliner.core.regions import defaults_for_region
@@ -157,24 +157,41 @@ def _roll_up_pyramid(cells: dict[CellKey, CellSummary],
                 target[hist_key] = target.get(hist_key, 0) + count
 
 
-def _density_rows(zoom: int, cells: dict[CellKey, CellSummary],
-                  histograms: Histogram) -> list[dict[str, Any]]:
-    """Serialize one zoom's grouped summaries and sparse histograms."""
-    rows: list[dict[str, Any]] = []
-    for (row_zoom, tx, ty), (count, max_exp, min_len, max_len) in sorted(cells.items()):
-        if row_zoom != zoom:
-            continue
-        histogram = histograms[(row_zoom, tx, ty)]
-        hist = [[length_bucket, exposure_bucket, mask, value]
-                for (length_bucket, exposure_bucket, mask), value
-                in sorted(histogram.items())]
-        rows.append({"x": tx, "y": ty, "n": int(count), "max_exp": max_exp,
-                     "min_len": min_len, "max_len": max_len, "hist": hist})
-    return rows
+_ARRAY_NAMES = ("cx", "cy", "n", "max_exp", "min_len", "max_len",
+                "off", "hl", "he", "hm", "hc")
+
+
+def _write_zoom(path: Path, zoom: int, cells: dict[CellKey, CellSummary],
+                histograms: Histogram) -> int:
+    """Serialize one zoom's cells as CSR-style NumPy arrays.
+
+    Cell ``i``'s histogram rows are ``hl/he/hm/hc[off[i]:off[i + 1]]``.
+    """
+    keys = sorted(key for key in cells if key[0] == zoom)
+    rows = [sorted(histograms[key].items()) for key in keys]
+    counts = np.array([len(row) for row in rows], dtype=np.int64)
+    off = np.zeros(len(keys) + 1, dtype=np.int64)
+    np.cumsum(counts, out=off[1:])
+    flat = [(hist_key, value) for row in rows for hist_key, value in row]
+    np.savez(
+        path,
+        cx=np.array([key[1] for key in keys], dtype=np.int32),
+        cy=np.array([key[2] for key in keys], dtype=np.int32),
+        n=np.array([int(cells[key][0]) for key in keys], dtype=np.int32),
+        max_exp=np.array([cells[key][1] for key in keys], dtype=np.float32),
+        min_len=np.array([cells[key][2] for key in keys], dtype=np.float32),
+        max_len=np.array([cells[key][3] for key in keys], dtype=np.float32),
+        off=off,
+        hl=np.array([key[0] for key, _ in flat], dtype=np.int16),
+        he=np.array([key[1] for key, _ in flat], dtype=np.int16),
+        hm=np.array([key[2] for key, _ in flat], dtype=np.int8),
+        hc=np.array([value for _, value in flat], dtype=np.int32),
+    )
+    return len(keys)
 
 
 def _is_complete_density(path: Path) -> bool:
-    """A completed density layer is a nonempty final JSON file."""
+    """A completed density layer is a nonempty final .npz file."""
     return path.is_file() and path.stat().st_size > 0
 
 
@@ -183,7 +200,7 @@ def build_density(region_dir: Path,
                   report: Callable[[int, int], None] | None = None,
                   restrictions_dir: Path | None = None,
                   workers: int = 1) -> int:
-    """Build ``region_dir/density/z{z}.json`` for each zoom. Returns the total
+    """Build ``region_dir/density/z{z}.npz`` for each zoom. Returns the total
     number of cells written across all zoom levels."""
     if workers < 1:
         raise ValueError("workers must be >= 1")
@@ -191,7 +208,7 @@ def build_density(region_dir: Path,
     out_dir = region_dir / "density"
     out_dir.mkdir(parents=True, exist_ok=True)
     zooms = [zoom for zoom in zoom_levels
-             if not _is_complete_density(out_dir / f"z{zoom}.json")]
+             if not _is_complete_density(out_dir / f"z{zoom}.npz")]
     if not zooms:
         return 0
     try:
@@ -224,7 +241,5 @@ def build_density(region_dir: Path,
 
     written = 0
     for z in zooms:
-        rows = _density_rows(z, cells, histograms)
-        (out_dir / f"z{z}.json").write_text(json.dumps(rows))
-        written += len(rows)
+        written += _write_zoom(out_dir / f"z{z}.npz", z, cells, histograms)
     return written

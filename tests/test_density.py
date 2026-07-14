@@ -1,8 +1,8 @@
-import json
 import shutil
 from pathlib import Path
 
 import geopandas as gpd
+import numpy as np
 import pytest
 from highliner.core import config, tiles
 from highliner.etl.chunk.candidates import save_candidates
@@ -29,6 +29,12 @@ def _write_region(tmp_path: Path, pairs: list[Candidate]) -> Path:
     return region
 
 
+def _load(region: Path, zoom: int) -> dict[str, np.ndarray]:
+    """The arrays of one written density zoom layer."""
+    with np.load(region / "density" / f"z{zoom}.npz") as data:
+        return {key: data[key] for key in data.files}
+
+
 def test_two_pairs_share_a_cell_third_apart(tmp_path: Path) -> None:
     # Two pairs at the same midpoint (Montserrat area, UTM), one ~5 km away.
     near = to_utm(1.83, 41.59)
@@ -40,14 +46,15 @@ def test_two_pairs_share_a_cell_third_apart(tmp_path: Path) -> None:
 
     total = builder.build_density(region, zoom_levels=[12])
 
-    cells = json.loads((region / "density" / "z12.json").read_text())
-    assert total == len(cells) == 2
-    by_key = {(c["x"], c["y"]): c for c in cells}
+    cells = _load(region, 12)
+    assert total == len(cells["cx"]) == 2
     shared = tiles.lonlat_to_tile(1.83, 41.59, 12)
-    assert by_key[shared]["n"] == 2
-    assert by_key[shared]["max_exp"] == 70.0  # max across the shared cell's pairs
-    assert by_key[shared]["min_len"] == 50.0  # min/max length across the cell's pairs
-    assert by_key[shared]["max_len"] == 80.0
+    i = int(np.nonzero(
+        (cells["cx"] == shared[0]) & (cells["cy"] == shared[1]))[0][0])
+    assert cells["n"][i] == 2
+    assert cells["max_exp"][i] == 70.0  # max across the shared cell's pairs
+    assert cells["min_len"][i] == 50.0  # min/max length across the cell's pairs
+    assert cells["max_len"][i] == 80.0
 
 
 def test_report_and_default_zooms(tmp_path: Path) -> None:
@@ -58,7 +65,7 @@ def test_report_and_default_zooms(tmp_path: Path) -> None:
     builder.build_density(region, report=lambda d, t: seen.append((d, t)))
 
     for z in config.DENSITY_ZOOM_LEVELS:
-        assert (region / "density" / f"z{z}.json").exists()
+        assert (region / "density" / f"z{z}.npz").exists()
     assert seen and seen[-1][0] == seen[-1][1]  # progress reaches 100%
 
 
@@ -74,8 +81,11 @@ def test_cell_writes_sparse_length_exposure_mask_histogram(tmp_path: Path) -> No
     builder.build_density(region, zoom_levels=[12],
                           restrictions_dir=tmp_path / "spain" / "restrictions")
 
-    cells = json.loads((region / "density" / "z12.json").read_text())
-    assert sorted(cells[0]["hist"]) == [[10, 3, 0, 2], [20, 4, 0, 1]]
+    cells = _load(region, 12)
+    assert list(cells["off"]) == [0, 2]  # one cell, two histogram rows
+    rows = list(zip(cells["hl"], cells["he"], cells["hm"], cells["hc"],
+                    strict=True))
+    assert rows == [(10, 3, 0, 2), (20, 4, 0, 1)]
 
 
 def test_builder_uses_country_restrictions(tmp_path: Path) -> None:
@@ -90,8 +100,7 @@ def test_builder_uses_country_restrictions(tmp_path: Path) -> None:
     builder.build_density(region, zoom_levels=[12],
                           restrictions_dir=path.parent)
 
-    cells = json.loads((region / "density" / "z12.json").read_text())
-    assert cells[0]["hist"][0][2] == 1
+    assert _load(region, 12)["hm"][0] == 1
 
 
 def test_parallel_density_matches_single_worker_output(tmp_path: Path) -> None:
@@ -106,12 +115,15 @@ def test_parallel_density_matches_single_worker_output(tmp_path: Path) -> None:
 
     builder.build_density(region, zoom_levels=[12], workers=1,
                           restrictions_dir=tmp_path / "spain" / "restrictions")
-    serial = (region / "density" / "z12.json").read_text()
+    serial = _load(region, 12)
     shutil.rmtree(region / "density")
     builder.build_density(region, zoom_levels=[12], workers=2,
                           restrictions_dir=tmp_path / "spain" / "restrictions")
 
-    assert (region / "density" / "z12.json").read_text() == serial
+    parallel = _load(region, 12)
+    assert serial.keys() == parallel.keys()
+    for key in serial:
+        np.testing.assert_array_equal(serial[key], parallel[key])
 
 
 def test_density_rejects_invalid_worker_count(tmp_path: Path) -> None:
@@ -122,20 +134,20 @@ def test_density_rejects_invalid_worker_count(tmp_path: Path) -> None:
 def test_existing_nonempty_zoom_is_skipped(tmp_path: Path) -> None:
     near = to_utm(1.83, 41.59)
     region = _write_region(tmp_path, [_pair(near[0], near[1], exposure=30.0)])
-    density_file = region / "density" / "z12.json"
+    density_file = region / "density" / "z12.npz"
     density_file.parent.mkdir()
-    density_file.write_text('[{"complete": true}]')
+    density_file.write_bytes(b"already built")
 
     written = builder.build_density(region, zoom_levels=[12])
 
     assert written == 0
-    assert density_file.read_text() == '[{"complete": true}]'
+    assert density_file.read_bytes() == b"already built"
 
 
 def test_existing_empty_zoom_is_rebuilt(tmp_path: Path) -> None:
     near = to_utm(1.83, 41.59)
     region = _write_region(tmp_path, [_pair(near[0], near[1], exposure=30.0)])
-    density_file = region / "density" / "z12.json"
+    density_file = region / "density" / "z12.npz"
     density_file.parent.mkdir()
     density_file.touch()
 
@@ -161,5 +173,4 @@ def test_density_rolls_finest_histograms_up_to_requested_zooms(
 
     assert calls == [14]
     for zoom in (12, 13, 14):
-        cells = json.loads((region / "density" / f"z{zoom}.json").read_text())
-        assert cells[0]["n"] == 1
+        assert _load(region, zoom)["n"][0] == 1

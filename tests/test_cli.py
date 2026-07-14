@@ -54,7 +54,7 @@ def test_density_command_uses_region_directory(
         calls["region_dir"] = region_dir
         return 7
 
-    monkeypatch.setattr("highliner.etl.services.density.build_density", fake)
+    monkeypatch.setattr("highliner.etl.density.main.builder.build_density", fake)
     density_main.main(["--region", "catalonia", "--data-dir", "/tmp/x"])
     assert calls["region_dir"] == Path("/tmp/x") / "spain" / "catalonia"
 

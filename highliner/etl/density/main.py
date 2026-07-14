@@ -3,7 +3,7 @@ import time
 
 from highliner.core import config
 from highliner.core.regions import region_dir
-from highliner.etl.services import density
+from highliner.etl.density import builder
 
 
 def _fmt_hms(seconds: float) -> str:
@@ -26,5 +26,5 @@ def main(argv: list[str] | None = None) -> None:
         print(f"\rpairs file {done}/{total} ({pct:4.1f}%)  "
               f"elapsed {_fmt_hms(elapsed)}", end="", flush=True)
 
-    n = density.build_density(rdir, report=report)
+    n = builder.build_density(rdir, report=report)
     print(f"\nwrote {n} density cells -> {rdir / 'density'}")

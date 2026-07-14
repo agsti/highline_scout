@@ -3,7 +3,7 @@ from pathlib import Path
 
 from highliner.core import config, tiles
 from highliner.etl.chunk.candidates import save_candidates
-from highliner.etl.services import density
+from highliner.etl.density import builder
 from highliner.models.anchor import Anchor
 from highliner.models.candidate import Candidate
 
@@ -34,7 +34,7 @@ def test_two_pairs_share_a_cell_third_apart(tmp_path: Path) -> None:
     p3 = _pair(far[0], far[1], exposure=25.0)
     region = _write_region(tmp_path, [p1, p2, p3])
 
-    total = density.build_density(region, zoom_levels=[12])
+    total = builder.build_density(region, zoom_levels=[12])
 
     cells = json.loads((region / "density" / "z12.json").read_text())
     assert total == len(cells) == 2
@@ -51,7 +51,7 @@ def test_report_and_default_zooms(tmp_path: Path) -> None:
     region = _write_region(tmp_path, [_pair(near[0], near[1], exposure=50.0)])
     seen: list[tuple[int, int]] = []
 
-    density.build_density(region, report=lambda d, t: seen.append((d, t)))
+    builder.build_density(region, report=lambda d, t: seen.append((d, t)))
 
     for z in config.DENSITY_ZOOM_LEVELS:
         assert (region / "density" / f"z{z}.json").exists()

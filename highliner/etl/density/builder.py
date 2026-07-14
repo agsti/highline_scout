@@ -10,9 +10,6 @@ from pathlib import Path
 
 from highliner.core import config, geo, tiles
 from highliner.core.regions import defaults_for_region
-
-# This offline aggregation reads the precomputed grid via the server-side read
-# layer. The candidate materializer is local to ``highliner.etl.density``.
 from highliner.etl.density.candidates import load_candidates
 from highliner.models.candidate import Candidate
 from highliner.server.repositories import chunked_store

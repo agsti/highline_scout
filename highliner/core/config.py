@@ -39,6 +39,10 @@ MAX_VIEW_CHUNKS = 64        # serve guard: refuse a viewport overlapping more pa
 PARTITION_CACHE_MAXSIZE = 512  # parsed partitions kept in the process-wide LRU;
                             # columnar arrays are small, and panning re-hits the
                             # same partition files so a warm cache skips disk+parse
+DENSITY_CACHE_MAXSIZE = 64  # parsed density zoom layers kept in the process-wide
+                            # LRU; the whole Spain pyramid is ~322 MB, so that is
+                            # the ceiling regardless, and a session touching one
+                            # or two zooms holds only 20-60 MB
 
 # Loose envelope the precomputed pairs are generated at; the live sliders only
 # narrow within it (defaults above are stricter and hide some real lines).

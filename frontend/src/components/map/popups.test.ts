@@ -30,17 +30,17 @@ describe("popups", () => {
   it("includes the density length hint only when min and max lengths are present", () => {
     expect(
       densityTooltipHtml(
-        { n_pairs: 6, max_exposure: 72.4, length_min: 80.1, length_max: 121.9 },
+        { n_pairs: 6, max_exposure: 72.4, length_min: 90.1, length_max: 111.9 },
         t,
       ),
-    ).toBe("6 candidate lines · up to 72 m · 80–122 m long");
+    ).toBe("up to 72m  high  · 90-112 m long");
 
     expect(
       densityTooltipHtml(
         { n_pairs: 6, max_exposure: 72.4, length_min: null, length_max: null },
         t,
       ),
-    ).toBe("6 candidate lines · up to 72 m");
+    ).toBe("up to 72m  high ");
   });
 
 });

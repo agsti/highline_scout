@@ -51,8 +51,8 @@ def test_density_returns_clipped_cell(tmp_path: Path) -> None:
     assert feature["geometry"]["type"] == "Polygon"
     assert feature["properties"]["n_pairs"] == 3
     assert feature["properties"]["max_exposure"] == 85.0
-    assert feature["properties"]["length_min"] == 40.0
-    assert feature["properties"]["length_max"] == 120.0
+    assert feature["properties"]["length_min"] == 100.0
+    assert feature["properties"]["length_max"] == 110.0
 
 
 def test_density_bbox_excludes_far_cell(tmp_path: Path) -> None:
@@ -116,6 +116,23 @@ def test_density_sums_requested_length_and_exposure_buckets(tmp_path: Path) -> N
     })
 
     assert response.json()["features"][0]["properties"]["n_pairs"] == 2
+
+
+def test_density_returns_length_bounds_from_the_filtered_histogram(
+        tmp_path: Path) -> None:
+    _write_density(tmp_path, "catalonia", 12,
+                   hist=[(2, 3, 0, 1), (9, 3, 0, 2), (100, 3, 0, 4)])
+    client = TestClient(create_app(data_dir=tmp_path))
+
+    response = client.get("/density", params={
+        "region": "catalonia", "z": 12, "bbox_lonlat": "1.7,41.5,2.0,41.7",
+        "min_len": 20, "max_len": 100, "min_exposure": 30,
+    })
+
+    properties = response.json()["features"][0]["properties"]
+    assert properties["n_pairs"] == 3
+    assert properties["length_min"] == 20.0
+    assert properties["length_max"] == 100.0
 
 
 def test_density_excludes_each_selected_layer_bit(tmp_path: Path) -> None:

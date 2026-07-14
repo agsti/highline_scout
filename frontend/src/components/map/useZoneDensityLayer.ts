@@ -120,7 +120,10 @@ export function useZoneDensityLayer(options: {
     if (densityLayerRef.current) previousMap?.removeLayer(densityLayerRef.current);
 
     zoneLayerRef.current = createZoneLayer(options.t).addTo(map);
-    densityLayerRef.current = createDensityLayer(options.t, () => densitySortedRef.current).addTo(map);
+    densityLayerRef.current = createDensityLayer(
+      options.t,
+      () => densitySortedRef.current,
+    ).addTo(map);
     layerLanguageRef.current = options.lang;
     layerMapRef.current = map;
 

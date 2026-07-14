@@ -624,7 +624,7 @@ describe("MapView", () => {
     renderMapViewWithLanguageControl({ onDensityModeChange });
 
     await waitFor(() => expect(apiMocks.fetchDensity).toHaveBeenCalledTimes(1));
-    expect(leafletMocks.bindTooltip).toHaveBeenCalledWith("4 línies candidates · fins a 55 m · 80–120 m de llarg");
+    expect(leafletMocks.bindTooltip).toHaveBeenCalledWith("fins a 55m d'alçada  · 80-120 m de llarg");
     expect(onDensityModeChange).toHaveBeenLastCalledWith(true);
 
     await act(async () => {
@@ -632,7 +632,7 @@ describe("MapView", () => {
     });
 
     await waitFor(() =>
-      expect(leafletMocks.bindTooltip).toHaveBeenCalledWith("4 candidate lines · up to 55 m · 80–120 m long"),
+      expect(leafletMocks.bindTooltip).toHaveBeenCalledWith("up to 55m  high  · 80-120 m long"),
     );
     expect(apiMocks.fetchDensity).toHaveBeenCalledTimes(1);
 

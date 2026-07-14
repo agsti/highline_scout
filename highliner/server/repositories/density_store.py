@@ -21,6 +21,8 @@ from highliner.core import config, tiles
 from highliner.core.density import BUCKET_M
 
 IntArray = NDArray[np.int64]
+BoolArray = NDArray[np.bool_]
+FloatArray = NDArray[np.float64]
 LonLatBox = tuple[float, float, float, float]
 
 _ARRAY_NAMES = ("cx", "cy", "n", "max_exp", "min_len", "max_len",
@@ -58,17 +60,42 @@ class DensityCells:
         vw, vs, ve, vn = view
         visible = ((west <= ve) & (east >= vw)
                    & (south <= vn) & (north >= vs))
-        totals = self._filtered_totals(density_filter)
+        totals = self._filtered_totals(self._filtered_rows(density_filter))
         idx = np.nonzero(visible & (totals > 0))[0]
         return idx, totals[idx]
 
-    def _filtered_totals(self, density_filter: DensityFilter) -> IntArray:
-        """Count histogram rows that satisfy sliders and exclusion filters."""
+    def select_with_bounds(
+            self, zoom: int, view: LonLatBox, density_filter: DensityFilter,
+    ) -> tuple[IntArray, IntArray, FloatArray, FloatArray]:
+        """Return visible filtered cells with histogram-derived tooltip bounds."""
+        west, south, east, north = tiles.tile_bounds_lonlat_arrays(
+            zoom, self.cx, self.cy)
+        vw, vs, ve, vn = view
+        visible = ((west <= ve) & (east >= vw)
+                   & (south <= vn) & (north >= vs))
+        keep = self._filtered_rows(density_filter)
+        totals = self._filtered_totals(keep)
+        idx = np.nonzero(visible & (totals > 0))[0]
+        row_cells = np.repeat(np.arange(len(self.cx)), np.diff(self.off))
+        lower = np.full(len(self.cx), np.iinfo(np.int16).max, dtype=np.int16)
+        upper = np.full(len(self.cx), np.iinfo(np.int16).min, dtype=np.int16)
+        np.minimum.at(lower, row_cells[keep], self.hl[keep])
+        np.maximum.at(upper, row_cells[keep], self.hl[keep])
+        minimum = np.maximum(lower[idx] * BUCKET_M, density_filter.min_len)
+        maximum = np.minimum((upper[idx] + 1) * BUCKET_M, density_filter.max_len)
+        return idx, totals[idx], minimum.astype(float), maximum.astype(float)
+
+    def _filtered_rows(self, density_filter: DensityFilter) -> BoolArray:
+        """Return histogram rows that satisfy sliders and exclusion filters."""
         keep = ((self.hl >= math.ceil(density_filter.min_len / BUCKET_M))
                 & (self.hl < math.ceil(density_filter.max_len / BUCKET_M))
                 & (self.he >= math.ceil(density_filter.min_exposure / BUCKET_M)))
         if density_filter.excluded_mask:
             keep &= (self.hm & density_filter.excluded_mask) == 0
+        return keep
+
+    def _filtered_totals(self, keep: BoolArray) -> IntArray:
+        """Sum already-filtered histogram rows for every cell."""
         cumulative = np.concatenate((
             np.zeros(1, dtype=np.int64),
             np.cumsum(np.where(keep, self.hc, 0), dtype=np.int64)))

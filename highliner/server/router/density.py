@@ -43,9 +43,12 @@ def _features(path: Path, zoom: int, view: LonLatBox,
     if not path.exists():
         return []
     cells = density_store.density_cells(path)
-    indices, counts = cells.select(zoom, view, density_filter)
+    indices, counts, length_mins, length_maxes = cells.select_with_bounds(
+        zoom, view, density_filter)
     features: list[dict[str, Any]] = []
-    for index, count in zip(indices.tolist(), counts.tolist(), strict=True):
+    for index, count, length_min, length_max in zip(
+            indices.tolist(), counts.tolist(), length_mins.tolist(),
+            length_maxes.tolist(), strict=True):
         west, south, east, north = tiles.tile_bounds_lonlat(
             zoom, int(cells.cx[index]), int(cells.cy[index]))
         ring = [[west, south], [east, south], [east, north], [west, north],
@@ -56,8 +59,8 @@ def _features(path: Path, zoom: int, view: LonLatBox,
             "properties": {
                 "n_pairs": int(count),
                 "max_exposure": float(cells.max_exp[index]),
-                "length_min": float(cells.min_len[index]),
-                "length_max": float(cells.max_len[index]),
+                "length_min": length_min,
+                "length_max": length_max,
             },
         })
     return features

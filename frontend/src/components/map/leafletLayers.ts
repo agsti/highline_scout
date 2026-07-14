@@ -32,7 +32,10 @@ export function createZoneLayer(t: T): L.GeoJSON {
   });
 }
 
-export function createDensityLayer(t: T, sortedCounts: () => number[]): L.GeoJSON {
+export function createDensityLayer(
+  t: T,
+  sortedCounts: () => number[],
+): L.GeoJSON {
   return L.geoJSON(undefined, {
     style: (feature) => {
       const density = feature as DensityFeature;

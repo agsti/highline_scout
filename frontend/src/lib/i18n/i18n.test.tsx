@@ -27,7 +27,7 @@ describe("catalog parity", () => {
       "Zones to scout — not confirmed-riggable. No bolts, trees, loose rock, access or permissions are verified.",
     );
     expect(STRINGS.en.mapLoading).toBe("Map loading");
-    expect(STRINGS.en.densityTooltip).toBe("{n} candidate lines · up to {max} m{lenHint}");
+    expect(STRINGS.en.densityTooltip).toBe("up to {max}m  high {lenHint}");
   });
 
   it("discloses cookieless analytics in every language", () => {

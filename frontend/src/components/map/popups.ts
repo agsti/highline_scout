@@ -16,6 +16,9 @@ export function densityTooltipHtml(p: DensityProperties, t: T): string {
   const lenHint =
     p.length_min == null || p.length_max == null
       ? ""
-      : t("densityLenHint", { min: Math.round(p.length_min), max: Math.round(p.length_max) });
-  return t("densityTooltip", { n: p.n_pairs, max: Math.round(p.max_exposure), lenHint });
+      : t("densityLenHint", {
+          min: Math.round(p.length_min),
+          max: Math.round(p.length_max),
+        });
+  return t("densityTooltip", { max: Math.round(p.max_exposure), lenHint });
 }

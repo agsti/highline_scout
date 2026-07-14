@@ -191,6 +191,22 @@ def test_regions_exposes_country_and_filters(tmp_path: Path) -> None:
     assert [(r["name"], r["country"]) for r in fr] == [("two", "france")]
 
 
+def test_countries_lists_precomputed_country_coverage(tmp_path: Path) -> None:
+    cx1, cy1, a1, b1, c1 = _facing_pair(1.83, 41.59)
+    _write_region(tmp_path, "one", (cx1 - 200, cy1 - 200, cx1 + 200, cy1 + 200),
+                  [a1, b1], [c1])
+    cx2, cy2, a2, b2, c2 = _facing_pair(1.95, 41.60)
+    _write_region(tmp_path, "two", (cx2 - 200, cy2 - 200, cx2 + 200, cy2 + 200),
+                  [a2, b2], [c2], country="france")
+    client = TestClient(create_app(data_dir=tmp_path))
+
+    countries = client.get("/countries").json()["countries"]
+
+    assert [country["id"] for country in countries] == ["france", "spain"]
+    assert all(len(country["bounds_lonlat"]) == 4 for country in countries)
+    assert all(len(country["center_lonlat"]) == 2 for country in countries)
+
+
 def test_zones_viewport_scoped_to_country(tmp_path: Path) -> None:
     # Two regions inside one viewport but in different country partitions; a
     # region-less /zones request only serves the requested country's regions.

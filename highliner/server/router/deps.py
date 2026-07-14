@@ -26,6 +26,13 @@ class RegionEntry:
     lonlat_bounds: LonLatBox
 
 
+@dataclass(frozen=True)
+class CountryEntry:
+    id: str
+    bounds_lonlat: LonLatBox
+    center_lonlat: tuple[float, float]
+
+
 def region_lonlat_bounds(grid: chunked_store.Grid) -> LonLatBox:
     """WGS84 (w, s, e, n) extent of a region's projected grid bbox."""
     minx, miny, maxx, maxy = grid.bbox
@@ -59,6 +66,32 @@ def get_region_index(request: Request) -> list[RegionEntry]:
     if cached is None:
         cached = build_region_index(request.app.state.data_dir)
         request.app.state.region_index = cached
+    return cached
+
+
+def countries_from_index(index: list[RegionEntry]) -> list[CountryEntry]:
+    """Country coverage extents derived from the indexed precomputed regions."""
+    grouped: dict[str, list[LonLatBox]] = {}
+    for entry in index:
+        grouped.setdefault(entry.country, []).append(entry.lonlat_bounds)
+    countries: list[CountryEntry] = []
+    for country, bounds in grouped.items():
+        west = min(box[0] for box in bounds)
+        south = min(box[1] for box in bounds)
+        east = max(box[2] for box in bounds)
+        north = max(box[3] for box in bounds)
+        countries.append(CountryEntry(
+            country, (west, south, east, north),
+            ((west + east) / 2, (south + north) / 2)))
+    return sorted(countries, key=lambda entry: entry.id)
+
+
+def get_country_index(request: Request) -> list[CountryEntry]:
+    """Lazily cache country coverage alongside the static region index."""
+    cached = getattr(request.app.state, "country_index", None)
+    if cached is None:
+        cached = countries_from_index(get_region_index(request))
+        request.app.state.country_index = cached
     return cached
 
 

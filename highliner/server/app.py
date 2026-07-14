@@ -19,6 +19,7 @@ from highliner.core.telemetry import (
 )
 from highliner.server.router import (
     anchors,
+    countries,
     density,
     feedback,
     regions,
@@ -178,13 +179,14 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
     # App-wide state the routers read via highliner.server.router.deps.
     app.state.data_dir = data_dir
 
-    for module in (regions, zones, anchors, density, restrictions, feedback):
+    for module in (countries, regions, zones, anchors, density, restrictions, feedback):
         app.include_router(module.router)
 
     # For SEO: make crawler rules and the sitemap discoverable at standard paths.
     def robots() -> PlainTextResponse:
         return PlainTextResponse(
             "User-agent: *\n"
+            "Disallow: /countries\n"
             "Disallow: /regions\n"
             "Disallow: /zones\n"
             "Disallow: /density\n"

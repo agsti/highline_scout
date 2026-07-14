@@ -2,10 +2,13 @@ import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { BrandPill } from "./BrandPill";
 import { NavMenu } from "./NavMenu";
-import type { RestrictionAreaMode } from "@/types/highliner";
+import type { CountryEntry, RestrictionAreaMode } from "@/types/highliner";
 
 interface FloatingNavProps {
   onAbout: () => void;
+  countries?: CountryEntry[];
+  country?: string;
+  onCountryChange?: (country: string) => void;
   onFeedback?: () => void;
   restrictionAreaMode?: RestrictionAreaMode;
   onRestrictionAreaModeChange?: (mode: RestrictionAreaMode) => void;
@@ -13,6 +16,7 @@ interface FloatingNavProps {
 
 export function FloatingNav({
   onAbout, onFeedback = () => {},
+  countries = [], country = "spain", onCountryChange = () => {},
   restrictionAreaMode = "informative",
   onRestrictionAreaModeChange = () => {},
 }: FloatingNavProps) {
@@ -36,6 +40,9 @@ export function FloatingNav({
           open={menuOpen}
           onOpenChange={setMenuOpen}
           onAbout={onAbout}
+          countries={countries}
+          country={country}
+          onCountryChange={onCountryChange}
           onFeedback={onFeedback}
           restrictionAreaMode={restrictionAreaMode}
           onRestrictionAreaModeChange={onRestrictionAreaModeChange}

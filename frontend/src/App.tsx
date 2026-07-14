@@ -196,6 +196,9 @@ export function App() {
             sheetOpen={sheetOpen}
             onSheetOpenChange={setSheetOpen}
             onAbout={() => setAboutOpen(true)}
+            countries={countries}
+            country={country}
+            onCountryChange={handleCountryChange}
             onFeedback={() => setFeedbackOpen(true)}
             restrictionAreaMode={restrictionAreaMode}
             onRestrictionAreaModeChange={handleRestrictionAreaModeChange}
@@ -205,12 +208,6 @@ export function App() {
           />
         }
       />
-      <label className="absolute right-20 top-5 z-[1001] rounded bg-card p-1 text-xs shadow">
-        {t("country")}
-        <select aria-label={t("country")} className="ml-1" value={country} onChange={(event) => handleCountryChange(event.target.value)}>
-          {countries.map((entry) => <option key={entry.id} value={entry.id}>{entry.id}</option>)}
-        </select>
-      </label>
       <AboutDialog open={aboutOpen} onOpenChange={setAboutOpen} />
       <FeedbackDialog open={feedbackOpen} onOpenChange={setFeedbackOpen} />
       <SafetyDisclaimerDialog open={disclaimerOpen} onAccept={() => setDisclaimerOpen(false)} />

@@ -10,13 +10,16 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useI18n } from "@/lib/i18n";
-import type { RestrictionAreaMode } from "@/types/highliner";
+import type { CountryEntry, RestrictionAreaMode } from "@/types/highliner";
 import { LanguageSwitcher } from "./LanguageSwitcher";
 
 interface NavMenuProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onAbout: () => void;
+  countries?: CountryEntry[];
+  country?: string;
+  onCountryChange?: (country: string) => void;
   onFeedback?: () => void;
   restrictionAreaMode: RestrictionAreaMode;
   onRestrictionAreaModeChange: (mode: RestrictionAreaMode) => void;
@@ -53,6 +56,7 @@ export function NavMenu({
   open,
   onOpenChange,
   onAbout, onFeedback = () => {},
+  countries = [], country = "spain", onCountryChange = () => {},
   restrictionAreaMode,
   onRestrictionAreaModeChange,
 }: NavMenuProps) {
@@ -94,6 +98,13 @@ export function NavMenu({
         </PopoverTrigger>
 
         <PopoverContent className="w-[248px] p-0" aria-label={t("menu")}>
+          <div className="px-3.5 py-2.5">
+            <label htmlFor="country" className="text-[11px] font-[650] uppercase tracking-[0.04em] text-muted-foreground">{t("country")}</label>
+            <Select value={country} onValueChange={onCountryChange} disabled={countries.length === 0}>
+              <SelectTrigger id="country" aria-label={t("country")} className="mt-1.5 h-8"><SelectValue /></SelectTrigger>
+              <SelectContent>{countries.map((entry) => <SelectItem key={entry.id} value={entry.id}>{entry.id}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
           <div className="px-3.5 py-2.5">
             <label
               htmlFor="restriction-area-mode"

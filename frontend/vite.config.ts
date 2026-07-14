@@ -12,6 +12,7 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
+      "/countries": "http://127.0.0.1:8000",
       "/regions": "http://127.0.0.1:8000",
       "/zones": "http://127.0.0.1:8000",
       "/density": "http://127.0.0.1:8000",

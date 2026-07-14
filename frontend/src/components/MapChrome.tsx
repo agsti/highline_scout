@@ -8,6 +8,7 @@ import { LineChanceMeter } from "./LineChanceMeter";
 import { MobileControlSheet } from "./MobileControlSheet";
 import { ZoomHintToast } from "./ZoomHintToast";
 import type { RestrictionAreaMode } from "@/types/highliner";
+import type { CountryEntry } from "@/types/highliner";
 
 interface MapChromeProps {
   summary: string;
@@ -21,6 +22,9 @@ interface MapChromeProps {
   sheetOpen: boolean;
   onSheetOpenChange: (open: boolean) => void;
   onAbout: () => void;
+  countries?: CountryEntry[];
+  country?: string;
+  onCountryChange?: (country: string) => void;
   onFeedback: () => void;
   restrictionAreaMode: RestrictionAreaMode;
   onRestrictionAreaModeChange: (mode: RestrictionAreaMode) => void;
@@ -32,6 +36,9 @@ export function MapChrome(props: MapChromeProps) {
     <>
       <FloatingNav
         onAbout={props.onAbout}
+        countries={props.countries ?? []}
+        country={props.country ?? "spain"}
+        onCountryChange={props.onCountryChange ?? (() => {})}
         onFeedback={props.onFeedback}
         restrictionAreaMode={props.restrictionAreaMode}
         onRestrictionAreaModeChange={props.onRestrictionAreaModeChange}

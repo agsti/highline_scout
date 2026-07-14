@@ -19,12 +19,15 @@ from highliner.core.telemetry import (
 )
 from highliner.server.router import anchors, density, regions, restrictions, zones
 
+# For SEO: the one public origin used in crawler-visible URLs and metadata.
 _CANONICAL_ORIGIN = "https://highlinescout.com"
+# For SEO: these are the only localized public pages we expose to crawlers.
 _METHODOLOGY_PATHS = (
     "/en/how-it-works",
     "/ca/how-it-works",
     "/es/how-it-works",
 )
+# For SEO: social crawlers require an absolute, production-hosted preview URL.
 _SOCIAL_CARD = "https://highlinescout.com/social-card.png"
 _SOCIAL_CARD_ALT = "Highline Scout logo on a forest-green background"
 _HEAD_TAG_PATTERN = re.compile(
@@ -55,6 +58,7 @@ def _frontend_dir() -> Path:
     return Path(__file__).resolve().parent.parent.parent / "frontend" / "dist"
 
 
+# For SEO: advertise only stable, public URLs; map API and filter URLs stay out.
 def _sitemap() -> str:
     urls = (f"{_CANONICAL_ORIGIN}/", *(f"{_CANONICAL_ORIGIN}{path}"
                                          for path in _METHODOLOGY_PATHS))
@@ -64,6 +68,7 @@ def _sitemap() -> str:
             f"{entries}</urlset>")
 
 
+# For SEO: render route-specific metadata before JavaScript runs for crawlers.
 def _methodology_metadata(path: str) -> tuple[str, str]:
     lang, title, description = _METHODOLOGY_METADATA[path]
     canonical = f"{_CANONICAL_ORIGIN}{path}"
@@ -118,6 +123,7 @@ def _is_seo_tag(tag: str) -> bool:
                 and "application/ld+json" in lower_tag)
 
 
+# For SEO: replace old SEO tags while preserving Vite's CSS and module scripts.
 def _remove_seo_tags(head_content: str) -> str:
     return _HEAD_TAG_PATTERN.sub(
         lambda match: "" if _is_seo_tag(match.group()) else match.group(),
@@ -125,6 +131,7 @@ def _remove_seo_tags(head_content: str) -> str:
     )
 
 
+# For SEO: inject localized metadata into the served shell without replacing assets.
 def _methodology_html(index_html: Path, path: str) -> str:
     lang, metadata = _methodology_metadata(path)
     document = index_html.read_text()
@@ -167,6 +174,7 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
     for module in (regions, zones, anchors, density, restrictions):
         app.include_router(module.router)
 
+    # For SEO: make crawler rules and the sitemap discoverable at standard paths.
     def robots() -> PlainTextResponse:
         return PlainTextResponse(
             "User-agent: *\n"
@@ -181,12 +189,14 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
     def sitemap() -> Response:
         return Response(content=_sitemap(), media_type="application/xml")
 
+    # For SEO: serve a crawler-complete document for each explicit public route.
     def methodology_shell(path: str) -> HTMLResponse:
         index_html = _frontend_dir() / "index.html"
         if not index_html.is_file():
             raise HTTPException(status_code=404)
         return HTMLResponse(_methodology_html(index_html, path))
 
+    # For SEO: close over each path so a query string cannot alter its canonical metadata.
     def methodology_endpoint(path: str) -> Callable[[], HTMLResponse]:
         def endpoint() -> HTMLResponse:
             return methodology_shell(path)

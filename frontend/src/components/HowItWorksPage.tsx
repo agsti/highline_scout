@@ -5,6 +5,7 @@ const STAGE_KEYS = ["howItWorksStageFind", "howItWorksStageFilter", "howItWorksS
 export function HowItWorksPage() {
   const { t } = useI18n();
 
+  // For SEO: semantic, localized copy gives the map-first product crawlable context.
   return (
     <main className="mx-auto max-w-3xl space-y-8 px-6 py-12 text-foreground">
       <header className="space-y-3">

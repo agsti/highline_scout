@@ -1,7 +1,9 @@
 import type { Lang } from "./i18n";
 
+// For SEO: use one canonical production origin in all browser-side metadata.
 const ORIGIN = "https://highlinescout.com";
 
+// For SEO: keep the social-card URL, dimensions, and alt text in one shared definition.
 export const SOCIAL_CARD = {
   url: `${ORIGIN}/social-card.png`,
   width: "1200",
@@ -17,6 +19,7 @@ export interface SeoPage {
   alternates: Record<Lang | "x-default", string>;
 }
 
+// For SEO: stable locale URLs let crawlers associate alternate language pages.
 const METHODOLOGY_PATHS: Record<Lang, string> = {
   ca: "/ca/how-it-works",
   es: "/es/how-it-works",
@@ -51,6 +54,7 @@ function methodologyPage(lang: Lang): SeoPage {
   };
 }
 
+// For SEO: keep React's metadata aligned with server-rendered crawler metadata.
 export function seoForPath(pathname: string): SeoPage {
   const lang = (Object.entries(METHODOLOGY_PATHS) as [Lang, string][]).find(
     ([, path]) => path === pathname,

@@ -10,6 +10,7 @@ import { seoForPath } from "./lib/seo";
 
 void initAnalytics();
 
+// For SEO: these public routes receive localized, indexable methodology content.
 const METHODOLOGY_PATHS = new Set(["/ca/how-it-works", "/es/how-it-works", "/en/how-it-works"]);
 
 function normalizePathname(pathname: string) {

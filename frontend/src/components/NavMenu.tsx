@@ -134,6 +134,7 @@ export function NavMenu({
           </div>
 
           <div className="border-t border-hairline p-1.5">
+            {/* For SEO: use a real link so the methodology page remains discoverable. */}
             <a
               href={HOW_IT_WORKS_PATHS[lang]}
               className="flex min-h-[44px] w-full items-center gap-2.5 rounded-[10px] px-2.5 py-[11px] text-left text-[13px] font-semibold text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"

@@ -5,6 +5,7 @@ interface SeoHeadProps {
   page: SeoPage;
 }
 
+// For SEO: adopt legacy tags and remove duplicates as routes change in the SPA.
 function upsertHeadNode<K extends keyof HTMLElementTagNameMap>(
   tagName: K,
   key: string,
@@ -39,6 +40,7 @@ function upsertHeadNode<K extends keyof HTMLElementTagNameMap>(
   }
 }
 
+// For SEO: maintain the hydrated document head after the server-rendered fallback.
 export function SeoHead({ page }: SeoHeadProps) {
   useEffect(() => {
     const canonical = new URL(page.canonical).toString();

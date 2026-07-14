@@ -75,6 +75,8 @@ ignore_names = [
     "dispatch",         # Starlette's BaseHTTPMiddleware entry point
     "api_key",          # set on the posthog module, read by its setup()
     "cls",              # bound by @classmethod; validators don't touch it
+    # Scalar reference implementations for the vectorized density-store masks.
+    "bucket_overlaps", "is_excluded",
     # LayerSpec TypedDict keys: declared for typing, read as dict subscripts.
     "label", "color", "name_field", "tooltip", "highlight",
 ]

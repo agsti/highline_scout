@@ -22,11 +22,12 @@ its midpoint. Its histogram key has three components:
 2. a 10 m exposure bucket;
 3. a three-bit restriction mask.
 
-Buckets are indexed by `floor(value / 10)`. Requests use half-open intervals:
-`min <= value < max`. A candidate exactly on a 10 m boundary therefore has one
-unambiguous bucket. The API’s existing slider bounds will be interpreted by
-checking their real bucket ranges; the final configured upper bound remains
-inclusive so a maximum-valued candidate is not discarded.
+Buckets are indexed by `floor(value / 10)`. Slider bounds are snapped upward to
+the next bucket boundary before a request is evaluated: a 12–98 m length range
+uses the 20–100 m buckets, and a 12 m minimum exposure uses the 20 m-and-up
+buckets. This deliberately coarse rule keeps the 1 m sliders deterministic
+without making a proportional estimate from histogram counts. A candidate
+exactly on a 10 m boundary belongs to the higher bucket.
 
 Restriction-mask bits are assigned in the stable `LAYERS` registry order:
 `zepa=1`, `zec=2`, and `enp=4`. For each layer, a bit is set when either UTM

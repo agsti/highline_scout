@@ -465,3 +465,25 @@ Expected: PASS, including byte-equivalent serial and two-worker JSON output.
 git add highliner/etl/density/builder.py highliner/etl/density/main.py tests/test_density.py tests/test_cli.py
 git commit -m "perf: parallelize density precompute"
 ~~~
+
+### Task 8: Subset restriction layers per pair partition
+
+**Files:**
+- Modify: highliner/etl/density/restrictions.py
+- Modify: highliner/etl/density/builder.py
+- Modify: tests/test_density_restrictions.py
+
+- [ ] **Step 1: Write a failing test that a partition envelope retains only
+overlapping polygons while preserving an anchor-boundary match.**
+
+- [ ] **Step 2: Run the focused test and verify it fails because there is no
+partition-subsetting helper.**
+
+- [ ] **Step 3: Add a helper that calculates the candidate-anchor envelope and
+uses GeoPandas bounds indexing to subset each transformed layer; call it once
+per pair file before candidate masks are calculated.**
+
+- [ ] **Step 4: Run density restriction and builder tests; verify masks and
+density output remain unchanged.**
+
+- [ ] **Step 5: Commit with message perf: clip restrictions per density partition.**

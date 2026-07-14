@@ -1,7 +1,11 @@
 from pathlib import Path
 
 import geopandas as gpd
-from highliner.etl.density.restrictions import candidate_mask, load_layers
+from highliner.etl.density.restrictions import (
+    candidate_mask,
+    layers_for_candidates,
+    load_layers,
+)
 from highliner.models.anchor import Anchor
 from highliner.models.candidate import Candidate
 from shapely.geometry import box
@@ -35,3 +39,17 @@ def test_boundary_and_multilayer_overlap_are_included(tmp_path: Path) -> None:
 def test_missing_layer_files_produce_no_mask(tmp_path: Path) -> None:
     layers = load_layers(tmp_path, "EPSG:25831")
     assert candidate_mask(_candidate(1, 1, 2, 2), layers) == 0
+
+
+def test_partition_subset_keeps_only_anchor_envelope_polygons() -> None:
+    frame = gpd.GeoDataFrame(
+        {"name": ["near", "far"]},
+        geometry=[box(0, 0, 10, 10), box(100, 100, 110, 110)],
+        crs="EPSG:25831",
+    )
+    candidate = _candidate(10, 5, 30, 30)
+
+    layers = layers_for_candidates([candidate], {"zepa": frame})
+
+    assert len(layers["zepa"]) == 1
+    assert candidate_mask(candidate, layers) == 1

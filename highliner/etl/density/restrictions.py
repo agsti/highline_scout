@@ -26,6 +26,18 @@ def _covers(frame: gpd.GeoDataFrame, point: Point) -> bool:
     return bool(frame.iloc[indices].geometry.covers(point).any())
 
 
+def layers_for_candidates(
+        candidates: list[Candidate],
+        layers: Mapping[str, gpd.GeoDataFrame]) -> dict[str, gpd.GeoDataFrame]:
+    """Subset layers to the envelope containing every candidate anchor."""
+    if not candidates:
+        return {layer_id: frame.iloc[0:0] for layer_id, frame in layers.items()}
+    xs = [anchor.x for candidate in candidates for anchor in (candidate.a, candidate.b)]
+    ys = [anchor.y for candidate in candidates for anchor in (candidate.a, candidate.b)]
+    return {layer_id: frame.cx[min(xs):max(xs), min(ys):max(ys)]
+            for layer_id, frame in layers.items()}
+
+
 def candidate_mask(candidate: Candidate,
                    layers: Mapping[str, gpd.GeoDataFrame]) -> int:
     """Return the mask of layers that cover either candidate anchor."""

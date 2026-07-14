@@ -10,7 +10,11 @@ from highliner.core import config, geo, tiles
 from highliner.core.density import bucket_for
 from highliner.core.regions import defaults_for_region
 from highliner.etl.density.candidates import load_candidates
-from highliner.etl.density.restrictions import candidate_mask, load_layers
+from highliner.etl.density.restrictions import (
+    candidate_mask,
+    layers_for_candidates,
+    load_layers,
+)
 from highliner.models.candidate import Candidate
 from highliner.server.repositories import chunked_store
 
@@ -49,9 +53,11 @@ def _build_partial(pair_files: list[Path], zooms: tuple[int, ...], crs: str,
     cells: dict[CellKey, CellSummary] = {}
     histograms: Histogram = {}
     for path in pair_files:
-        for candidate in load_candidates(path):
+        candidates = load_candidates(path)
+        clipped_layers = layers_for_candidates(candidates, layers)
+        for candidate in candidates:
             lon, lat = _midpoint_lonlat(candidate, crs)
-            mask = candidate_mask(candidate, layers)
+            mask = candidate_mask(candidate, clipped_layers)
             for zoom in zooms:
                 tx, ty = tiles.lonlat_to_tile(lon, lat, zoom)
                 key = (zoom, tx, ty)

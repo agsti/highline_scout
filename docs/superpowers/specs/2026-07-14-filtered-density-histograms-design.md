@@ -100,6 +100,15 @@ linear in histogram rows rather than quadratic in cells times rows. Worker
 counts stay explicit because every process holds transformed country restriction
 geometries in memory.
 
+## Per-partition restriction clipping
+
+Before classifying a pair partition, the density builder derives an envelope
+from all of that partition's anchor coordinates and subsets every transformed
+country restriction layer to geometries whose bounds overlap that envelope.
+The subset is an index/extent reduction, not a geometric clip: every original
+polygon that can cover an anchor remains intact. Classification still tests
+whether either anchor is covered, so the restriction-mask output is unchanged.
+
 ## Tests
 
 Backend tests will prove 10 m length/exposure bucket aggregation and exact

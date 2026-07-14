@@ -187,11 +187,11 @@ describe("App", () => {
   });
 
   it("restores a saved restriction-area mode", async () => {
-    window.localStorage.setItem("restrictionAreaMode", "exclude-inside");
+    window.localStorage.setItem("restrictionAreaMode", "exclude");
     renderApp();
 
     await act(async () => {});
-    expect(screen.getByTestId("restriction-area-mode")).toHaveTextContent("exclude-inside");
+    expect(screen.getByTestId("restriction-area-mode")).toHaveTextContent("exclude");
   });
 
   it("falls back to informative mode for an invalid saved restriction-area mode", async () => {
@@ -209,9 +209,9 @@ describe("App", () => {
 
     await user.click(screen.getByRole("button", { name: "Menu" }));
     await user.click(screen.getByRole("combobox", { name: "Restriction areas" }));
-    await user.click(screen.getByRole("option", { name: "Exclude overlaps" }));
+    await user.click(screen.getByRole("option", { name: "Exclude" }));
 
-    expect(screen.getByTestId("restriction-area-mode")).toHaveTextContent("exclude-overlaps");
-    expect(window.localStorage.getItem("restrictionAreaMode")).toBe("exclude-overlaps");
+    expect(screen.getByTestId("restriction-area-mode")).toHaveTextContent("exclude");
+    expect(window.localStorage.getItem("restrictionAreaMode")).toBe("exclude");
   });
 });

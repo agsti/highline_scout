@@ -143,7 +143,7 @@ describe("useAnchorLayer", () => {
       <I18nProvider>
         <AnchorHarness
           showAnchors
-          restrictionAreaMode="exclude-overlaps"
+          restrictionAreaMode="exclude"
           restrictionFeatures={restriction}
         />
       </I18nProvider>,
@@ -157,7 +157,7 @@ describe("useAnchorLayer", () => {
 
   it("keeps anchors visible when exclusion has no restrictions", async () => {
     mocks.fetchAnchors.mockResolvedValue(anchors);
-    renderHarness(true, { restrictionAreaMode: "exclude-inside" });
+    renderHarness(true, { restrictionAreaMode: "exclude" });
 
     await waitFor(() => expect(mocks.renderAnchors).toHaveBeenLastCalledWith(
       mocks.anchorLayer,
@@ -174,7 +174,7 @@ describe("useAnchorLayer", () => {
       <I18nProvider>
         <AnchorHarness
           showAnchors
-          restrictionAreaMode="exclude-inside"
+          restrictionAreaMode="exclude"
           restrictionFeatures={restriction}
         />
       </I18nProvider>,

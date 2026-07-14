@@ -19,9 +19,7 @@ const DEFAULT_LENGTH_RANGE: LengthRange = [20, 150];
 const DEFAULT_MIN_EXPOSURE = 30;
 
 function isRestrictionAreaMode(value: string | null): value is RestrictionAreaMode {
-  return (
-    value === "informative" || value === "exclude-overlaps" || value === "exclude-inside"
-  );
+  return value === "informative" || value === "exclude";
 }
 
 function pickInitialRestrictionAreaMode(): RestrictionAreaMode {

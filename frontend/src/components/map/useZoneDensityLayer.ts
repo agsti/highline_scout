@@ -98,7 +98,6 @@ export function useZoneDensityLayer(options: {
       : filterZonesByRestrictions(
           collection,
           restrictionFeaturesRef.current,
-          restrictionAreaModeRef.current,
         )
     layer.clearLayers();
     layer.addData(visible);

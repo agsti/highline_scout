@@ -115,12 +115,7 @@ export function NavMenu({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="informative">{t("restrictionAreasInformative")}</SelectItem>
-                <SelectItem value="exclude-overlaps">
-                  {t("restrictionAreasExcludeOverlaps")}
-                </SelectItem>
-                <SelectItem value="exclude-inside">
-                  {t("restrictionAreasExcludeInside")}
-                </SelectItem>
+                <SelectItem value="exclude">{t("restrictionAreasExclude")}</SelectItem>
               </SelectContent>
             </Select>
           </div>

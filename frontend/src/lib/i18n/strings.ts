@@ -12,8 +12,7 @@ export const STRINGS = {
     restrictions: "Restriccions",
     restrictionAreas: "Àrees restringides",
     restrictionAreasInformative: "Informatiu",
-    restrictionAreasExcludeOverlaps: "Exclou solapaments",
-    restrictionAreasExcludeInside: "Exclou zones interiors",
+    restrictionAreasExclude: "Exclou",
     restrictionInfo: "Sobre {name}",
     restrictionCredit: "Dades d'espais protegits © MITECO",
     caveat:
@@ -101,8 +100,7 @@ export const STRINGS = {
     restrictions: "Restricciones",
     restrictionAreas: "Áreas restringidas",
     restrictionAreasInformative: "Informativo",
-    restrictionAreasExcludeOverlaps: "Excluir solapamientos",
-    restrictionAreasExcludeInside: "Excluir zonas interiores",
+    restrictionAreasExclude: "Excluir",
     restrictionInfo: "Sobre {name}",
     restrictionCredit: "Datos de espacios protegidos © MITECO",
     caveat:
@@ -190,8 +188,7 @@ export const STRINGS = {
     restrictions: "Restrictions",
     restrictionAreas: "Restriction areas",
     restrictionAreasInformative: "Informative",
-    restrictionAreasExcludeOverlaps: "Exclude overlaps",
-    restrictionAreasExcludeInside: "Exclude inside",
+    restrictionAreasExclude: "Exclude",
     restrictionInfo: "About {name}",
     restrictionCredit: "Protected-area data © MITECO",
     caveat:

@@ -185,7 +185,7 @@ describe("useZoneDensityLayer", () => {
 
     view.rerender(
       <I18nProvider>
-        <Harness restrictionAreaMode="exclude-overlaps" restrictionFeatures={overlappingRestriction} />
+        <Harness restrictionAreaMode="exclude" restrictionFeatures={overlappingRestriction} />
       </I18nProvider>,
     );
 
@@ -199,26 +199,12 @@ describe("useZoneDensityLayer", () => {
 
     view.rerender(
       <I18nProvider>
-        <Harness restrictionAreaMode="exclude-overlaps" restrictionFeatures={overlappingRestriction} />
+        <Harness restrictionAreaMode="exclude" restrictionFeatures={overlappingRestriction} />
       </I18nProvider>,
     );
     await act(async () => response.resolve(featureCollection([zoneA, zoneB])));
 
     await waitFor(() => expect(mocks.zoneLayer.addData).toHaveBeenLastCalledWith(featureCollection([zoneB])));
-  });
-
-  it("keeps partly overlapping zones in exclude-inside mode", async () => {
-    mocks.fetchZones.mockResolvedValue(featureCollection([zoneA, zoneB]));
-    const view = renderHarness();
-    await waitFor(() => expect(mocks.zoneLayer.addData).toHaveBeenLastCalledWith(featureCollection([zoneA, zoneB])));
-
-    view.rerender(
-      <I18nProvider>
-        <Harness restrictionAreaMode="exclude-inside" restrictionFeatures={partlyOverlappingRestriction} />
-      </I18nProvider>,
-    );
-
-    await waitFor(() => expect(mocks.zoneLayer.addData).toHaveBeenLastCalledWith(featureCollection([zoneA, zoneB])));
   });
 
   it("keeps density data unfiltered when restrictions are excluded", async () => {
@@ -237,7 +223,7 @@ describe("useZoneDensityLayer", () => {
 
     view.rerender(
       <I18nProvider>
-        <Harness restrictionAreaMode="exclude-overlaps" restrictionFeatures={overlappingRestriction} />
+        <Harness restrictionAreaMode="exclude" restrictionFeatures={overlappingRestriction} />
       </I18nProvider>,
     );
 

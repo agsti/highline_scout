@@ -78,20 +78,6 @@ function ringsIntersect(first: Position[], second: Position[]): boolean {
   });
 }
 
-function ringsCross(first: Position[], second: Position[]): boolean {
-  return first.some((firstPoint, index) => {
-    const nextFirstPoint = first[(index + 1) % first.length];
-    return second.some((secondPoint, secondIndex) =>
-      segmentsCross(
-        firstPoint,
-        nextFirstPoint,
-        secondPoint,
-        second[(secondIndex + 1) % second.length],
-      ),
-    );
-  });
-}
-
 function segmentsIntersect(a: Position, b: Position, c: Position, d: Position): boolean {
   const first = orientation(a, b, c);
   const second = orientation(a, b, d);
@@ -107,18 +93,6 @@ function segmentsIntersect(a: Position, b: Position, c: Position, d: Position): 
     (Math.abs(second) <= EPSILON && pointOnSegment(d, a, b)) ||
     (Math.abs(third) <= EPSILON && pointOnSegment(a, c, d)) ||
     (Math.abs(fourth) <= EPSILON && pointOnSegment(b, c, d))
-  );
-}
-
-function segmentsCross(a: Position, b: Position, c: Position, d: Position): boolean {
-  const first = orientation(a, b, c);
-  const second = orientation(a, b, d);
-  const third = orientation(c, d, a);
-  const fourth = orientation(c, d, b);
-
-  return (
-    ((first > EPSILON && second < -EPSILON) || (first < -EPSILON && second > EPSILON)) &&
-    ((third > EPSILON && fourth < -EPSILON) || (third < -EPSILON && fourth > EPSILON))
   );
 }
 
@@ -156,7 +130,6 @@ export function filterAnchorsByRestrictions(
 export function filterZonesByRestrictions(
   zones: ZoneFeatureCollection,
   restrictions: RestrictionFeatureCollection,
-  mode: ExcludeRestrictionAreaMode,
 ): ZoneFeatureCollection {
   return {
     ...zones,
@@ -164,23 +137,9 @@ export function filterZonesByRestrictions(
       (zone) =>
         !restrictions.features.some((restriction) =>
           restrictionPolygons(restriction.geometry).some((polygon) =>
-            mode === "exclude-overlaps"
-              ? polygonsOverlap(zone.geometry, polygon)
-              : polygonIsInside(zone.geometry, polygon),
+            polygonsOverlap(zone.geometry, polygon),
           ),
         ),
     ),
   };
-}
-
-type ExcludeRestrictionAreaMode = Exclude<RestrictionAreaMode, "informative">;
-
-function polygonIsInside(zone: PolygonGeometry, restriction: PolygonGeometry): boolean {
-  const [zoneExterior] = zone.coordinates;
-  const [, ...restrictionHoles] = restriction.coordinates;
-  return (
-    zoneExterior.every((point) => pointInPolygon(point, restriction)) &&
-    !restriction.coordinates.some((ring) => ringsCross(zoneExterior, ring)) &&
-    !restrictionHoles.some((hole) => pointInPolygon(hole[0], zone))
-  );
 }

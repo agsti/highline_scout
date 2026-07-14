@@ -61,7 +61,4 @@ export type RestrictionFeature = Feature<
 >;
 export type RestrictionFeatureCollection = FeatureCollection<RestrictionFeature>;
 
-export type RestrictionAreaMode =
-  | "informative"
-  | "exclude-overlaps"
-  | "exclude-inside";
+export type RestrictionAreaMode = "informative" | "exclude";

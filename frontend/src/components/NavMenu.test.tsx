@@ -144,7 +144,7 @@ describe("NavMenu", () => {
     expect(screen.getByRole("button", { name: "Acerca de Highline Scout" })).toBeInTheDocument();
   });
 
-  it("changes the restriction-area mode between all three choices", async () => {
+  it("changes the restriction-area mode between both choices", async () => {
     const user = userEvent.setup();
     renderMenu();
 
@@ -156,17 +156,10 @@ describe("NavMenu", () => {
     );
 
     await user.click(screen.getByRole("combobox", { name: "Restriction areas" }));
-    await user.click(screen.getByRole("option", { name: "Exclude overlaps" }));
+    await user.click(screen.getByRole("option", { name: "Exclude" }));
 
     expect(screen.getByRole("combobox", { name: "Restriction areas" })).toHaveTextContent(
-      "Exclude overlaps",
-    );
-
-    await user.click(screen.getByRole("combobox", { name: "Restriction areas" }));
-    await user.click(screen.getByRole("option", { name: "Exclude inside" }));
-
-    expect(screen.getByRole("combobox", { name: "Restriction areas" })).toHaveTextContent(
-      "Exclude inside",
+      "Exclude",
     );
   });
 });

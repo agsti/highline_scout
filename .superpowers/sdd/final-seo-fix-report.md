@@ -58,3 +58,10 @@ alternates, and no social/schema metadata.
   `node` nor `npm` is installed or available on `PATH`. The static root contract
   is covered by the Python test above; frontend source changes are limited to
   static metadata and an exact existing title constant.
+
+## Frontend verification (follow-up)
+
+With `PATH=/home/gus/.nvm/versions/node/v20.20.2/bin:$PATH`:
+
+- `npm test -- --run src/main.test.tsx` — passed: 1 test file and 3 tests.
+- `npm run build` — passed: `tsc -b && vite build` completed successfully.

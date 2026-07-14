@@ -12,6 +12,7 @@ vi.mock("./lib/analytics", () => ({
 }));
 
 vi.mock("./lib/api", () => ({
+  fetchCountries: vi.fn().mockResolvedValue([]),
   fetchRestrictionLayers: vi.fn().mockResolvedValue([
     { id: "zepa", label: "ZEPA (Aves)", tooltip: "tooltip", highlight: "highlight", color: "#e31a1c" },
   ]),

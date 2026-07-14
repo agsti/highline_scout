@@ -17,6 +17,7 @@ type T = ReturnType<typeof useI18n>["t"];
 export function useAnchorLayer(options: {
   mapRef: React.MutableRefObject<L.Map | null>;
   viewportRevision: number;
+  country?: string;
   showAnchors: boolean;
   t: T;
   restrictionAreaMode: RestrictionAreaMode;
@@ -78,7 +79,7 @@ export function useAnchorLayer(options: {
       return;
     }
     const controller = new AbortController();
-    fetchAnchors({ bboxLonLat: bboxLonLatParam(map.getBounds()) }, controller.signal)
+    fetchAnchors({ country: options.country ?? "spain", bboxLonLat: bboxLonLatParam(map.getBounds()) }, controller.signal)
       .then((fc) => {
         if (controller.signal.aborted) return;
         shownAnchorsRef.current = fc;
@@ -96,6 +97,7 @@ export function useAnchorLayer(options: {
     return () => controller.abort();
   }, [
     options.mapRef,
+    options.country,
     options.onAnchorStatus,
     options.onError,
     options.showAnchors,

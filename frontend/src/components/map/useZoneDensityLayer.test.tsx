@@ -159,7 +159,7 @@ describe("useZoneDensityLayer", () => {
     renderHarness();
 
     await waitFor(() => expect(fetchDensity).toHaveBeenCalledWith(
-      { z: DENSITY_TILE_MAX, bboxLonLat: "1,2,3,4" }, expect.any(AbortSignal),
+      { z: DENSITY_TILE_MAX, bboxLonLat: "1,2,3,4", country: "spain" }, expect.any(AbortSignal),
     ));
   });
 

@@ -17,7 +17,7 @@ from highliner.server.repositories.restrictions import load_layer
 Bbox = tuple[float, float, float, float]
 
 
-def layer_meta() -> list[dict[str, Any]]:
+def layer_meta(country: str) -> list[dict[str, Any]]:
     """Registry of overlay layers (id/label/color/tooltip) for the frontend."""
     return [{"id": lid, "label": s["label"], "color": s["color"],
              "tooltip": s["tooltip"], "highlight": s.get("highlight")}

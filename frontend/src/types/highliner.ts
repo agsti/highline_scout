@@ -50,6 +50,16 @@ export interface RestrictionLayersResponse {
   layers: RestrictionLayerMeta[];
 }
 
+export interface CountryEntry {
+  id: string;
+  bounds_lonlat: [number, number, number, number];
+  center_lonlat: [number, number];
+}
+
+export interface CountriesResponse {
+  countries: CountryEntry[];
+}
+
 export interface RestrictionProperties {
   layer: string;
   name?: string;

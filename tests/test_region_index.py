@@ -53,6 +53,24 @@ def test_build_index_sets_country_from_partition(tmp_path: Path) -> None:
     assert [e.name for e in deps.regions_in_country(index, "france")] == ["alps"]
 
 
+def test_countries_from_index_unions_bounds_and_centers(tmp_path: Path) -> None:
+    _write_grid(tmp_path, "east", (100, 100, 200, 200), country="spain")
+    _write_grid(tmp_path, "west", (0, 0, 50, 50), country="spain")
+    _write_grid(tmp_path, "alps", (300, 300, 400, 400), country="france")
+    index = deps.build_region_index(tmp_path)
+
+    countries = deps.countries_from_index(index)
+
+    assert [country.id for country in countries] == ["france", "spain"]
+    france, spain = countries
+    assert france.center_lonlat == (
+        (france.bounds_lonlat[0] + france.bounds_lonlat[2]) / 2,
+        (france.bounds_lonlat[1] + france.bounds_lonlat[3]) / 2,
+    )
+    assert spain.bounds_lonlat[0] < spain.bounds_lonlat[2]
+    assert spain.bounds_lonlat[1] < spain.bounds_lonlat[3]
+
+
 def test_build_index_empty_when_data_dir_missing(tmp_path: Path) -> None:
     assert deps.build_region_index(tmp_path / "nope") == []
 

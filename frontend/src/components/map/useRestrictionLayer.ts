@@ -12,6 +12,7 @@ const emptyCollection: RestrictionFeatureCollection = { type: "FeatureCollection
 export function useRestrictionLayer(options: {
   mapRef: React.MutableRefObject<L.Map | null>;
   viewportRevision: number;
+  country?: string;
   enabledRestrictions: string[];
   restrictionLayers: RestrictionLayerMeta[];
   t: T;
@@ -55,7 +56,7 @@ export function useRestrictionLayer(options: {
     options.onFeaturesChange?.(emptyCollection);
     const controller = new AbortController();
     fetchRestrictions(
-      { bboxLonLat: bboxLonLatParam(map.getBounds()), layers: options.enabledRestrictions },
+      { country: options.country ?? "spain", bboxLonLat: bboxLonLatParam(map.getBounds()), layers: options.enabledRestrictions },
       controller.signal,
     )
       .then((fc) => {
@@ -80,6 +81,7 @@ export function useRestrictionLayer(options: {
     return () => controller.abort();
   }, [
     options.enabledRestrictions,
+    options.country,
     options.mapRef,
     options.onFeaturesChange,
     options.onError,

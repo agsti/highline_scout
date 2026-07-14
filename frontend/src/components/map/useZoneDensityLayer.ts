@@ -31,6 +31,7 @@ type MapStatus = {
 export function useZoneDensityLayer(options: {
   mapRef: React.MutableRefObject<L.Map | null>;
   viewportRevision: number;
+  country?: string;
   minLen: number;
   maxLen: number;
   minExposure: number;
@@ -178,7 +179,7 @@ export function useZoneDensityLayer(options: {
             Math.max(Math.round(zoom) + DENSITY_ZOOM_OFFSET, DENSITY_TILE_MIN),
             DENSITY_TILE_MAX,
           );
-          const fc = await fetchDensity({ z, bboxLonLat }, controller.signal);
+          const fc = await fetchDensity({ z, bboxLonLat, country: options.country ?? "spain" }, controller.signal);
           if (requestId !== requestIdRef.current) return;
           densityLayerRef.current?.clearLayers();
           densitySortedRef.current = fc.features
@@ -193,7 +194,7 @@ export function useZoneDensityLayer(options: {
         densityLayerRef.current?.clearLayers();
         shownDensityRef.current = null;
         const fc = await fetchZones(
-          { bboxLonLat, minLen: options.minLen, maxLen: options.maxLen, minExposure: options.minExposure },
+          { bboxLonLat, minLen: options.minLen, maxLen: options.maxLen, minExposure: options.minExposure, country: options.country ?? "spain" },
           controller.signal,
         );
         if (requestId !== requestIdRef.current) return;
@@ -226,6 +227,7 @@ export function useZoneDensityLayer(options: {
     return () => controller.abort();
   }, [
     options.mapRef,
+    options.country,
     options.maxLen,
     options.minExposure,
     options.minLen,

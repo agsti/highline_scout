@@ -6,6 +6,7 @@ import { App } from "./App";
 import { I18nProvider, useI18n } from "./lib/i18n";
 
 const apiMocks = vi.hoisted(() => ({
+  fetchCountries: vi.fn().mockResolvedValue([]),
   fetchRestrictionLayers: vi.fn(),
 }));
 
@@ -14,6 +15,7 @@ let publishMapError: ((message: string) => void) | undefined;
 let dismissMapError: ((eventId: number) => void) | undefined;
 
 vi.mock("./lib/api", () => ({
+  fetchCountries: apiMocks.fetchCountries,
   fetchRestrictionLayers: apiMocks.fetchRestrictionLayers,
 }));
 
@@ -99,6 +101,7 @@ function renderApp() {
 describe("App", () => {
   beforeEach(() => {
     window.localStorage.removeItem("restrictionAreaMode");
+    apiMocks.fetchCountries.mockReset().mockResolvedValue([]);
     apiMocks.fetchRestrictionLayers.mockReset().mockResolvedValue([
       {
         id: "zepa",

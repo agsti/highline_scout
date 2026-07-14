@@ -10,10 +10,10 @@ import { RestrictionLayerControls } from "./components/RestrictionLayerControls"
 import { RestrictionLegend } from "./components/RestrictionLegend";
 import { SafetyDisclaimerDialog } from "./components/SafetyDisclaimerDialog";
 import { capture } from "./lib/analytics";
-import { fetchRestrictionLayers } from "./lib/api";
+import { fetchCountries, fetchRestrictionLayers } from "./lib/api";
 import { bboxLonLatParam } from "./lib/geo";
 import { useI18n } from "./lib/i18n";
-import type { RestrictionAreaMode, RestrictionLayerMeta } from "./types/highliner";
+import type { CountryEntry, RestrictionAreaMode, RestrictionLayerMeta } from "./types/highliner";
 
 const DEFAULT_LENGTH_RANGE: LengthRange = [20, 150];
 const DEFAULT_MIN_EXPOSURE = 30;
@@ -43,6 +43,8 @@ export function App() {
   const [appliedMinExposure, setAppliedMinExposure] = useState(DEFAULT_MIN_EXPOSURE);
   const [showAnchors, setShowAnchors] = useState(false);
   const [restrictionLayers, setRestrictionLayers] = useState<RestrictionLayerMeta[]>([]);
+  const [countries, setCountries] = useState<CountryEntry[]>([]);
+  const [country, setCountry] = useState("spain");
   const [enabledRestrictions, setEnabledRestrictions] = useState<string[]>([]);
   const [restrictionAreaMode, setRestrictionAreaMode] = useState<RestrictionAreaMode>(
     pickInitialRestrictionAreaMode,
@@ -63,13 +65,28 @@ export function App() {
 
   useEffect(() => {
     const controller = new AbortController();
-    fetchRestrictionLayers(controller.signal)
+    fetchRestrictionLayers(country, controller.signal)
       .then(setRestrictionLayers)
       .catch((error) => {
         if (error.name !== "AbortError") handleError(tRef.current("error", { detail: error.detail ?? String(error) }));
       });
     return () => controller.abort();
+  }, [country, handleError]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetchCountries(controller.signal).then(setCountries).catch((error) => {
+      if (error.name !== "AbortError") handleError(tRef.current("error", { detail: String(error) }));
+    });
+    return () => controller.abort();
   }, [handleError]);
+
+  const handleCountryChange = useCallback((next: string) => {
+    setCountry(next);
+    setEnabledRestrictions([]);
+    setRestrictionLayers([]);
+  }, []);
+  const countryBounds = countries.find((entry) => entry.id === country)?.bounds_lonlat;
 
   const handleViewportChange = useCallback((map: L.Map) => {
     setViewportBbox(bboxLonLatParam(map.getBounds()));
@@ -155,6 +172,8 @@ export function App() {
             minLen={appliedLengthRange[0]}
             maxLen={appliedLengthRange[1]}
             minExposure={appliedMinExposure}
+            country={country}
+            countryBounds={countryBounds}
             showAnchors={showAnchors}
             restrictionAreaMode={restrictionAreaMode}
             enabledRestrictions={enabledRestrictions}
@@ -186,6 +205,12 @@ export function App() {
           />
         }
       />
+      <label className="absolute right-20 top-5 z-[1001] rounded bg-card p-1 text-xs shadow">
+        {t("country")}
+        <select aria-label={t("country")} className="ml-1" value={country} onChange={(event) => handleCountryChange(event.target.value)}>
+          {countries.map((entry) => <option key={entry.id} value={entry.id}>{entry.id}</option>)}
+        </select>
+      </label>
       <AboutDialog open={aboutOpen} onOpenChange={setAboutOpen} />
       <FeedbackDialog open={feedbackOpen} onOpenChange={setFeedbackOpen} />
       <SafetyDisclaimerDialog open={disclaimerOpen} onAccept={() => setDisclaimerOpen(false)} />

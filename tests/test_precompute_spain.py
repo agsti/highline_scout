@@ -23,4 +23,5 @@ def test_precompute_spain_forwards_chunk_workers(
         ".venv/bin/highliner-etl-density",
         "--data-dir", "/tmp/highliner-data",
         "--region", "madrid",
+        "--workers", "5",
     ]

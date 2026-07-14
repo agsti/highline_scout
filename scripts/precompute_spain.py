@@ -61,7 +61,7 @@ def run_region(region: Region, commands: Commands, data_dir: str,
          "--region", region.name, f"--bbox={region.bbox}",
          "--workers", str(chunk_workers)])
     run([commands.density, "--data-dir", data_dir,
-         "--region", region.name])
+         "--region", region.name, "--workers", str(chunk_workers)])
 
 
 def _parse_args() -> argparse.Namespace:

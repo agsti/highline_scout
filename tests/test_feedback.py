@@ -40,8 +40,8 @@ def test_send_feedback_posts_a_plain_text_resend_email(
         "to": ["owner@example.com"],
         "subject": "[Highline Scout] Bug report",
         "text": (
-            "Topic: Bug report\\n"
-            "Reply email: rigger@example.com\\n\\n"
+            "Topic: Bug report\n"
+            "Reply email: rigger@example.com\n\n"
             "The zone count is wrong."
         ),
         "reply_to": "rigger@example.com",

@@ -54,7 +54,7 @@ def send_feedback(settings: config.Settings, submission: FeedbackSubmission) -> 
 def _message_text(submission: FeedbackSubmission) -> str:
     reply = submission.reply_email or "Not supplied"
     return (
-        f"Topic: {_SUBJECTS[submission.topic]}\\n"
-        f"Reply email: {reply}\\n\\n"
+        f"Topic: {_SUBJECTS[submission.topic]}\n"
+        f"Reply email: {reply}\n\n"
         f"{submission.message}"
     )

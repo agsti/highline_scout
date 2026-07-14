@@ -90,6 +90,13 @@ precompute *args:
 precompute-density *args:
     uv run highliner-etl-density {{args}}
 
+# Build every discovered region's density pyramid for one country, with up to
+# eight regions running concurrently. Each density process keeps its own
+# default worker count, avoiding eight nested worker pools.
+# Usage: just precompute-country-density-8 spain
+precompute-country-density-8 country data_dir="data":
+    find "{{data_dir}}/{{country}}" -mindepth 1 -maxdepth 1 -type d -exec sh -c '[ -f "$1/grid.json" ] && printf "%s\0" "$1"' _ {} \; | xargs -0 -r -n 1 -P 8 sh -c 'uv run highliner-etl-density --data-dir "$1" --country "$2" --region "$(basename "$3")"' _ "{{data_dir}}" "{{country}}"
+
 # Precompute all non-Catalonia Spain regions, resuming completed chunks.
 precompute-spain *args:
     uv run python scripts/precompute_spain.py {{args}}

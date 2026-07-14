@@ -1,6 +1,9 @@
 import json
 from pathlib import Path
 
+import geopandas as gpd
+from shapely.geometry import box
+
 from highliner.core import config, tiles
 from highliner.etl.chunk.candidates import save_candidates
 from highliner.etl.density import builder
@@ -56,3 +59,34 @@ def test_report_and_default_zooms(tmp_path: Path) -> None:
     for z in config.DENSITY_ZOOM_LEVELS:
         assert (region / "density" / f"z{z}.json").exists()
     assert seen and seen[-1][0] == seen[-1][1]  # progress reaches 100%
+
+
+def test_cell_writes_sparse_length_exposure_mask_histogram(tmp_path: Path) -> None:
+    near = to_utm(1.83, 41.59)
+    pairs = [
+        _pair(near[0], near[1], exposure=30.0, spread=50.0),
+        _pair(near[0], near[1], exposure=39.0, spread=52.5),
+        _pair(near[0], near[1], exposure=40.0, spread=100.0),
+    ]
+    region = _write_region(tmp_path, pairs)
+
+    builder.build_density(region, zoom_levels=[12], data_dir=tmp_path)
+
+    cells = json.loads((region / "density" / "z12.json").read_text())
+    assert sorted(cells[0]["hist"]) == [[10, 3, 0, 2], [20, 4, 0, 1]]
+
+
+def test_builder_uses_country_restrictions(tmp_path: Path) -> None:
+    near = to_utm(1.83, 41.59)
+    region = _write_region(tmp_path, [_pair(near[0], near[1], exposure=30.0)])
+    path = tmp_path / "france" / "restrictions" / "zepa.parquet"
+    path.parent.mkdir(parents=True)
+    gpd.GeoDataFrame({"name": ["test"]}, geometry=[box(
+        near[0] - 50, near[1] - 50, near[0], near[1] + 50)],
+        crs="EPSG:25831").to_parquet(path)
+
+    builder.build_density(region, zoom_levels=[12], country="france",
+                          data_dir=tmp_path)
+
+    cells = json.loads((region / "density" / "z12.json").read_text())
+    assert cells[0]["hist"][0][2] == 1

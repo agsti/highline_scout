@@ -1,8 +1,8 @@
 import argparse
 import time
+from pathlib import Path
 
 from highliner.core import config
-from highliner.core.regions import region_dir
 from highliner.etl.density import builder
 
 
@@ -16,8 +16,9 @@ def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="highliner-etl-density")
     parser.add_argument("--data-dir", default=str(config.DATA_DIR))
     parser.add_argument("--region", required=True)
+    parser.add_argument("--country", default=config.DEFAULT_COUNTRY)
     args = parser.parse_args(argv)
-    rdir = region_dir(args.data_dir, args.region)
+    rdir = Path(args.data_dir) / args.country / args.region
     start = time.monotonic()
 
     def report(done: int, total: int) -> None:
@@ -26,5 +27,6 @@ def main(argv: list[str] | None = None) -> None:
         print(f"\rpairs file {done}/{total} ({pct:4.1f}%)  "
               f"elapsed {_fmt_hms(elapsed)}", end="", flush=True)
 
-    n = builder.build_density(rdir, report=report)
+    n = builder.build_density(rdir, report=report, country=args.country,
+                              data_dir=args.data_dir)
     print(f"\nwrote {n} density cells -> {rdir / 'density'}")

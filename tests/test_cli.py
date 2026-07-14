@@ -51,12 +51,26 @@ def test_density_command_uses_region_directory(
     calls: dict[str, object] = {}
 
     def fake(region_dir: Path, **kwargs: object) -> int:
-        calls["region_dir"] = region_dir
+        calls.update(region_dir=region_dir, **kwargs)
         return 7
 
     monkeypatch.setattr("highliner.etl.density.main.builder.build_density", fake)
     density_main.main(["--region", "catalonia", "--data-dir", "/tmp/x"])
     assert calls["region_dir"] == Path("/tmp/x") / "spain" / "catalonia"
+
+
+def test_density_command_forwards_country(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: dict[str, object] = {}
+
+    def fake(region_dir: Path, **kwargs: object) -> int:
+        calls.update(region_dir=region_dir, **kwargs)
+        return 7
+
+    monkeypatch.setattr("highliner.etl.density.main.builder.build_density", fake)
+    density_main.main(["--region", "catalonia", "--country", "france",
+                       "--data-dir", "/tmp/x"])
+    assert calls["region_dir"] == Path("/tmp/x") / "france" / "catalonia"
+    assert calls["country"] == "france"
 
 
 def test_restrictions_command_builds_layers(

@@ -1,6 +1,7 @@
 import { useEffect } from "react";
+import logo from "@/assets/logo.svg";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { useI18n } from "@/lib/i18n";
 import { LanguageSwitcher } from "./LanguageSwitcher";
 
@@ -33,12 +34,10 @@ export function SafetyDisclaimerDialog({ open, onAccept }: SafetyDisclaimerDialo
         onEscapeKeyDown={(event) => event.preventDefault()}
         onPointerDownOutside={(event) => event.preventDefault()}
       >
-        <div className="flex justify-end">
+        <div className="flex items-center justify-between gap-4">
+          <img src={logo} alt="HighlineScout" className="h-8 w-auto" />
           <LanguageSwitcher />
         </div>
-        <DialogHeader className="text-left">
-          <DialogTitle>{t("disclaimerTitle")}</DialogTitle>
-        </DialogHeader>
         <div className="space-y-3 text-sm text-muted-foreground">
           <p>{t("disclaimerIntro")}</p>
           <ul className="list-disc space-y-2 pl-5">

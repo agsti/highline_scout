@@ -89,7 +89,10 @@ describe("SafetyDisclaimerDialog", () => {
     );
 
     const dialog = screen.getByRole("dialog");
-    expect(screen.getByRole("heading", { name: "HighlineScout" })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "HighlineScout" })).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "HighlineScout" }),
+    ).not.toBeInTheDocument();
     expect(dialog).toHaveTextContent("HighlineScout helps you find your next potential highline spot.");
     expect(screen.getByRole("list")).toHaveTextContent(
       "Beginners: scout with an experienced highliner.",

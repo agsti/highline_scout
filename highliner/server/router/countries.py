@@ -10,7 +10,6 @@ router = APIRouter()
 @router.get("/countries")
 def countries(request: Request) -> dict[str, Any]:
     return {"countries": [
-        {"id": entry.id, "bounds_lonlat": list(entry.bounds_lonlat),
-         "center_lonlat": list(entry.center_lonlat)}
+        {"id": entry.id, "bounds_lonlat": list(entry.bounds_lonlat)}
         for entry in get_country_index(request)
     ]}

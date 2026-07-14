@@ -4,7 +4,7 @@ import type { useI18n } from "@/lib/i18n";
 import { initialViewFromSearch, type MapViewState } from "@/lib/geo";
 import type { Lang } from "@/lib/i18n/strings";
 
-const DEFAULT_VIEW: MapViewState = { center: [41.6, 1.83], zoom: 13 };
+const DEFAULT_VIEW: MapViewState = { center: [40.4637, -3.7492], zoom: 6 };
 
 type T = ReturnType<typeof useI18n>["t"];
 

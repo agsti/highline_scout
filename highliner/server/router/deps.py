@@ -30,7 +30,6 @@ class RegionEntry:
 class CountryEntry:
     id: str
     bounds_lonlat: LonLatBox
-    center_lonlat: tuple[float, float]
 
 
 def region_lonlat_bounds(grid: chunked_store.Grid) -> LonLatBox:
@@ -80,9 +79,7 @@ def countries_from_index(index: list[RegionEntry]) -> list[CountryEntry]:
         south = min(box[1] for box in bounds)
         east = max(box[2] for box in bounds)
         north = max(box[3] for box in bounds)
-        countries.append(CountryEntry(
-            country, (west, south, east, north),
-            ((west + east) / 2, (south + north) / 2)))
+        countries.append(CountryEntry(country, (west, south, east, north)))
     return sorted(countries, key=lambda entry: entry.id)
 
 

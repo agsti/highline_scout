@@ -206,7 +206,7 @@ def test_countries_lists_precomputed_country_coverage(tmp_path: Path) -> None:
 
     assert [country["id"] for country in countries] == ["france", "spain"]
     assert all(len(country["bounds_lonlat"]) == 4 for country in countries)
-    assert all(len(country["center_lonlat"]) == 2 for country in countries)
+    assert all("center_lonlat" not in country for country in countries)
 
 
 def test_zones_viewport_scoped_to_country(tmp_path: Path) -> None:

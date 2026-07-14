@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 from typing import Any
+from types import SimpleNamespace
 
 from highliner.server.router import deps
 
@@ -62,11 +63,7 @@ def test_countries_from_index_unions_bounds_and_centers(tmp_path: Path) -> None:
     countries = deps.countries_from_index(index)
 
     assert [country.id for country in countries] == ["france", "spain"]
-    france, spain = countries
-    assert france.center_lonlat == (
-        (france.bounds_lonlat[0] + france.bounds_lonlat[2]) / 2,
-        (france.bounds_lonlat[1] + france.bounds_lonlat[3]) / 2,
-    )
+    _, spain = countries
     assert spain.bounds_lonlat[0] < spain.bounds_lonlat[2]
     assert spain.bounds_lonlat[1] < spain.bounds_lonlat[3]
 
@@ -76,8 +73,6 @@ def test_build_index_empty_when_data_dir_missing(tmp_path: Path) -> None:
 
 
 def test_get_region_index_is_cached(tmp_path: Path) -> None:
-    from types import SimpleNamespace
-
     cx, cy = to_utm(1.83, 41.59)
     _write_grid(tmp_path, "cat", (cx - 500, cy - 500, cx + 500, cy + 500))
 
@@ -86,3 +81,12 @@ def test_get_region_index_is_cached(tmp_path: Path) -> None:
     first = deps.get_region_index(request)  # type: ignore[arg-type]
     second = deps.get_region_index(request)  # type: ignore[arg-type]
     assert first is second  # built once, then served from app.state cache
+
+
+def test_get_country_index_is_cached(tmp_path: Path) -> None:
+    request = SimpleNamespace(app=SimpleNamespace(state=SimpleNamespace(data_dir=tmp_path)))
+
+    first = deps.get_country_index(request)  # type: ignore[arg-type]
+    second = deps.get_country_index(request)  # type: ignore[arg-type]
+
+    assert first is second

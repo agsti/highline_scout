@@ -10,13 +10,12 @@ from pathlib import Path
 
 from highliner.core import config, geo, tiles
 from highliner.core.regions import defaults_for_region
-from highliner.models.candidate import Candidate
 
-# This offline aggregation reads back the precomputed store, so it reaches into
-# the server-side read layer (chunked_store / load_candidates). The dependency
-# only ever points etl -> server; the server never imports etl.
-from highliner.server.repositories import chunked_store
+# This offline aggregation reads the precomputed grid via the server-side read
+# layer. The candidate materializer is local to ``highliner.etl.density``.
 from highliner.etl.density.candidates import load_candidates
+from highliner.models.candidate import Candidate
+from highliner.server.repositories import chunked_store
 
 
 def _midpoint_lonlat(c: Candidate, crs: str) -> tuple[float, float]:

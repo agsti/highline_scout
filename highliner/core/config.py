@@ -67,6 +67,9 @@ class Settings(BaseSettings):
     sentry_dsn: str | None = None
     environment: str = "development"
     slow_request_ms: float = 1000.0
+    resend_api_key: str | None = None
+    feedback_to: str | None = None
+    feedback_from: str | None = None
 
 
 settings = Settings()

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type L from "leaflet";
 import { AboutDialog } from "./components/AboutDialog";
+import { FeedbackDialog } from "./components/FeedbackDialog";
 import { AppShell } from "./components/AppShell";
 import { FilterControls, type LengthRange } from "./components/FilterControls";
 import { MapChrome } from "./components/MapChrome";
@@ -50,6 +51,7 @@ export function App() {
   );
   const [disclaimerOpen, setDisclaimerOpen] = useState(true);
   const [aboutOpen, setAboutOpen] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [densityMode, setDensityMode] = useState(false);
 
@@ -177,6 +179,7 @@ export function App() {
             sheetOpen={sheetOpen}
             onSheetOpenChange={setSheetOpen}
             onAbout={() => setAboutOpen(true)}
+            onFeedback={() => setFeedbackOpen(true)}
             restrictionAreaMode={restrictionAreaMode}
             onRestrictionAreaModeChange={handleRestrictionAreaModeChange}
             onErrorDismiss={(eventId) =>
@@ -186,6 +189,7 @@ export function App() {
         }
       />
       <AboutDialog open={aboutOpen} onOpenChange={setAboutOpen} />
+      <FeedbackDialog open={feedbackOpen} onOpenChange={setFeedbackOpen} />
       <SafetyDisclaimerDialog open={disclaimerOpen} onAccept={() => setDisclaimerOpen(false)} />
     </>
   );

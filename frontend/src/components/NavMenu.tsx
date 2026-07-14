@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Info, Map, Menu, MessageSquarePlus, X } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -17,6 +17,7 @@ interface NavMenuProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onAbout: () => void;
+  onFeedback?: () => void;
   restrictionAreaMode: RestrictionAreaMode;
   onRestrictionAreaModeChange: (mode: RestrictionAreaMode) => void;
 }
@@ -55,15 +56,13 @@ const HOW_IT_WORKS_PATHS = {
 export function NavMenu({
   open,
   onOpenChange,
-  onAbout,
+  onAbout, onFeedback = () => {},
   restrictionAreaMode,
   onRestrictionAreaModeChange,
 }: NavMenuProps) {
   const { lang, t } = useI18n();
-  const [feedbackNoted, setFeedbackNoted] = useState(false);
 
   function handleOpenChange(next: boolean) {
-    if (!next) setFeedbackNoted(false);
     onOpenChange(next);
   }
 
@@ -147,8 +146,7 @@ export function NavMenu({
             <MenuItem
               icon={<MessageSquarePlus className="h-4 w-4" />}
               label={t("feedback")}
-              hint={feedbackNoted ? t("feedbackComingSoon") : undefined}
-              onClick={() => setFeedbackNoted(true)}
+              onClick={() => select(onFeedback)}
             />
             <MenuItem
               icon={<Info className="h-4 w-4" />}

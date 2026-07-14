@@ -20,6 +20,11 @@ system interpreter's plain `venv` is known-broken here.
     uv venv --python 3.12 .venv
     uv pip install --python .venv/bin/python -e ".[dev]"
 
+For an isolated git worktree, create a separate `.venv` and run the same dev
+install there. Do not symlink a worktree's `.venv` to another checkout: virtual
+environment paths are checkout-specific. `uv` shares its download/build cache
+automatically, so separate environments remain quick and isolated.
+
     just test                      # full suite (uv run pytest)
     uv run pytest tests/test_pairing.py::test_name   # single test
     just check                     # lint (ruff) + types (strict mypy) + dead code

@@ -17,7 +17,7 @@ from highliner.core.telemetry import (
     init_sentry,
     shutdown_telemetry,
 )
-from highliner.server.router import anchors, density, regions, restrictions, zones
+from highliner.server.router import anchors, density, feedback, regions, restrictions, zones
 
 # For SEO: the one public origin used in crawler-visible URLs and metadata.
 _CANONICAL_ORIGIN = "https://highlinescout.com"
@@ -171,7 +171,7 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
     # App-wide state the routers read via highliner.server.router.deps.
     app.state.data_dir = data_dir
 
-    for module in (regions, zones, anchors, density, restrictions):
+    for module in (regions, zones, anchors, density, restrictions, feedback):
         app.include_router(module.router)
 
     # For SEO: make crawler rules and the sitemap discoverable at standard paths.

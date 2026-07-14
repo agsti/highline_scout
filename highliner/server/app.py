@@ -8,6 +8,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, PlainTextResponse, Response
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.gzip import GZipMiddleware
 
 from highliner.core import config
 from highliner.core.telemetry import (
@@ -175,6 +176,7 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
     app = FastAPI(title="Highliner Finder", lifespan=_lifespan)
     app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"],
                        allow_headers=["*"])
+    app.add_middleware(GZipMiddleware, minimum_size=1000)
 
     # App-wide state the routers read via highliner.server.router.deps.
     app.state.data_dir = data_dir

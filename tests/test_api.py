@@ -462,6 +462,16 @@ def test_app_installs_slow_request_middleware() -> None:
     assert SlowRequestMiddleware in installed
 
 
+def test_app_compresses_eligible_responses() -> None:
+    client = TestClient(create_app())
+
+    response = client.get("/openapi.json", headers={"Accept-Encoding": "gzip"})
+
+    assert response.status_code == 200
+    assert response.headers["content-encoding"] == "gzip"
+    assert response.json()["openapi"] == "3.1.0"
+
+
 def test_app_sends_nothing_without_credentials(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:

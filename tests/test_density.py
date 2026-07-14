@@ -1,4 +1,5 @@
 import json
+import shutil
 from pathlib import Path
 
 import geopandas as gpd
@@ -106,6 +107,7 @@ def test_parallel_density_matches_single_worker_output(tmp_path: Path) -> None:
     builder.build_density(region, zoom_levels=[12], workers=1,
                           restrictions_dir=tmp_path / "spain" / "restrictions")
     serial = (region / "density" / "z12.json").read_text()
+    shutil.rmtree(region / "density")
     builder.build_density(region, zoom_levels=[12], workers=2,
                           restrictions_dir=tmp_path / "spain" / "restrictions")
 
@@ -141,3 +143,23 @@ def test_existing_empty_zoom_is_rebuilt(tmp_path: Path) -> None:
 
     assert written == 1
     assert density_file.stat().st_size > 0
+
+
+def test_density_rolls_finest_histograms_up_to_requested_zooms(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    near = to_utm(1.83, 41.59)
+    region = _write_region(tmp_path, [_pair(near[0], near[1], exposure=30.0)])
+    calls: list[int] = []
+    original = tiles.lonlat_to_tile
+
+    def record_tile(lon: float, lat: float, zoom: int) -> tuple[int, int]:
+        calls.append(zoom)
+        return original(lon, lat, zoom)
+
+    monkeypatch.setattr(tiles, "lonlat_to_tile", record_tile)
+    builder.build_density(region, zoom_levels=[12, 13, 14])
+
+    assert calls == [14]
+    for zoom in (12, 13, 14):
+        cells = json.loads((region / "density" / f"z{zoom}.json").read_text())
+        assert cells[0]["n"] == 1

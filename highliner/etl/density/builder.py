@@ -23,11 +23,12 @@ CellSummary = list[float]
 Histogram = dict[CellKey, dict[HistogramKey, int]]
 WorkerPartial = tuple[dict[CellKey, CellSummary], Histogram]
 _WORKER_LAYERS: dict[str, Any] = {}
+_WORKER_ANCHOR_MASKS: dict[tuple[float, float], int] = {}
 
 
 @dataclass(frozen=True)
 class ParallelWork:
-    zooms: tuple[int, ...]
+    zoom: int
     crs: str
     restrictions_dir: Path
     workers: int
@@ -42,12 +43,14 @@ def _midpoint_lonlat(c: Candidate, crs: str) -> tuple[float, float]:
 
 def _init_worker(restrictions_dir: str, crs: str) -> None:
     """Load transformed restriction layers once in every worker process."""
-    global _WORKER_LAYERS
+    global _WORKER_ANCHOR_MASKS, _WORKER_LAYERS
     _WORKER_LAYERS = load_layers(Path(restrictions_dir), crs)
+    _WORKER_ANCHOR_MASKS = {}
 
 
-def _build_partial(pair_files: list[Path], zooms: tuple[int, ...], crs: str,
-                   layers: Mapping[str, Any]) -> WorkerPartial:
+def _build_partial(pair_files: list[Path], zoom: int, crs: str,
+                   layers: Mapping[str, Any],
+                   anchor_masks: dict[tuple[float, float], int]) -> WorkerPartial:
     """Aggregate one batch of candidate partitions."""
     cells: dict[CellKey, CellSummary] = {}
     histograms: Histogram = {}
@@ -55,31 +58,31 @@ def _build_partial(pair_files: list[Path], zooms: tuple[int, ...], crs: str,
         candidates = load_candidates(path)
         for candidate in candidates:
             lon, lat = _midpoint_lonlat(candidate, crs)
-            mask = candidate_mask(candidate, layers)
-            for zoom in zooms:
-                tx, ty = tiles.lonlat_to_tile(lon, lat, zoom)
-                key = (zoom, tx, ty)
-                histogram = histograms.setdefault(key, {})
-                hist_key = (bucket_for(candidate.length),
-                            bucket_for(candidate.exposure), mask)
-                histogram[hist_key] = histogram.get(hist_key, 0) + 1
-                cell = cells.get(key)
-                if cell is None:
-                    cells[key] = [1.0, candidate.exposure,
-                                  candidate.length, candidate.length]
-                else:
-                    cell[0] += 1.0
-                    cell[1] = max(cell[1], candidate.exposure)
-                    cell[2] = min(cell[2], candidate.length)
-                    cell[3] = max(cell[3], candidate.length)
+            mask = candidate_mask(candidate, layers, anchor_masks)
+            tx, ty = tiles.lonlat_to_tile(lon, lat, zoom)
+            key = (zoom, tx, ty)
+            histogram = histograms.setdefault(key, {})
+            hist_key = (bucket_for(candidate.length),
+                        bucket_for(candidate.exposure), mask)
+            histogram[hist_key] = histogram.get(hist_key, 0) + 1
+            cell = cells.get(key)
+            if cell is None:
+                cells[key] = [1.0, candidate.exposure,
+                              candidate.length, candidate.length]
+            else:
+                cell[0] += 1.0
+                cell[1] = max(cell[1], candidate.exposure)
+                cell[2] = min(cell[2], candidate.length)
+                cell[3] = max(cell[3], candidate.length)
     return cells, histograms
 
 
 def _build_worker_partial(pair_files: list[Path],
-                          zooms: tuple[int, ...],
+                          zoom: int,
                           crs: str) -> WorkerPartial:
     """Run one assigned batch using the worker's initialized layer cache."""
-    return _build_partial(pair_files, zooms, crs, _WORKER_LAYERS)
+    return _build_partial(pair_files, zoom, crs, _WORKER_LAYERS,
+                          _WORKER_ANCHOR_MASKS)
 
 
 def _merge_partial(target_cells: dict[CellKey, CellSummary],
@@ -119,7 +122,7 @@ def _build_parallel(batches: list[list[Path]], work: ParallelWork,
             max_workers=work.workers, initializer=_init_worker,
             initargs=(str(work.restrictions_dir), work.crs)) as pool:
         futures = {
-            pool.submit(_build_worker_partial, batch, work.zooms, work.crs):
+            pool.submit(_build_worker_partial, batch, work.zoom, work.crs):
             len(batch)
             for batch in batches
         }
@@ -128,6 +131,30 @@ def _build_parallel(batches: list[list[Path]], work: ParallelWork,
             done += futures[future]
             if report is not None:
                 report(done, work.total)
+
+
+def _roll_up_pyramid(cells: dict[CellKey, CellSummary],
+                     histograms: Histogram, zooms: list[int]) -> None:
+    """Aggregate finest-cell histograms into every requested coarser zoom."""
+    finest = max(zooms)
+    base_cells = list(cells.items())
+    for zoom in zooms:
+        if zoom == finest:
+            continue
+        shift = finest - zoom
+        for (_, tx, ty), cell in base_cells:
+            key = (zoom, tx >> shift, ty >> shift)
+            existing = cells.get(key)
+            if existing is None:
+                cells[key] = cell.copy()
+            else:
+                existing[0] += cell[0]
+                existing[1] = max(existing[1], cell[1])
+                existing[2] = min(existing[2], cell[2])
+                existing[3] = max(existing[3], cell[3])
+            target = histograms.setdefault(key, {})
+            for hist_key, count in histograms[(finest, tx, ty)].items():
+                target[hist_key] = target.get(hist_key, 0) + count
 
 
 def _density_rows(zoom: int, cells: dict[CellKey, CellSummary],
@@ -175,21 +202,25 @@ def build_density(region_dir: Path,
     restrictions_dir = restrictions_dir or (
         Path(config.DATA_DIR) / config.DEFAULT_COUNTRY / "restrictions")
     batches = _file_batches(pair_files)
+    finest_zoom = max(zooms)
     cells: dict[CellKey, CellSummary] = {}
     histograms: Histogram = {}
     total = len(pair_files)
     if workers == 1:
         layers = load_layers(restrictions_dir, crs)
+        anchor_masks: dict[tuple[float, float], int] = {}
         done = 0
         for batch in batches:
             _merge_partial(cells, histograms,
-                           _build_partial(batch, tuple(zooms), crs, layers))
+                           _build_partial(batch, finest_zoom, crs, layers,
+                                          anchor_masks))
             done += len(batch)
             if report is not None:
                 report(done, total)
     else:
-        work = ParallelWork(tuple(zooms), crs, restrictions_dir, workers, total)
+        work = ParallelWork(finest_zoom, crs, restrictions_dir, workers, total)
         _build_parallel(batches, work, cells, histograms, report)
+    _roll_up_pyramid(cells, histograms, zooms)
 
     written = 0
     for z in zooms:

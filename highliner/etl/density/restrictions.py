@@ -5,6 +5,7 @@ from pathlib import Path
 import geopandas as gpd
 from highliner.core.density import layer_mask
 from highliner.core.restrictions import LAYERS
+from highliner.models.anchor import Anchor
 from highliner.models.candidate import Candidate
 from shapely.geometry import Point
 
@@ -26,11 +27,25 @@ def _covers(frame: gpd.GeoDataFrame, point: Point) -> bool:
     return bool(frame.iloc[indices].geometry.covers(point).any())
 
 
-def candidate_mask(candidate: Candidate,
-                   layers: Mapping[str, gpd.GeoDataFrame]) -> int:
-    """Return the mask of layers that cover either candidate anchor."""
-    points = (Point(candidate.a.x, candidate.a.y),
-              Point(candidate.b.x, candidate.b.y))
+def anchor_mask(anchor: Anchor, layers: Mapping[str, gpd.GeoDataFrame],
+                cache: dict[tuple[float, float], int]) -> int:
+    """Return an anchor's restriction mask, reusing a worker-local cache."""
+    key = (anchor.x, anchor.y)
+    mask = cache.get(key)
+    if mask is not None:
+        return mask
+    point = Point(anchor.x, anchor.y)
     matched = (layer_id for layer_id, frame in layers.items()
-               if any(_covers(frame, point) for point in points))
-    return layer_mask(matched)
+               if _covers(frame, point))
+    mask = layer_mask(matched)
+    cache[key] = mask
+    return mask
+
+
+def candidate_mask(candidate: Candidate,
+                   layers: Mapping[str, gpd.GeoDataFrame],
+                   cache: dict[tuple[float, float], int] | None = None) -> int:
+    """Return the mask of layers that cover either candidate anchor."""
+    masks = cache if cache is not None else {}
+    return anchor_mask(candidate.a, layers, masks) | anchor_mask(
+        candidate.b, layers, masks)

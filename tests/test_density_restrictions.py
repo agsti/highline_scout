@@ -2,6 +2,7 @@ from pathlib import Path
 
 import geopandas as gpd
 from highliner.etl.density.restrictions import (
+    anchor_mask,
     candidate_mask,
     load_layers,
 )
@@ -39,3 +40,14 @@ def test_missing_layer_files_produce_no_mask(tmp_path: Path) -> None:
     layers = load_layers(tmp_path, "EPSG:25831")
     assert candidate_mask(_candidate(1, 1, 2, 2), layers) == 0
 
+
+def test_anchor_mask_is_reused_from_the_worker_cache(tmp_path: Path) -> None:
+    _write_layer(tmp_path / "zepa.parquet", [box(0, 0, 10, 10)])
+    layers = load_layers(tmp_path, "EPSG:25831")
+    anchor = Anchor(x=5, y=5, elev=100.0, sectors=())
+    cache: dict[tuple[float, float], int] = {}
+
+    assert anchor_mask(anchor, layers, cache) == 1
+    layers["zepa"] = layers["zepa"].iloc[0:0]
+
+    assert anchor_mask(anchor, layers, cache) == 1

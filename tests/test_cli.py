@@ -85,6 +85,27 @@ def test_density_command_forwards_workers(monkeypatch: pytest.MonkeyPatch) -> No
     assert calls["workers"] == 3
 
 
+def test_density_progress_lines_are_prefixed_and_newline_terminated(
+        capsys: pytest.CaptureFixture[str]) -> None:
+    report = density_main._make_reporter("aragon", clock=iter([0.0, 1.0]).__next__)
+    report(3, 10)
+    out = capsys.readouterr().out
+    assert out == "[aragon] pairs file 3/10 (30.0%)  elapsed 0:00:01\n"
+
+
+def test_density_progress_throttles_between_first_and_final(
+        capsys: pytest.CaptureFixture[str]) -> None:
+    ticks = iter([0.0, 1.0, 2.0, 40.0, 41.0])
+    report = density_main._make_reporter("aragon", interval=30.0,
+                                         clock=ticks.__next__)
+    report(1, 10)   # first call always prints
+    report(2, 10)   # 1s later: throttled
+    report(3, 10)   # 40s in: interval elapsed, prints
+    report(10, 10)  # final call always prints
+    lines = capsys.readouterr().out.splitlines()
+    assert [line.split()[3] for line in lines] == ["1/10", "3/10", "10/10"]
+
+
 def test_restrictions_command_builds_layers(
         monkeypatch: pytest.MonkeyPatch) -> None:
     calls: list[str] = []

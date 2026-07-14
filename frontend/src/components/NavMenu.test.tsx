@@ -8,6 +8,7 @@ import { NavMenu } from "./NavMenu";
 
 function renderMenu() {
   const onAbout = vi.fn();
+  const onFeedback = vi.fn();
 
   function Harness() {
     const [open, setOpen] = useState(false);
@@ -17,6 +18,7 @@ function renderMenu() {
         open={open}
         onOpenChange={setOpen}
         onAbout={onAbout}
+        onFeedback={onFeedback}
         restrictionAreaMode={mode}
         onRestrictionAreaModeChange={setMode}
       />
@@ -29,7 +31,7 @@ function renderMenu() {
     </I18nProvider>,
   );
 
-  return { onAbout };
+  return { onAbout, onFeedback };
 }
 
 async function openMenu(user: ReturnType<typeof userEvent.setup>) {
@@ -116,21 +118,15 @@ describe("NavMenu", () => {
     expect(screen.queryByRole("button", { name: "About Highline Scout" })).not.toBeInTheDocument();
   });
 
-  it("announces that feedback is not built yet, without closing", async () => {
+  it("asks for the feedback dialog and closes", async () => {
     const user = userEvent.setup();
-    renderMenu();
+    const { onFeedback } = renderMenu();
 
     await openMenu(user);
-    const feedbackButton = screen.getByRole("button", { name: "Send feedback" });
-    const hint = feedbackButton.querySelector('[aria-live="polite"]');
-    expect(hint).toBeInTheDocument();
-    expect(hint).toHaveTextContent("");
+    await user.click(screen.getByRole("button", { name: "Send feedback" }));
 
-    await user.click(feedbackButton);
-
-    expect(hint).toHaveTextContent("Coming soon");
-    expect(screen.getByText("Coming soon")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "About Highline Scout" })).toBeInTheDocument();
+    expect(onFeedback).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("button", { name: "About Highline Scout" })).not.toBeInTheDocument();
   });
 
   it("switches language without closing the panel", async () => {

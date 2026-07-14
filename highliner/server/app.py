@@ -17,7 +17,14 @@ from highliner.core.telemetry import (
     init_sentry,
     shutdown_telemetry,
 )
-from highliner.server.router import anchors, density, feedback, regions, restrictions, zones
+from highliner.server.router import (
+    anchors,
+    density,
+    feedback,
+    regions,
+    restrictions,
+    zones,
+)
 
 # For SEO: the one public origin used in crawler-visible URLs and metadata.
 _CANONICAL_ORIGIN = "https://highlinescout.com"

@@ -66,11 +66,15 @@ min_confidence = 60
 
 # Vulture resolves references statically, so anything a framework reaches by
 # convention reads as dead. Each entry below is called, just not by our code.
-ignore_decorators = ["@router.*"]  # FastAPI dispatches route handlers by decorator
+ignore_decorators = [
+    "@router.*",          # FastAPI dispatches route handlers by decorator
+    "@field_validator",   # pydantic calls field validators during model parsing
+]
 ignore_names = [
     "model_config",     # pydantic-settings reads it off the Settings class
     "dispatch",         # Starlette's BaseHTTPMiddleware entry point
     "project_api_key",  # set on the posthog module, consumed inside the library
+    "cls",              # bound by @classmethod; validators don't touch it
     # LayerSpec TypedDict keys: declared for typing, read as dict subscripts.
     "label", "color", "name_field", "tooltip", "highlight",
 ]

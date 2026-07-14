@@ -40,9 +40,12 @@ def send_feedback(settings: config.Settings, submission: FeedbackSubmission) -> 
     if submission.reply_email:
         payload["reply_to"] = submission.reply_email
     try:
-        response = requests.post("https://api.resend.com/emails",
-                                 headers={"Authorization": f"Bearer {settings.resend_api_key}"},
-                                 json=payload, timeout=10)
+        response = requests.post(
+            "https://api.resend.com/emails",
+            headers={"Authorization": f"Bearer {settings.resend_api_key}"},
+            json=payload,
+            timeout=10,
+        )
         response.raise_for_status()
     except requests.RequestException as error:
         raise FeedbackDeliveryError from error
@@ -50,4 +53,8 @@ def send_feedback(settings: config.Settings, submission: FeedbackSubmission) -> 
 
 def _message_text(submission: FeedbackSubmission) -> str:
     reply = submission.reply_email or "Not supplied"
-    return f"Topic: {_SUBJECTS[submission.topic]}\\nReply email: {reply}\\n\\n{submission.message}"
+    return (
+        f"Topic: {_SUBJECTS[submission.topic]}\\n"
+        f"Reply email: {reply}\\n\\n"
+        f"{submission.message}"
+    )

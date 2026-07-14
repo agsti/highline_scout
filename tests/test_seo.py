@@ -8,7 +8,9 @@ from highliner.server import app as app_module
 @pytest.fixture
 def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> TestClient:
     (tmp_path / "index.html").write_text(
-        "<!doctype html><html lang=\"en\"><head><title>Shell</title></head>"
+        "<!doctype html><html lang=\"en\"><head><title>Shell</title>"
+        "<link rel=\"stylesheet\" href=\"/assets/app.css\">"
+        "<script type=\"module\" src=\"/assets/app.js\"></script></head>"
         "<body><div id=\"root\"></div></body></html>"
     )
     monkeypatch.setattr(app_module, "_frontend_dir", lambda: tmp_path,
@@ -51,6 +53,8 @@ def test_methodology_routes_render_localized_metadata_for_crawlers(
 
     assert response.status_code == 200
     assert f'<html lang="{lang}">' in response.text
+    assert '<link rel="stylesheet" href="/assets/app.css">' in response.text
+    assert '<script type="module" src="/assets/app.js"></script>' in response.text
     assert f"<title>{title}</title>" in response.text
     assert f'<meta name="description" content="{description}">' in response.text
     assert (
@@ -89,6 +93,15 @@ def test_methodology_routes_render_localized_metadata_for_crawlers(
     assert '<meta name="twitter:card" content="summary_large_image">' in response.text
     assert '"@type":"WebApplication"' in response.text
     assert "confirmed-riggable" not in response.text
+
+
+@pytest.mark.parametrize("query_path", ("/es/how-it-works", "/not-a-route"))
+def test_methodology_metadata_uses_the_bound_route_not_query_params(
+        client: TestClient, query_path: str) -> None:
+    response = client.get(f"/en/how-it-works?path={query_path}")
+
+    assert response.status_code == 200
+    assert "<title>How it works | Highline Scout</title>" in response.text
 
 
 def test_unknown_path_remains_not_found(client: TestClient) -> None:

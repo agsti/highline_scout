@@ -1,6 +1,6 @@
 import json
 import re
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -27,6 +27,11 @@ _METHODOLOGY_PATHS = (
 )
 _SOCIAL_CARD = "https://highlinescout.com/social-card.png"
 _SOCIAL_CARD_ALT = "Highline Scout logo on a forest-green background"
+_HEAD_TAG_PATTERN = re.compile(
+    r"<title\b[^>]*>.*?</title\s*>|<meta\b[^>]*>|<link\b[^>]*>|"
+    r"<script\b[^>]*>.*?</script\s*>",
+    flags=re.DOTALL | re.IGNORECASE,
+)
 _METHODOLOGY_METADATA = {
     "/en/how-it-works": (
         "en",
@@ -59,7 +64,7 @@ def _sitemap() -> str:
             f"{entries}</urlset>")
 
 
-def _methodology_html(index_html: Path, path: str) -> str:
+def _methodology_metadata(path: str) -> tuple[str, str]:
     lang, title, description = _METHODOLOGY_METADATA[path]
     canonical = f"{_CANONICAL_ORIGIN}{path}"
     alternates = "".join(
@@ -75,10 +80,7 @@ def _methodology_html(index_html: Path, path: str) -> str:
         "applicationCategory": "TravelApplication",
         "publisher": {"@type": "Organization", "name": "HighlineScout"},
     }, separators=(",", ":"))
-    head = (
-        "<head>"
-        '<meta charset="UTF-8">'
-        '<meta name="viewport" content="width=device-width, initial-scale=1.0">'
+    return lang, (
         f"<title>{title}</title>"
         f'<meta name="description" content="{description}">'
         f'<link rel="canonical" href="{canonical}">'
@@ -97,12 +99,48 @@ def _methodology_html(index_html: Path, path: str) -> str:
         f'<meta name="twitter:title" content="{title}">'
         f'<meta name="twitter:description" content="{description}">'
         f'<script type="application/ld+json">{json_ld}</script>'
-        "</head>"
     )
+
+
+def _is_seo_tag(tag: str) -> bool:
+    lower_tag = tag.lower()
+    if lower_tag.startswith("<title"):
+        return True
+    if lower_tag.startswith("<meta"):
+        return bool(re.search(
+            r"\b(?:name|property)\s*=\s*['\"](?:description|keywords|robots|"
+            r"twitter:|og:)", lower_tag))
+    if lower_tag.startswith("<link"):
+        return bool(re.search(r"\brel\s*=\s*['\"]canonical['\"]", lower_tag)
+                    or (re.search(r"\brel\s*=\s*['\"]alternate['\"]", lower_tag)
+                        and "hreflang=" in lower_tag))
+    return bool(lower_tag.startswith("<script")
+                and "application/ld+json" in lower_tag)
+
+
+def _remove_seo_tags(head_content: str) -> str:
+    return _HEAD_TAG_PATTERN.sub(
+        lambda match: "" if _is_seo_tag(match.group()) else match.group(),
+        head_content,
+    )
+
+
+def _methodology_html(index_html: Path, path: str) -> str:
+    lang, metadata = _methodology_metadata(path)
     document = index_html.read_text()
     document = re.sub(r"<html\b[^>]*>", f'<html lang="{lang}">', document,
                       count=1)
-    return re.sub(r"<head>.*?</head>", head, document, count=1, flags=re.DOTALL)
+    return re.sub(
+        r"(<head\b[^>]*>)(.*?)(</head>)",
+        lambda match: (
+            f"{match.group(1)}"
+            f"{_remove_seo_tags(match.group(2))}"
+            f"{metadata}{match.group(3)}"
+        ),
+        document,
+        count=1,
+        flags=re.DOTALL | re.IGNORECASE,
+    )
 
 
 @asynccontextmanager
@@ -149,8 +187,14 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
             raise HTTPException(status_code=404)
         return HTMLResponse(_methodology_html(index_html, path))
 
+    def methodology_endpoint(path: str) -> Callable[[], HTMLResponse]:
+        def endpoint() -> HTMLResponse:
+            return methodology_shell(path)
+
+        return endpoint
+
     for path in _METHODOLOGY_PATHS:
-        app.add_api_route(path, lambda path=path: methodology_shell(path),
+        app.add_api_route(path, methodology_endpoint(path),
                           include_in_schema=False)
     app.add_api_route("/robots.txt", robots, include_in_schema=False)
     app.add_api_route("/sitemap.xml", sitemap, include_in_schema=False)

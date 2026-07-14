@@ -258,7 +258,7 @@ country is looked up in `REGION_DEFAULTS` (`core/regions.py`), and
     data/<country>/<region>/anchors/p_{cx}_{cy}.parquet  anchors per chunk
     data/<country>/<region>/pairs/q_{cx}_{cy}.parquet    candidate pairs per chunk (exposure baked in)
     data/<country>/<region>/tiles/                       transient DTM tile cache, deleted once a chunk finishes
-    data/<country>/<region>/density/z{z}.json            zoomed-out density pyramid (optional, `precompute-density`)
+    data/<country>/<region>/density/z{z}.npz             zoomed-out density pyramid (optional, `precompute-density`)
     data/<country>/restrictions/<id>.parquet             protected-area overlays (national per country)
     cache/<country>/mdt05_tiles/                         persistent CNIG MDT05 sheet cache (national, cross-region)
     cache/<country>/mdt05_sheet_index/                   cached CNIG sheet-index catalog queries

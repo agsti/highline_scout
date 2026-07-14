@@ -22,6 +22,8 @@ interface MapViewProps {
   minLen: number;
   maxLen: number;
   minExposure: number;
+  country?: string;
+  countryBounds?: [number, number, number, number];
   showAnchors: boolean;
   restrictionAreaMode: RestrictionAreaMode;
   enabledRestrictions: string[];
@@ -39,6 +41,8 @@ export function MapView({
   minLen,
   maxLen,
   minExposure,
+  country = "spain",
+  countryBounds,
   showAnchors,
   restrictionAreaMode,
   enabledRestrictions,
@@ -106,6 +110,7 @@ export function MapView({
     element: mapElement,
     t,
     lang,
+    countryBounds,
     onViewportChange: handleViewportChange,
     onViewStateChange,
     onMapSettled,
@@ -115,6 +120,7 @@ export function MapView({
   const { isLoading } = useZoneDensityLayer({
     mapRef,
     viewportRevision,
+    country,
     minLen,
     maxLen,
     minExposure,
@@ -130,6 +136,7 @@ export function MapView({
   useAnchorLayer({
     mapRef,
     viewportRevision,
+    country,
     showAnchors,
     t,
     restrictionAreaMode,
@@ -141,6 +148,7 @@ export function MapView({
   useRestrictionLayer({
     mapRef,
     viewportRevision,
+    country,
     enabledRestrictions,
     restrictionLayers,
     t,

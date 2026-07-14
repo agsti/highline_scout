@@ -4,6 +4,7 @@ export type Lang = (typeof LANGS)[number];
 export const STRINGS = {
   ca: {
     language: "Idioma",
+    country: "País",
     panelMinimize: "Minimitza el panell",
     panelExpand: "Expandeix el panell",
     lineLength: "Longitud",
@@ -91,6 +92,7 @@ export const STRINGS = {
   },
   es: {
     language: "Idioma",
+    country: "País",
     panelMinimize: "Minimizar panel",
     panelExpand: "Expandir panel",
     lineLength: "Longitud",
@@ -178,6 +180,7 @@ export const STRINGS = {
   },
   en: {
     language: "Language",
+    country: "Country",
     panelMinimize: "Minimize panel",
     panelExpand: "Expand panel",
     lineLength: "Length",

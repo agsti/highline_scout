@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
@@ -9,6 +10,7 @@ from highliner.etl.chunk.candidates import save_candidates
 from highliner.models.anchor import Anchor
 from highliner.models.candidate import Candidate
 from highliner.server.app import create_app
+from highliner.server.services import restrictions as restrictions_service
 
 from tests.helpers import to_utm
 
@@ -240,10 +242,20 @@ def _write_restriction_layer(
     gdf.to_parquet(rdir / f"{layer_id}.parquet")
 
 
-def test_restriction_layers_registry(tmp_path: Path) -> None:
+def test_restriction_layers_registry(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    seen: list[str] = []
+    original = restrictions_service.layer_meta
+
+    def layer_meta(country: str) -> list[dict[str, Any]]:
+        seen.append(country)
+        return original(country)
+
+    monkeypatch.setattr(restrictions_service, "layer_meta", layer_meta)
     client = TestClient(create_app(data_dir=tmp_path))
-    r = client.get("/restrictions/layers")
+    r = client.get("/restrictions/layers", params={"country": "france"})
     assert r.status_code == 200
+    assert seen == ["france"]
     layers = r.json()["layers"]
     ids = {row["id"] for row in layers}
     assert {"zepa", "zec", "enp"} <= ids

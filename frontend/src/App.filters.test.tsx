@@ -14,6 +14,7 @@ vi.mock("./lib/analytics", () => ({
 }));
 
 vi.mock("./lib/api", () => ({
+  fetchCountries: vi.fn().mockResolvedValue([]),
   fetchRestrictionLayers: vi.fn().mockResolvedValue([]),
 }));
 

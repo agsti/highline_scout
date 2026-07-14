@@ -17,6 +17,7 @@ export function useLeafletMap(options: {
   element: HTMLElement | null;
   t: T;
   lang: Lang;
+  countryBounds?: [number, number, number, number];
   onViewportChange: (map: L.Map) => void;
   onViewStateChange?: (view: MapViewState) => void;
   onMapSettled: (map: L.Map) => void;
@@ -61,6 +62,13 @@ export function useLeafletMap(options: {
       mapRef.current = null;
     };
   }, [options.element]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    const bounds = options.countryBounds;
+    if (!map || !bounds) return;
+    map.fitBounds([[bounds[1], bounds[0]], [bounds[3], bounds[2]]]);
+  }, [options.countryBounds]);
 
   return { mapRef, viewportRevision };
 }

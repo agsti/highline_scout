@@ -438,7 +438,7 @@ describe("MapView", () => {
 
     await waitFor(() =>
       expect(apiMocks.fetchDensity).toHaveBeenCalledWith(
-        { z: 14, bboxLonLat: "1,2,3,4" },
+        { z: 14, bboxLonLat: "1,2,3,4", country: "spain" },
         expect.any(AbortSignal),
       ),
     );
@@ -653,7 +653,7 @@ describe("MapView", () => {
 
     await waitFor(() =>
       expect(apiMocks.fetchAnchors).toHaveBeenCalledWith(
-        { bboxLonLat: "1,2,3,4" },
+        { bboxLonLat: "1,2,3,4", country: "spain" },
         expect.any(AbortSignal),
       ),
     );
@@ -697,7 +697,7 @@ describe("MapView", () => {
 
     await waitFor(() =>
       expect(apiMocks.fetchRestrictions).toHaveBeenCalledWith(
-        { bboxLonLat: "1,2,3,4", layers: ["zepa"] },
+        { bboxLonLat: "1,2,3,4", layers: ["zepa"], country: "spain" },
         expect.any(AbortSignal),
       ),
     );

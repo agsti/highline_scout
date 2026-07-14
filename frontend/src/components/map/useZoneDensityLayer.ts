@@ -38,6 +38,7 @@ export function useZoneDensityLayer(options: {
   lang: Lang;
   t: T;
   restrictionAreaMode: RestrictionAreaMode;
+  enabledRestrictions: string[];
   restrictionFeatures: RestrictionFeatureCollection;
   onMapStatus?: (status: string) => void;
   onError?: (message: string) => void;
@@ -179,7 +180,17 @@ export function useZoneDensityLayer(options: {
             Math.max(Math.round(zoom) + DENSITY_ZOOM_OFFSET, DENSITY_TILE_MIN),
             DENSITY_TILE_MAX,
           );
-          const fc = await fetchDensity({ z, bboxLonLat, country: options.country ?? "spain" }, controller.signal);
+          const excludeLayers = options.restrictionAreaMode === "exclude"
+            ? options.enabledRestrictions : [];
+          const fc = await fetchDensity({
+            z,
+            bboxLonLat,
+            country: options.country ?? "spain",
+            minLen: options.minLen,
+            maxLen: options.maxLen,
+            minExposure: options.minExposure,
+            excludeLayers,
+          }, controller.signal);
           if (requestId !== requestIdRef.current) return;
           densityLayerRef.current?.clearLayers();
           densitySortedRef.current = fc.features
@@ -231,9 +242,11 @@ export function useZoneDensityLayer(options: {
     options.maxLen,
     options.minExposure,
     options.minLen,
+    options.enabledRestrictions,
     options.onDensityModeChange,
     options.onError,
     options.onMapStatus,
+    options.restrictionAreaMode,
     options.viewportRevision,
     mapReady,
   ]);

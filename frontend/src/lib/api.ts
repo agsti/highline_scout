@@ -31,6 +31,10 @@ export interface ZoneQuery extends ViewportQuery {
 
 export interface DensityQuery extends ViewportQuery {
   z: number;
+  minLen: number;
+  maxLen: number;
+  minExposure: number;
+  excludeLayers: string[];
 }
 
 export interface RestrictionsQuery {
@@ -75,6 +79,12 @@ export function fetchDensity(params: DensityQuery, signal?: AbortSignal): Promis
     `/density?${query({
       z: params.z,
       bbox_lonlat: params.bboxLonLat,
+      min_len: params.minLen,
+      max_len: params.maxLen,
+      min_exposure: params.minExposure,
+      ...(params.excludeLayers.length > 0
+        ? { exclude_layers: params.excludeLayers.join(",") }
+        : {}),
       country: params.country,
     })}`,
     signal,

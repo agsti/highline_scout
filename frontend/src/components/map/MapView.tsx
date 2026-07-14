@@ -127,6 +127,7 @@ export function MapView({
     lang,
     t,
     restrictionAreaMode,
+    enabledRestrictions,
     restrictionFeatures,
     onMapStatus,
     onError,

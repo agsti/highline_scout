@@ -80,16 +80,19 @@ const zoneB: ZoneFeature = {
   ...zoneA,
   geometry: { type: "Polygon", coordinates: [[[4, 5], [4, 6], [5, 6], [4, 5]]] },
 };
+const noRestrictions: string[] = [];
 
 function Harness({
   viewportRevision = 0,
   providedMapRef,
   restrictionAreaMode = "informative",
+  enabledRestrictions = noRestrictions,
   restrictionFeatures = { type: "FeatureCollection", features: [] },
 }: {
   viewportRevision?: number;
   providedMapRef?: MutableRefObject<L.Map | null>;
   restrictionAreaMode?: RestrictionAreaMode;
+  enabledRestrictions?: string[];
   restrictionFeatures?: RestrictionFeatureCollection;
 }) {
   const { lang, t } = useI18n();
@@ -104,6 +107,7 @@ function Harness({
     lang,
     t,
     restrictionAreaMode,
+    enabledRestrictions,
     restrictionFeatures,
   });
   return <output data-testid="loading">{String(isLoading)}</output>;
@@ -159,7 +163,32 @@ describe("useZoneDensityLayer", () => {
     renderHarness();
 
     await waitFor(() => expect(fetchDensity).toHaveBeenCalledWith(
-      { z: DENSITY_TILE_MAX, bboxLonLat: "1,2,3,4", country: "spain" }, expect.any(AbortSignal),
+      {
+        z: DENSITY_TILE_MAX,
+        bboxLonLat: "1,2,3,4",
+        country: "spain",
+        minLen: 20,
+        maxLen: 150,
+        minExposure: 30,
+        excludeLayers: [],
+      },
+      expect.any(AbortSignal),
+    ));
+  });
+
+  it("sends enabled restriction layers only in exclusion mode", async () => {
+    getZoom.mockReturnValue(DENSITY_MAX_ZOOM);
+    mocks.fetchDensity.mockResolvedValue({ type: "FeatureCollection", features: [] });
+
+    render(
+      <I18nProvider>
+        <Harness restrictionAreaMode="exclude" enabledRestrictions={["zepa", "enp"]} />
+      </I18nProvider>,
+    );
+
+    await waitFor(() => expect(fetchDensity).toHaveBeenCalledWith(
+      expect.objectContaining({ excludeLayers: ["zepa", "enp"] }),
+      expect.any(AbortSignal),
     ));
   });
 

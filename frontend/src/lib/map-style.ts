@@ -7,6 +7,7 @@ export const DENSITY_ZOOM_OFFSET = 2;
 export const DENSITY_TILE_MIN = 6;
 export const DENSITY_TILE_MAX = 14;
 export const ANCHOR_MIN_ZOOM = 12;
+export const RESTRICTION_MIN_ZOOM = 15;
 export const ANCHOR_DETAIL_LIMIT = 400;
 export const ANCHOR_WEDGE_RADIUS_M = 30;
 export const ZONE_DEDUP_GRID_DEG = 0.0005;

@@ -4,6 +4,7 @@ import { useRef, type MutableRefObject } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError, fetchRestrictions } from "@/lib/api";
 import { I18nProvider, useI18n } from "@/lib/i18n";
+import { RESTRICTION_MIN_ZOOM } from "@/lib/map-style";
 import type { RestrictionFeatureCollection, RestrictionLayerMeta } from "@/types/highliner";
 import { useRestrictionLayer } from "./useRestrictionLayer";
 
@@ -21,8 +22,10 @@ vi.mock("@/lib/api", () => ({
 }));
 vi.mock("./leafletLayers", () => ({ createRestrictionLayer: vi.fn(() => mocks.restrictionLayer) }));
 
+let zoom = RESTRICTION_MIN_ZOOM;
 const map = {
   getBounds: () => ({ getEast: () => 3, getNorth: () => 4, getSouth: () => 2, getWest: () => 1 }),
+  getZoom: () => zoom,
   removeLayer: mocks.removeLayer,
 } as unknown as L.Map;
 const onError = vi.fn();
@@ -72,6 +75,7 @@ function renderHarness(enabledRestrictions: string[], viewportRevision = 0) {
 
 describe("useRestrictionLayer", () => {
   beforeEach(() => {
+    zoom = RESTRICTION_MIN_ZOOM;
     Object.defineProperty(window, "localStorage", {
       configurable: true,
       value: { getItem: vi.fn(() => "ca"), setItem: vi.fn() },
@@ -108,6 +112,42 @@ describe("useRestrictionLayer", () => {
     renderHarness(["zepa"]);
 
     await waitFor(() => expect(onFeaturesChange).toHaveBeenCalledWith(collection));
+  });
+
+  it("draws the polygons once the map is zoomed in far enough", async () => {
+    const collection: RestrictionFeatureCollection = {
+      type: "FeatureCollection",
+      features: [{
+        type: "Feature",
+        geometry: { type: "Polygon", coordinates: [[[1, 2], [1, 3], [2, 3], [1, 2]]] },
+        properties: { layer: "zepa" },
+      }],
+    };
+    mocks.fetchRestrictions.mockResolvedValue(collection);
+
+    renderHarness(["zepa"]);
+
+    await waitFor(() => expect(mocks.restrictionLayer.addData).toHaveBeenCalledWith(collection));
+  });
+
+  it("withholds the polygons below the zoom threshold but still publishes the features", async () => {
+    zoom = RESTRICTION_MIN_ZOOM - 1;
+    const collection: RestrictionFeatureCollection = {
+      type: "FeatureCollection",
+      features: [{
+        type: "Feature",
+        geometry: { type: "Polygon", coordinates: [[[1, 2], [1, 3], [2, 3], [1, 2]]] },
+        properties: { layer: "zepa" },
+      }],
+    };
+    mocks.fetchRestrictions.mockResolvedValue(collection);
+
+    renderHarness(["zepa"]);
+
+    // The features must keep flowing so zone/anchor exclusion still applies.
+    await waitFor(() => expect(onFeaturesChange).toHaveBeenCalledWith(collection));
+    expect(mocks.restrictionLayer.addData).not.toHaveBeenCalled();
+    expect(onRestrictionStatus).toHaveBeenCalledWith("amplia per veure espais protegits");
   });
 
   it("clears and publishes empty restrictions before a replacement request resolves", async () => {

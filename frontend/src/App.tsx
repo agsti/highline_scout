@@ -29,7 +29,7 @@ function pickInitialRestrictionAreaMode(): RestrictionAreaMode {
   } catch {
     // Storage can be unavailable in private mode.
   }
-  return "informative";
+  return "exclude";
 }
 
 export function App() {
@@ -66,7 +66,10 @@ export function App() {
   useEffect(() => {
     const controller = new AbortController();
     fetchRestrictionLayers(country, controller.signal)
-      .then(setRestrictionLayers)
+      .then((layers) => {
+        setRestrictionLayers(layers);
+        setEnabledRestrictions(layers.map((layer) => layer.id));
+      })
       .catch((error) => {
         if (error.name !== "AbortError") handleError(tRef.current("error", { detail: error.detail ?? String(error) }));
       });

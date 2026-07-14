@@ -2,6 +2,7 @@ import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { I18nProvider, useI18n } from "@/lib/i18n";
+import { RESTRICTION_MIN_ZOOM } from "@/lib/map-style";
 import { MapView } from "./MapView";
 
 const leafletMocks = vi.hoisted(() => ({
@@ -682,6 +683,8 @@ describe("MapView", () => {
   });
 
   it("loads enabled restrictions and reports the protected-area count", async () => {
+    // The polygons only draw, and the count only reports, once zoomed in this far.
+    leafletState.zoom = RESTRICTION_MIN_ZOOM;
     apiMocks.fetchZones.mockResolvedValue({ type: "FeatureCollection", features: [] });
     apiMocks.fetchRestrictions.mockResolvedValue({
       type: "FeatureCollection",

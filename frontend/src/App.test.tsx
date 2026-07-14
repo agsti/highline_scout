@@ -189,20 +189,38 @@ describe("App", () => {
     expect(apiMocks.fetchRestrictionLayers).toHaveBeenCalledTimes(1);
   });
 
-  it("restores a saved restriction-area mode", async () => {
-    window.localStorage.setItem("restrictionAreaMode", "exclude");
+  it("enables every restriction layer by default", async () => {
+    apiMocks.fetchRestrictionLayers.mockResolvedValue([
+      { id: "zepa", label: "ZEPA (Birds)", tooltip: "t", highlight: "t", color: "#0a0" },
+      { id: "enp", label: "Protected Natural Areas", tooltip: "t", highlight: "t", color: "#a00" },
+    ]);
+    renderApp();
+
+    await act(async () => {});
+    expect(screen.getByTestId("enabled-restrictions")).toHaveTextContent("zepa,enp");
+  });
+
+  it("defaults to exclude mode when nothing is saved", async () => {
     renderApp();
 
     await act(async () => {});
     expect(screen.getByTestId("restriction-area-mode")).toHaveTextContent("exclude");
   });
 
-  it("falls back to informative mode for an invalid saved restriction-area mode", async () => {
-    window.localStorage.setItem("restrictionAreaMode", "not-a-mode");
+  it("restores a saved restriction-area mode", async () => {
+    window.localStorage.setItem("restrictionAreaMode", "informative");
     renderApp();
 
     await act(async () => {});
     expect(screen.getByTestId("restriction-area-mode")).toHaveTextContent("informative");
+  });
+
+  it("falls back to exclude mode for an invalid saved restriction-area mode", async () => {
+    window.localStorage.setItem("restrictionAreaMode", "not-a-mode");
+    renderApp();
+
+    await act(async () => {});
+    expect(screen.getByTestId("restriction-area-mode")).toHaveTextContent("exclude");
   });
 
   it("saves the restriction-area mode when it changes", async () => {
@@ -212,9 +230,9 @@ describe("App", () => {
 
     await user.click(screen.getByRole("button", { name: "Menu" }));
     await user.click(screen.getByRole("combobox", { name: "Restriction areas" }));
-    await user.click(screen.getByRole("option", { name: "Exclude" }));
+    await user.click(screen.getByRole("option", { name: "Informative" }));
 
-    expect(screen.getByTestId("restriction-area-mode")).toHaveTextContent("exclude");
-    expect(window.localStorage.getItem("restrictionAreaMode")).toBe("exclude");
+    expect(screen.getByTestId("restriction-area-mode")).toHaveTextContent("informative");
+    expect(window.localStorage.getItem("restrictionAreaMode")).toBe("informative");
   });
 });

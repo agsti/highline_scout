@@ -69,7 +69,7 @@ describe("App analytics", () => {
     expect(applied[0][1]).toEqual({ min_len: 21, max_len: 149, min_exposure: 30 });
   });
 
-  it("emits restriction_layer_toggled when a layer is enabled", async () => {
+  it("emits restriction_layer_toggled when a layer is toggled", async () => {
     const user = userEvent.setup();
     render(
       <I18nProvider>
@@ -77,7 +77,15 @@ describe("App analytics", () => {
       </I18nProvider>,
     );
 
+    // Layers start enabled, so the first click turns ZEPA off.
     const checkbox = await screen.findByRole("checkbox", { name: /ZEPA/i });
+    await user.click(checkbox);
+
+    expect(captureMock).toHaveBeenCalledWith("restriction_layer_toggled", {
+      layer: "zepa",
+      enabled: false,
+    });
+
     await user.click(checkbox);
 
     expect(captureMock).toHaveBeenCalledWith("restriction_layer_toggled", {

@@ -2,6 +2,7 @@ import L from "leaflet";
 import { useEffect, useRef, useState } from "react";
 import { ApiError, fetchRestrictions } from "@/lib/api";
 import { bboxLonLatParam } from "@/lib/geo";
+import { RESTRICTION_MIN_ZOOM } from "@/lib/map-style";
 import type { useI18n } from "@/lib/i18n";
 import type { RestrictionFeatureCollection, RestrictionLayerMeta } from "@/types/highliner";
 import { createRestrictionLayer } from "./leafletLayers";
@@ -62,7 +63,15 @@ export function useRestrictionLayer(options: {
       .then((fc) => {
         if (controller.signal.aborted) return;
         layer.clearLayers();
+        // The features still feed zone/anchor exclusion at any zoom; only the
+        // polygons themselves wait until the map is close enough to read them.
         options.onFeaturesChange?.(fc);
+        if (map.getZoom() < RESTRICTION_MIN_ZOOM) {
+          options.onRestrictionStatus?.(
+            options.t("zoomInToSee", { noun: options.t("nounProtectedAreas") }),
+          );
+          return;
+        }
         layer.addData(fc);
         options.onRestrictionStatus?.(options.t("protectedAreasCount", { n: fc.features.length }));
       })

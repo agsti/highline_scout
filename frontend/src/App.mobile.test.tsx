@@ -86,7 +86,9 @@ describe("mobile control sheet", () => {
 
     await user.click(screen.getByRole("button", { name: /i understand/i }));
 
-    expect(screen.queryByTestId("legend-chip")).toBeNull();
+    // Restriction layers are enabled by default, so the legend is there on load.
+    const chip = await screen.findByTestId("legend-chip");
+    expect(within(chip).getByText("ZEPA (Aves)")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /open controls/i }));
     const sheet = await screen.findByRole("dialog");
@@ -95,7 +97,7 @@ describe("mobile control sheet", () => {
     await user.click(within(sheet).getByRole("button", { name: /close controls/i }));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
 
-    expect(within(screen.getByTestId("legend-chip")).getByText("ZEPA (Aves)")).toBeInTheDocument();
+    expect(screen.queryByTestId("legend-chip")).toBeNull();
   });
 
   it("opens the sheet when the pill summary is tapped", async () => {

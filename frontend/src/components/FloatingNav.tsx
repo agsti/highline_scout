@@ -17,7 +17,7 @@ interface FloatingNavProps {
 export function FloatingNav({
   onAbout, onFeedback = () => {},
   countries = [], country = "spain", onCountryChange = () => {},
-  restrictionAreaMode = "informative",
+  restrictionAreaMode = "exclude",
   onRestrictionAreaModeChange = () => {},
 }: FloatingNavProps) {
   const [menuOpen, setMenuOpen] = useState(false);

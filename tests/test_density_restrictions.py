@@ -1,11 +1,10 @@
 from pathlib import Path
 
 import geopandas as gpd
-from shapely.geometry import box
-
 from highliner.etl.density.restrictions import candidate_mask, load_layers
 from highliner.models.anchor import Anchor
 from highliner.models.candidate import Candidate
+from shapely.geometry import box
 
 
 def _candidate(ax: float, ay: float, bx: float, by: float) -> Candidate:
@@ -34,4 +33,5 @@ def test_boundary_and_multilayer_overlap_are_included(tmp_path: Path) -> None:
 
 
 def test_missing_layer_files_produce_no_mask(tmp_path: Path) -> None:
-    assert candidate_mask(_candidate(1, 1, 2, 2), load_layers(tmp_path, "EPSG:25831")) == 0
+    layers = load_layers(tmp_path, "EPSG:25831")
+    assert candidate_mask(_candidate(1, 1, 2, 2), layers) == 0

@@ -438,7 +438,15 @@ describe("MapView", () => {
 
     await waitFor(() =>
       expect(apiMocks.fetchDensity).toHaveBeenCalledWith(
-        { z: 14, bboxLonLat: "1,2,3,4", country: "spain" },
+        {
+          z: 14,
+          bboxLonLat: "1,2,3,4",
+          country: "spain",
+          minLen: 20,
+          maxLen: 150,
+          minExposure: 30,
+          excludeLayers: [],
+        },
         expect.any(AbortSignal),
       ),
     );

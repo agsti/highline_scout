@@ -2,13 +2,12 @@ import json
 from pathlib import Path
 
 import geopandas as gpd
-from shapely.geometry import box
-
 from highliner.core import config, tiles
 from highliner.etl.chunk.candidates import save_candidates
 from highliner.etl.density import builder
 from highliner.models.anchor import Anchor
 from highliner.models.candidate import Candidate
+from shapely.geometry import box
 
 from tests.helpers import to_utm
 

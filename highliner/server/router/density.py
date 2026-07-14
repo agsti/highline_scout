@@ -92,11 +92,11 @@ def _filtered_count(cell: dict[str, Any],
         return None
     min_exposure_bucket = math.ceil(
         density_filter.min_exposure / BUCKET_M)
-    return sum(count for length_bucket, exposure_bucket, mask, count in hist
-               if bucket_overlaps(length_bucket, density_filter.min_len,
-                                  density_filter.max_len)
-               and exposure_bucket >= min_exposure_bucket
-               and not is_excluded(mask, density_filter.excluded_mask))
+    return int(sum(count for length_bucket, exposure_bucket, mask, count in hist
+                   if bucket_overlaps(length_bucket, density_filter.min_len,
+                                      density_filter.max_len)
+                   and exposure_bucket >= min_exposure_bucket
+                   and not is_excluded(mask, density_filter.excluded_mask)))
 
 
 def _density_filter(min_len: float, max_len: float, min_exposure: float,

@@ -57,7 +57,7 @@ def test_process_chunk_writes_partitions_and_deletes_tiles(
     assert not list((region_dir / "tiles").glob("*.asc"))     # cleaned up
     assert not (region_dir / "dtm").exists()                  # no DTM persisted
 
-    from highliner.server.repositories.candidates import load_candidates
+    from highliner.etl.density.candidates import load_candidates
     cands = load_candidates(qpath)
     assert len(cands) > 0
     for c in cands:
@@ -90,7 +90,7 @@ def test_process_chunk_empty_marks_done(
     precompute.process_chunk(0, 0, core, region_dir)
     assert (region_dir / "anchors" / "p_0_0.parquet").exists()
     assert (region_dir / "pairs" / "q_0_0.parquet").exists()
-    from highliner.server.repositories.candidates import load_candidates
+    from highliner.etl.density.candidates import load_candidates
     assert load_candidates(region_dir / "pairs" / "q_0_0.parquet") == []
 
 
@@ -343,8 +343,8 @@ def test_cross_chunk_pair_owned_by_exactly_one_partition(
     precompute.precompute("catalonia", bbox, tmp_path, chunk_m=10000.0)
     region_dir = tmp_path / "spain" / "catalonia"
 
+    from highliner.etl.density.candidates import load_candidates
     from highliner.models.candidate import Candidate
-    from highliner.server.repositories.candidates import load_candidates
     c0 = load_candidates(region_dir / "pairs" / "q_0_0.parquet")
     c1 = load_candidates(region_dir / "pairs" / "q_1_0.parquet")
 

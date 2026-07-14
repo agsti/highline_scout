@@ -25,6 +25,21 @@ describe("PublicApp", () => {
     expect(document.querySelector('link[rel="canonical"]')?.getAttribute("href")).toBe(
       "https://highlinescout.com/",
     );
+    expect(document.querySelector('meta[property="og:image"]')?.getAttribute("content")).toBe(
+      "https://highlinescout.com/social-card.png",
+    );
+    expect(document.querySelector('meta[property="og:image:width"]')?.getAttribute("content")).toBe(
+      "1200",
+    );
+    expect(document.querySelector('meta[property="og:image:height"]')?.getAttribute("content")).toBe(
+      "630",
+    );
+    expect(document.querySelector('meta[property="og:image:alt"]')?.getAttribute("content")).toBe(
+      "Highline Scout logo on a forest-green background",
+    );
+    expect(document.querySelector('meta[name="twitter:card"]')?.getAttribute("content")).toBe(
+      "summary_large_image",
+    );
   });
 
   it("renders localized methodology metadata without duplicating alternates", () => {

@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import type { SeoPage } from "@/lib/seo";
+import { SOCIAL_CARD, type SeoPage } from "@/lib/seo";
 
 interface SeoHeadProps {
   page: SeoPage;
@@ -59,7 +59,23 @@ export function SeoHead({ page }: SeoHeadProps) {
     });
     upsertHeadNode("meta", "og-url", { property: "og:url", content: canonical });
     upsertHeadNode("meta", "og-type", { property: "og:type", content: "website" });
-    upsertHeadNode("meta", "twitter-card", { name: "twitter:card", content: "summary" });
+    upsertHeadNode("meta", "og-image", { property: "og:image", content: SOCIAL_CARD.url });
+    upsertHeadNode("meta", "og-image-width", {
+      property: "og:image:width",
+      content: SOCIAL_CARD.width,
+    });
+    upsertHeadNode("meta", "og-image-height", {
+      property: "og:image:height",
+      content: SOCIAL_CARD.height,
+    });
+    upsertHeadNode("meta", "og-image-alt", {
+      property: "og:image:alt",
+      content: SOCIAL_CARD.alt,
+    });
+    upsertHeadNode("meta", "twitter-card", {
+      name: "twitter:card",
+      content: "summary_large_image",
+    });
     upsertHeadNode("meta", "twitter-title", { name: "twitter:title", content: page.title });
     upsertHeadNode("meta", "twitter-description", {
       name: "twitter:description",

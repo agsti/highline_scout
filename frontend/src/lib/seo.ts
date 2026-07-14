@@ -2,6 +2,13 @@ import type { Lang } from "./i18n";
 
 const ORIGIN = "https://highlinescout.com";
 
+export const SOCIAL_CARD = {
+  url: `${ORIGIN}/social-card.png`,
+  width: "1200",
+  height: "630",
+  alt: "Highline Scout logo on a forest-green background",
+};
+
 export interface SeoPage {
   title: string;
   description: string;

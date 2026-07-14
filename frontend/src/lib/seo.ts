@@ -58,7 +58,7 @@ export function seoForPath(pathname: string): SeoPage {
   if (lang) return methodologyPage(lang);
 
   return {
-    title: "Highline Scout",
+    title: "HighlineScout | The smarter way to scout your next line",
     description: "Find potential highline spots to scout with Highline Scout.",
     canonical: ORIGIN,
     lang: "en",

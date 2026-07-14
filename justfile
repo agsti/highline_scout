@@ -32,6 +32,23 @@ test-web:
 serve host="127.0.0.1" port="8000":
     uv run highliner-server --host {{host}} --port {{port}}
 
+# Report the memory of the running backend without sending it any requests.
+# Pass an explicit PID to measure another process: just memory 12345
+memory pid="":
+    @set -eu; \
+    target_pid='{{pid}}'; \
+    if [ -z "$target_pid" ]; then \
+        target_pid="$(pgrep -fo '/uvicorn highliner.server.app:app' || pgrep -fo '/highliner-server' || true)"; \
+    fi; \
+    if [ -z "$target_pid" ] || [ ! -d "/proc/$target_pid" ]; then \
+        echo "No Highliner backend found; run: just memory PID" >&2; \
+        exit 1; \
+    fi; \
+    ps -o rss=,vsz= -p "$target_pid" | awk -v pid="$target_pid" '{ printf "PID %s\nRSS: %.1f MiB\nVSZ: %.1f MiB\n", pid, $1 / 1024, $2 / 1024 }'; \
+    if ! awk '/^Pss:/ { pss = $2 } /^Private_Dirty:/ { private_dirty = $2 } END { printf "PSS: %.1f MiB\nPrivate dirty: %.1f MiB\n", pss / 1024, private_dirty / 1024 }' "/proc/$target_pid/smaps_rollup" 2>/dev/null; then \
+        echo "PSS/private dirty unavailable for this process owner"; \
+    fi
+
 # Run the test suite. Pass extra args/paths, e.g. just test tests/test_pairing.py -k bearing
 test *args:
     uv run pytest {{args}}

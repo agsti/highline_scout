@@ -25,11 +25,10 @@ interface NavMenuProps {
 interface MenuItemProps {
   icon: ReactNode;
   label: string;
-  hint?: string;
   onClick: () => void;
 }
 
-function MenuItem({ icon, label, hint, onClick }: MenuItemProps) {
+function MenuItem({ icon, label, onClick }: MenuItemProps) {
   return (
     <button
       type="button"
@@ -40,9 +39,6 @@ function MenuItem({ icon, label, hint, onClick }: MenuItemProps) {
         {icon}
       </span>
       <span className="flex-1">{label}</span>
-      <span aria-live="polite" className="text-[11px] font-semibold text-muted-foreground">
-        {hint ?? ""}
-      </span>
     </button>
   );
 }

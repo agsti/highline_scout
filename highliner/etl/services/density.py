@@ -16,7 +16,7 @@ from highliner.models.candidate import Candidate
 # the server-side read layer (chunked_store / load_candidates). The dependency
 # only ever points etl -> server; the server never imports etl.
 from highliner.server.repositories import chunked_store
-from highliner.server.repositories.candidates import load_candidates
+from highliner.etl.density.candidates import load_candidates
 
 
 def _midpoint_lonlat(c: Candidate, crs: str) -> tuple[float, float]:

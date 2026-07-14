@@ -84,6 +84,22 @@ histograms require a fresh density precompute, stale legacy files continue to
 serve their existing unfiltered totals but must be regenerated to support live
 filtered density.
 
+## Precompute performance
+
+Density building is parallelizable by candidate parquet file. The density CLI
+will accept --workers, defaulting to one exactly like the chunk precompute
+command. With more than one worker it starts a ProcessPoolExecutor; every
+process loads and reprojects the selected country's restriction layers once
+through an initializer, then processes a disjoint batch of candidate partition
+files. Each worker returns partial per-cell summaries and sparse histogram
+counts, which the parent merges before writing the same deterministic JSON.
+
+JSON assembly will keep histogram rows grouped by cell while aggregating, rather
+than scan the full histogram map once for every cell. Output work is therefore
+linear in histogram rows rather than quadratic in cells times rows. Worker
+counts stay explicit because every process holds transformed country restriction
+geometries in memory.
+
 ## Tests
 
 Backend tests will prove 10 m length/exposure bucket aggregation and exact

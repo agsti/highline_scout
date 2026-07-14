@@ -46,7 +46,10 @@ def init_sentry(settings: Settings) -> bool:
         integrations=[StarletteIntegration(), FastApiIntegration()],
         # /zones fires on every map pan; tracing it would flood the self-hosted
         # GlitchTip with transactions that add nothing over `slow_request`.
-        traces_sample_rate=0.0,
+        # Percentage of requests recorded for performance monitoring
+        traces_sample_rate=0.3,
+        # GlitchTip does not support Sentry session tracking
+        auto_session_tracking=False,
     )
     return True
 

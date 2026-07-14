@@ -82,3 +82,4 @@ DEFAULT_COUNTRY = "spain"
 
 # Zoomed-out density pyramid
 DENSITY_ZOOM_LEVELS = range(6, 15)  # slippy-map zoom layers precomputed (z6..z14)
+DENSITY_BUCKET_M = 10.0

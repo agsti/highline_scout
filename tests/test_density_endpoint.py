@@ -19,6 +19,16 @@ def _write_density(data_dir: Path, region: str, z: int) -> tuple[int, int]:
     return tx, ty
 
 
+def _write_hist_density(data_dir: Path, hist: list[list[int]]) -> None:
+    tx, ty = tiles.lonlat_to_tile(1.83, 41.59, 12)
+    ddir = data_dir / "spain" / "catalonia" / "density"
+    ddir.mkdir(parents=True)
+    (ddir / "z12.json").write_text(json.dumps([{
+        "x": tx, "y": ty, "n": sum(row[3] for row in hist), "max_exp": 85.0,
+        "min_len": 40.0, "max_len": 200.0, "hist": hist,
+    }]))
+
+
 def test_density_returns_clipped_cell(tmp_path: Path) -> None:
     _write_density(tmp_path, "catalonia", 12)
     client = TestClient(create_app(data_dir=tmp_path))
@@ -100,3 +110,41 @@ def test_density_merges_regions_when_region_omitted(tmp_path: Path) -> None:
         "z": 12, "bbox_lonlat": "1.7,41.5,2.0,41.7"})
     assert r.status_code == 200
     assert len(r.json()["features"]) == 2
+
+
+def test_density_sums_requested_length_and_exposure_buckets(tmp_path: Path) -> None:
+    _write_hist_density(tmp_path, [[10, 3, 0, 2], [20, 4, 0, 1]])
+    client = TestClient(create_app(data_dir=tmp_path))
+
+    response = client.get("/density", params={
+        "region": "catalonia", "z": 12, "bbox_lonlat": "1.7,41.5,2.0,41.7",
+        "min_len": 100, "max_len": 200, "min_exposure": 30,
+    })
+
+    assert response.json()["features"][0]["properties"]["n_pairs"] == 2
+
+
+def test_density_excludes_each_selected_layer_bit(tmp_path: Path) -> None:
+    _write_hist_density(tmp_path, [[10, 3, 1, 2], [10, 3, 4, 3],
+                                   [10, 3, 0, 5]])
+    client = TestClient(create_app(data_dir=tmp_path))
+
+    response = client.get("/density", params={
+        "region": "catalonia", "z": 12, "bbox_lonlat": "1.7,41.5,2.0,41.7",
+        "min_len": 100, "max_len": 200, "min_exposure": 30,
+        "exclude_layers": "zepa,enp",
+    })
+
+    assert response.json()["features"][0]["properties"]["n_pairs"] == 5
+
+
+def test_filtered_legacy_density_cell_is_not_returned(tmp_path: Path) -> None:
+    _write_density(tmp_path, "catalonia", 12)
+    client = TestClient(create_app(data_dir=tmp_path))
+
+    response = client.get("/density", params={
+        "region": "catalonia", "z": 12, "bbox_lonlat": "1.7,41.5,2.0,41.7",
+        "min_len": 100,
+    })
+
+    assert response.json()["features"] == []

@@ -1,4 +1,4 @@
-"""Shared bucket and restriction-mask rules for density cells."""
+"""Shared histogram rules for offline density generation and serving."""
 import math
 from collections.abc import Iterable
 
@@ -9,7 +9,7 @@ LAYER_BITS = {"zepa": 1, "zec": 2, "enp": 4}
 
 
 def bucket_for(value: float) -> int:
-    """Return the 10 m bucket containing ``value``."""
+    """Return the 10 m bucket containing a value."""
     return int(value // BUCKET_M)
 
 

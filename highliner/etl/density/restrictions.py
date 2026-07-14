@@ -5,8 +5,8 @@ from pathlib import Path
 import geopandas as gpd
 from shapely.geometry import Point
 
+from highliner.core.density import layer_mask
 from highliner.core.restrictions import LAYERS
-from highliner.etl.density.histogram import layer_mask
 from highliner.models.candidate import Candidate
 
 

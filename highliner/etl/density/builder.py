@@ -4,9 +4,9 @@ from collections.abc import Callable, Iterable
 from pathlib import Path
 
 from highliner.core import config, geo, tiles
+from highliner.core.density import bucket_for
 from highliner.core.regions import defaults_for_region
 from highliner.etl.density.candidates import load_candidates
-from highliner.etl.density.histogram import bucket_for
 from highliner.etl.density.restrictions import candidate_mask, load_layers
 from highliner.models.candidate import Candidate
 from highliner.server.repositories import chunked_store

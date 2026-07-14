@@ -1,4 +1,4 @@
-from highliner.etl.density.histogram import (
+from highliner.core.density import (
     bucket_for,
     bucket_overlaps,
     is_excluded,

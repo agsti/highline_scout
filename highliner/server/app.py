@@ -196,7 +196,8 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
             raise HTTPException(status_code=404)
         return HTMLResponse(_methodology_html(index_html, path))
 
-    # For SEO: close over each path so a query string cannot alter its canonical metadata.
+    # For SEO: close over each path so a query string cannot alter its
+    # canonical metadata.
     def methodology_endpoint(path: str) -> Callable[[], HTMLResponse]:
         def endpoint() -> HTMLResponse:
             return methodology_shell(path)

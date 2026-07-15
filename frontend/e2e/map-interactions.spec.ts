@@ -7,7 +7,7 @@ test.beforeEach(async ({ page }) => {
 test("map interactions", async ({ page }) => {
   const initialDensityResponse = page.waitForResponse((response) => {
     const url = new URL(response.url());
-    return url.pathname === "/density" && url.searchParams.get("z") === "14";
+    return url.pathname === "/density" && response.status() === 200;
   });
   await page.goto("/?lat=41.59&lng=1.83&z=12");
   await page.getByRole("button", { name: "I understand" }).click();
@@ -39,7 +39,6 @@ test("map interactions", async ({ page }) => {
 
   const densityResponse = page.waitForResponse((response) =>
     new URL(response.url()).pathname === "/density"
-      && new URL(response.url()).searchParams.get("z") === "14"
       && response.status() === 200,
   );
   await page.getByRole("button", { name: "Zoom out" }).click();

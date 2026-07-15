@@ -1,7 +1,7 @@
 from pathlib import Path
 
 import pytest
-from highliner.etls.density import main as density_main
+from highliner.etls.density import shared, spain
 from highliner.restrictions import main as restrictions_main
 from highliner.server import main as server_main
 
@@ -26,48 +26,34 @@ def test_server_command_starts_uvicorn(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 
-def test_density_command_uses_region_directory(
+def test_density_discovers_only_grid_regions_in_country(tmp_path: Path) -> None:
+    (tmp_path / "spain" / "a").mkdir(parents=True)
+    (tmp_path / "spain" / "a" / "grid.json").write_text("{}")
+    (tmp_path / "spain" / "scratch").mkdir()
+    (tmp_path / "france" / "b").mkdir(parents=True)
+    (tmp_path / "france" / "b" / "grid.json").write_text("{}")
+
+    assert shared.discover_regions(tmp_path, "spain") == [tmp_path / "spain" / "a"]
+
+
+def test_spain_density_adapter_has_no_region_argument(
         monkeypatch: pytest.MonkeyPatch) -> None:
-    calls: dict[str, object] = {}
+    calls: list[dict[str, object]] = []
 
-    def fake(region_dir: Path, **kwargs: object) -> int:
-        calls.update(region_dir=region_dir, **kwargs)
-        return 7
+    def fake(**kwargs: object) -> dict[str, int]:
+        calls.append(kwargs)
+        return {}
 
-    monkeypatch.setattr("highliner.etls.density.main.builder.build_density", fake)
-    density_main.main(["--region", "catalonia", "--data-dir", "/tmp/x"])
-    assert calls["region_dir"] == Path("/tmp/x") / "spain" / "catalonia"
-
-
-def test_density_command_forwards_country(monkeypatch: pytest.MonkeyPatch) -> None:
-    calls: dict[str, object] = {}
-
-    def fake(region_dir: Path, **kwargs: object) -> int:
-        calls.update(region_dir=region_dir, **kwargs)
-        return 7
-
-    monkeypatch.setattr("highliner.etls.density.main.builder.build_density", fake)
-    density_main.main(["--region", "catalonia", "--country", "france",
-                       "--data-dir", "/tmp/x"])
-    assert calls["region_dir"] == Path("/tmp/x") / "france" / "catalonia"
-    assert calls["restrictions_dir"] == Path("/tmp/x") / "france" / "restrictions"
-
-
-def test_density_command_forwards_workers(monkeypatch: pytest.MonkeyPatch) -> None:
-    calls: dict[str, object] = {}
-
-    def fake(region_dir: Path, **kwargs: object) -> int:
-        calls.update(region_dir=region_dir, **kwargs)
-        return 7
-
-    monkeypatch.setattr("highliner.etls.density.main.builder.build_density", fake)
-    density_main.main(["--region", "catalonia", "--workers", "3"])
-    assert calls["workers"] == 3
+    monkeypatch.setattr(spain.shared, "build_country_density",
+                        fake)
+    spain.main(["--data-dir", "/tmp/data", "--workers", "3"])
+    assert calls == [{"country": "spain", "data_dir": Path("/tmp/data"),
+                      "workers": 3}]
 
 
 def test_density_progress_lines_are_prefixed_and_newline_terminated(
         capsys: pytest.CaptureFixture[str]) -> None:
-    report = density_main._make_reporter("aragon", clock=iter([0.0, 1.0]).__next__)
+    report = shared._make_reporter("aragon", clock=iter([0.0, 1.0]).__next__)
     report(3, 10)
     out = capsys.readouterr().out
     assert out == "[aragon] pairs file 3/10 (30.0%)  elapsed 0:00:01\n"
@@ -76,8 +62,7 @@ def test_density_progress_lines_are_prefixed_and_newline_terminated(
 def test_density_progress_throttles_between_first_and_final(
         capsys: pytest.CaptureFixture[str]) -> None:
     ticks = iter([0.0, 1.0, 2.0, 40.0, 41.0])
-    report = density_main._make_reporter("aragon", interval=30.0,
-                                         clock=ticks.__next__)
+    report = shared._make_reporter("aragon", interval=30.0, clock=ticks.__next__)
     report(1, 10)   # first call always prints
     report(2, 10)   # 1s later: throttled
     report(3, 10)   # 40s in: interval elapsed, prints
@@ -98,7 +83,7 @@ def test_restrictions_command_builds_layers(
 def test_project_defines_focused_command_scripts() -> None:
     project = Path("pyproject.toml").read_text()
     assert 'highliner-server = "highliner.server.main:main"' in project
-    assert 'highliner-etl-density = "highliner.etls.density.main:main"' in project
+    assert 'highliner-etl-density = "highliner.etls.density.spain:main"' in project
     assert 'highliner-restrictions = "highliner.restrictions.main:main"' in project
     assert "highliner.cli:main" not in project
 

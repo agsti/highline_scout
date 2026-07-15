@@ -55,7 +55,8 @@ jobs:
         working-directory: frontend
 
       - name: Browser E2E tests
-        run: just test-e2e
+        run: npm run test:e2e
+        working-directory: frontend
 
       - name: Upload browser-test artifacts
         if: failure()

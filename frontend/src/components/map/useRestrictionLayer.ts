@@ -53,6 +53,14 @@ export function useRestrictionLayer(options: {
       options.onRestrictionStatus?.("");
       return;
     }
+    if (map.getZoom() < RESTRICTION_MIN_ZOOM) {
+      layer.clearLayers();
+      options.onFeaturesChange?.(emptyCollection);
+      options.onRestrictionStatus?.(
+        options.t("zoomInToSee", { noun: options.t("nounProtectedAreas") }),
+      );
+      return;
+    }
     layer.clearLayers();
     options.onFeaturesChange?.(emptyCollection);
     const controller = new AbortController();
@@ -63,15 +71,7 @@ export function useRestrictionLayer(options: {
       .then((fc) => {
         if (controller.signal.aborted) return;
         layer.clearLayers();
-        // The features still feed zone/anchor exclusion at any zoom; only the
-        // polygons themselves wait until the map is close enough to read them.
         options.onFeaturesChange?.(fc);
-        if (map.getZoom() < RESTRICTION_MIN_ZOOM) {
-          options.onRestrictionStatus?.(
-            options.t("zoomInToSee", { noun: options.t("nounProtectedAreas") }),
-          );
-          return;
-        }
         layer.addData(fc);
         options.onRestrictionStatus?.(options.t("protectedAreasCount", { n: fc.features.length }));
       })

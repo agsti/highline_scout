@@ -130,23 +130,12 @@ describe("useRestrictionLayer", () => {
     await waitFor(() => expect(mocks.restrictionLayer.addData).toHaveBeenCalledWith(collection));
   });
 
-  it("withholds the polygons below the zoom threshold but still publishes the features", async () => {
+  it("skips the restriction request below the zoom threshold", () => {
     zoom = RESTRICTION_MIN_ZOOM - 1;
-    const collection: RestrictionFeatureCollection = {
-      type: "FeatureCollection",
-      features: [{
-        type: "Feature",
-        geometry: { type: "Polygon", coordinates: [[[1, 2], [1, 3], [2, 3], [1, 2]]] },
-        properties: { layer: "zepa" },
-      }],
-    };
-    mocks.fetchRestrictions.mockResolvedValue(collection);
-
     renderHarness(["zepa"]);
 
-    // The features must keep flowing so zone/anchor exclusion still applies.
-    await waitFor(() => expect(onFeaturesChange).toHaveBeenCalledWith(collection));
-    expect(mocks.restrictionLayer.addData).not.toHaveBeenCalled();
+    expect(fetchRestrictions).not.toHaveBeenCalled();
+    expect(onFeaturesChange).toHaveBeenCalledWith({ type: "FeatureCollection", features: [] });
     expect(onRestrictionStatus).toHaveBeenCalledWith("amplia per veure espais protegits");
   });
 

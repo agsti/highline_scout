@@ -1,78 +1,62 @@
-# Task 2 report: colocate chunk terrain pipeline
+# Task 2 report: Spain chunk ETL adapter
 
 ## Scope
 
-- Moved the unchanged DTM adapter to `highliner/etl/chunk/dtm.py`.
-- Moved the unchanged terrain extraction implementation to
-  `highliner/etl/chunk/terrain.py`.
-- Moved the unchanged candidate pairing implementation to
-  `highliner/etl/chunk/pairing.py`.
-- Migrated direct algorithm-test imports and DTM monkeypatch targets to the
-  chunk package, including `tests/test_precompute.py` discovered by the full
-  suite.
-- Updated the three imports in `highliner/etl/services/precompute.py` so the
-  existing orchestration continues to consume the relocated modules. This was
-  an explicitly approved necessary consumer migration; no orchestration logic
-  changed.
+- Added `highliner.etls.chunk.spain`, the Spain-specific chunk precompute
+  adapter with an explicit `COUNTRY`, immutable `Region` catalogue, per-region
+  CRS/source configuration, serial and concurrent execution, and `python -m`
+  support.
+- Replaced the generic chunk console target with
+  `highliner.etls.chunk.spain:main`.
+- Removed the legacy generic chunk CLI and subprocess-oriented Spain wrapper.
+- Replaced the subprocess test with a direct adapter contract test and updated
+  the console entry-point assertion.
 
 ## TDD evidence
 
 ### RED
 
-After changing the algorithm tests to use the package-local imports, before
-moving production modules, I ran:
+After replacing the legacy Spain-wrapper test with the direct adapter test, I
+ran:
 
 ```text
-uv run pytest tests/test_ingest.py tests/test_terrain_extract.py tests/test_terrain_sectors.py tests/test_terrain_slope.py tests/test_pairing.py tests/test_characterization.py tests/test_integration.py -q
-6 collection errors, exit 2
+uv run pytest tests/test_precompute_spain.py::test_spain_chunk_adapter_forwards_country_and_region -v
 ```
 
-The expected failures were missing package-local module imports:
-
-```text
-ImportError: cannot import name 'dtm' from 'highliner.etl.chunk'
-ModuleNotFoundError: No module named 'highliner.etl.chunk.pairing'
-```
+It failed at collection because `highliner.etls.chunk.spain` did not exist.
 
 ### GREEN
 
-I used `git mv` for the three modules and updated the three `precompute.py`
-consumer imports. The first focused green run found one remaining local legacy
-import inside `test_batch_blocking_does_not_change_results`; I migrated it.
-The focused suite then passed:
+After adding the adapter, the focused test passed. The requested test set then
+passed:
 
 ```text
-37 passed, 1 warning in 0.93s
+uv run pytest tests/test_precompute_spain.py tests/test_cli.py -v
+10 passed in 0.64s
 ```
 
-The first full-suite run then exposed nine stale direct DTM imports in
-`tests/test_precompute.py`. I migrated only those test imports and its sleep
-monkeypatch string. The final full verification passed:
+## Verification
 
-```text
-just test
-163 passed, 1 warning in 10.03s
-```
-
-The warning is the existing FastAPI/Starlette `TestClient` deprecation.
-
-## Self-review
-
-- `git diff --check` completed with exit 0.
-- A repository search found no remaining imports rooted at
-  `highliner.etl.repositories.dtm`, `highliner.etl.services.terrain`, or
-  `highliner.etl.services.pairing`.
-- The moved modules have no algorithm edits; the only production modification
-  beyond their relocation is the necessary three-line consumer import update
-  in `precompute.py`.
-- Unrelated working-tree changes (frontend, documentation, Task 1 report, and
-  other untracked work) were not staged or modified by this task.
+- `git diff --check` passed.
+- Ruff, file-length validation, mypy, and vulture passed through `just check`.
+- The final frontend test step of `just check` could not run because `npm` is
+  not installed in this environment (`sh: 1: npm: not found`).
 
 ## Commit
 
-`refactor: colocate chunk terrain pipeline` (created after this report is
-staged with the Task 2 files only).
+`feat: add Spain chunk ETL adapter`
 
 ## Concerns
 
-None.
+`catalonia2` remains in the inherited Spain catalogue and is configured for
+ICGC/EPSG:25831. The task brief did not provide a replacement full-Catalonia
+bbox; no new geographic extent was invented.
+
+## Follow-up: reviewer configuration gap
+
+- Added explicit `catalonia` and `catalunya` catalogue entries, both with the
+  inherited Catalonia sample bbox, `EPSG:25831`, and the `icgc` source.
+- Added parameterized direct-adapter coverage proving each alias is selected
+  and forwards those exact CRS/source values to shared precompute.
+- Verification: `uv run pytest tests/test_precompute_spain.py tests/test_cli.py
+  -v` passed with 12 tests.

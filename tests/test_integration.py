@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
-from highliner.etl.chunk import precompute
+from highliner.etls.chunk import shared
 from highliner.server.app import create_app
 
 
@@ -10,7 +10,7 @@ def _patch_gap_download(monkeypatch: pytest.MonkeyPatch) -> None:
     """Make dtm._download_tile synthesize terrain: plateau 100 m with a deep
     N-S trench (elev 20, 40 m wide) through the middle, so facing anchors exist
     across the trench (exposure ~80)."""
-    from highliner.etl.chunk import dtm as _dtm
+    from highliner.etls.chunk import dtm as _dtm
 
     def fake(bbox: tuple[float, float, float, float], width: int, height: int,
              dest: Path) -> Path:
@@ -34,7 +34,8 @@ def _patch_gap_download(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_full_pipeline(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     _patch_gap_download(monkeypatch)
     bbox = (420000.0, 4600000.0, 420300.0, 4600300.0)
-    n = precompute.precompute("demo", bbox, tmp_path, chunk_m=10000.0)
+    n = shared.precompute("spain", "demo", bbox, tmp_path, chunk_m=10000.0,
+                          crs="EPSG:25831", dtm_source="icgc")
     assert n == 1
 
     client = TestClient(create_app(data_dir=tmp_path))

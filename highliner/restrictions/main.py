@@ -1,6 +1,6 @@
 import argparse
 
-from highliner.etl.repositories.restrictions import fetch_all
+from highliner.etls.repositories.restrictions import fetch_all
 
 
 def main(argv: list[str] | None = None) -> None:

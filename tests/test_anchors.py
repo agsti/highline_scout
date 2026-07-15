@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from highliner.etl.chunk.anchors import save_anchors
+from highliner.etls.chunk.anchors import save_anchors
 from highliner.models.anchor import Anchor
 from highliner.server.repositories.partition_cache import read_anchor_columns
 

@@ -23,8 +23,8 @@ dev = ["pytest", "httpx", "mypy", "types-requests", "ruff", "vulture"]
 
 [project.scripts]
 highliner-server = "highliner.server.main:main"
-highliner-etl-chunk = "highliner.etl.chunk.main:main"
-highliner-etl-density = "highliner.etl.density.main:main"
+highliner-etl-chunk = "highliner.etls.chunk.main:main"
+highliner-etl-density = "highliner.etls.density.main:main"
 highliner-restrictions = "highliner.restrictions.main:main"
 
 [build-system]

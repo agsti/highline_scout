@@ -2,7 +2,7 @@
 
 The specification of each derived layer (its display metadata plus the
 predicate that selects its features from a source) lives here because both
-sides need it: the ETL build (``highliner.etl.repositories.restrictions``) is
+sides need it: the ETL build (``highliner.etls.repositories.restrictions``) is
 driven by it, and the serving helpers
 (``highliner.server.services.restrictions``) expose its display metadata to the
 frontend. Keeping it here avoids a cross-stage import between etl and server.

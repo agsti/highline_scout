@@ -1,8 +1,8 @@
 from pathlib import Path
 
 import pytest
-from highliner.etl.chunk import main as chunk_main
-from highliner.etl.density import main as density_main
+from highliner.etls.chunk import main as chunk_main
+from highliner.etls.density import main as density_main
 from highliner.restrictions import main as restrictions_main
 from highliner.server import main as server_main
 
@@ -29,16 +29,18 @@ def test_server_command_starts_uvicorn(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_chunk_command_uses_region_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
     calls: dict[str, object] = {}
 
-    def fake(region: str, bbox: tuple[float, ...], data_dir: Path,
+    def fake(country: str, region: str, bbox: tuple[float, ...], data_dir: Path,
              **kwargs: object) -> int:
-        calls.update(region=region, bbox=bbox, data_dir=data_dir, **kwargs)
+        calls.update(country=country, region=region, bbox=bbox, data_dir=data_dir,
+                     **kwargs)
         return 1
 
-    monkeypatch.setattr("highliner.etl.chunk.precompute.precompute", fake)
+    monkeypatch.setattr("highliner.etls.chunk.shared.precompute", fake)
     chunk_main.main(["--region", "catalonia", "--data-dir", "/tmp/x",
                      "--bbox", "0,0,10000,10000", "--chunk-km", "10",
                      "--workers", "4"])
     assert calls["region"] == "catalonia"
+    assert calls["country"] == "spain"
     assert calls["bbox"] == (0.0, 0.0, 10000.0, 10000.0)
     assert calls["chunk_m"] == 10000.0
     assert calls["crs"] == "EPSG:25831"
@@ -54,7 +56,7 @@ def test_density_command_uses_region_directory(
         calls.update(region_dir=region_dir, **kwargs)
         return 7
 
-    monkeypatch.setattr("highliner.etl.density.main.builder.build_density", fake)
+    monkeypatch.setattr("highliner.etls.density.main.builder.build_density", fake)
     density_main.main(["--region", "catalonia", "--data-dir", "/tmp/x"])
     assert calls["region_dir"] == Path("/tmp/x") / "spain" / "catalonia"
 
@@ -66,7 +68,7 @@ def test_density_command_forwards_country(monkeypatch: pytest.MonkeyPatch) -> No
         calls.update(region_dir=region_dir, **kwargs)
         return 7
 
-    monkeypatch.setattr("highliner.etl.density.main.builder.build_density", fake)
+    monkeypatch.setattr("highliner.etls.density.main.builder.build_density", fake)
     density_main.main(["--region", "catalonia", "--country", "france",
                        "--data-dir", "/tmp/x"])
     assert calls["region_dir"] == Path("/tmp/x") / "france" / "catalonia"
@@ -80,7 +82,7 @@ def test_density_command_forwards_workers(monkeypatch: pytest.MonkeyPatch) -> No
         calls.update(region_dir=region_dir, **kwargs)
         return 7
 
-    monkeypatch.setattr("highliner.etl.density.main.builder.build_density", fake)
+    monkeypatch.setattr("highliner.etls.density.main.builder.build_density", fake)
     density_main.main(["--region", "catalonia", "--workers", "3"])
     assert calls["workers"] == 3
 
@@ -118,11 +120,11 @@ def test_restrictions_command_builds_layers(
 def test_project_defines_focused_command_scripts() -> None:
     project = Path("pyproject.toml").read_text()
     assert 'highliner-server = "highliner.server.main:main"' in project
-    assert 'highliner-etl-density = "highliner.etl.density.main:main"' in project
+    assert 'highliner-etl-density = "highliner.etls.density.main:main"' in project
     assert 'highliner-restrictions = "highliner.restrictions.main:main"' in project
     assert "highliner.cli:main" not in project
 
 
 def test_chunk_entry_point_declared() -> None:
     project = Path("pyproject.toml").read_text()
-    assert 'highliner-etl-chunk = "highliner.etl.chunk.main:main"' in project
+    assert 'highliner-etl-chunk = "highliner.etls.chunk.main:main"' in project

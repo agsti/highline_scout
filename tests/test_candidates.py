@@ -1,7 +1,7 @@
 from pathlib import Path
 
-from highliner.etl.chunk.candidates import save_candidates
-from highliner.etl.density.candidates import load_candidates
+from highliner.etls.chunk.candidates import save_candidates
+from highliner.etls.density.candidates import load_candidates
 from highliner.models.anchor import Anchor
 from highliner.models.candidate import Candidate
 

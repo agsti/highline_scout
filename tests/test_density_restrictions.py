@@ -1,7 +1,7 @@
 from pathlib import Path
 
 import geopandas as gpd
-from highliner.etl.density.restrictions import (
+from highliner.etls.density.restrictions import (
     anchor_mask,
     candidate_mask,
     load_layers,

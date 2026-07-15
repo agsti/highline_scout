@@ -8,9 +8,8 @@ from typing import Any
 import numpy as np
 from highliner.core import config, geo, tiles
 from highliner.core.density import bucket_for
-from highliner.core.regions import defaults_for_region
-from highliner.etl.density.candidates import load_candidates
-from highliner.etl.density.restrictions import (
+from highliner.etls.density.candidates import load_candidates
+from highliner.etls.density.restrictions import (
     candidate_mask,
     load_layers,
 )
@@ -211,10 +210,7 @@ def build_density(region_dir: Path,
              if not _is_complete_density(out_dir / f"z{zoom}.npz")]
     if not zooms:
         return 0
-    try:
-        crs = chunked_store.read_grid(region_dir).crs
-    except FileNotFoundError:
-        crs = defaults_for_region(region_dir.name).crs
+    crs = chunked_store.read_grid(region_dir).crs
     pair_files = sorted((region_dir / "pairs").glob("q_*.parquet"))
     restrictions_dir = restrictions_dir or (
         Path(config.DATA_DIR) / config.DEFAULT_COUNTRY / "restrictions")

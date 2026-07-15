@@ -7,7 +7,7 @@ slow, so the hot path must stay off both disk and the per-cell Python loop.
 
 Cells and histogram rows are stored CSR-style: cell ``i``'s histogram rows are
 ``hl/he/hm/hc[off[i]:off[i + 1]]``. The write side lives in
-``highliner.etl.density.builder``.
+``highliner.etls.density.builder``.
 """
 import math
 from dataclasses import dataclass

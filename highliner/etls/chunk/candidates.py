@@ -4,7 +4,7 @@ One row per pair: both endpoints (x, y, elev) plus the precomputed scalars the
 serve-time slider filters need. Anchor sectors are not stored — the directional
 check is baked in at precompute time and `build_zones` does not use sectors.
 
-The read side (`load_candidates`) lives in `highliner.etl.density.candidates`.
+The read side (`load_candidates`) lives in `highliner.etls.density.candidates`.
 """
 from pathlib import Path
 

@@ -14,12 +14,11 @@ from collections.abc import Callable, Iterator
 from pathlib import Path
 
 from highliner.core import config
-from highliner.core.regions import country_for_region, defaults_for_region, region_dir
-from highliner.etl.chunk import dtm
-from highliner.etl.chunk.anchors import save_anchors
-from highliner.etl.chunk.candidates import save_candidates
-from highliner.etl.chunk.pairing import find_candidates
-from highliner.etl.chunk.terrain import extract_anchors
+from highliner.etls.chunk import dtm
+from highliner.etls.chunk.anchors import save_anchors
+from highliner.etls.chunk.candidates import save_candidates
+from highliner.etls.chunk.pairing import find_candidates
+from highliner.etls.chunk.terrain import extract_anchors
 from highliner.models.anchor import Anchor
 from highliner.models.candidate import Candidate
 
@@ -48,6 +47,11 @@ def _cleanup_transient_tiles(tiles: list[Path], tiles_dir: Path) -> None:
         if t.parent == tiles_dir:
             t.unlink(missing_ok=True)
     shutil.rmtree(tiles_dir, ignore_errors=True)
+
+
+def region_output_dir(data_dir: Path, country: str, region: str) -> Path:
+    """Return the explicit country-scoped output path for one region."""
+    return Path(data_dir) / country / region
 
 
 def process_chunk(cx: int, cy: int, core_bbox: Bbox, region_dir: Path,  # noqa: PLR0913
@@ -123,12 +127,10 @@ def process_chunk(cx: int, cy: int, core_bbox: Bbox, region_dir: Path,  # noqa: 
 
 
 def precompute(  # noqa: PLR0913
-        region: str, bbox: Bbox, data_dir: Path,
+        country: str, region: str, bbox: Bbox, data_dir: Path,
         chunk_m: float = config.CHUNK_M,
         report: Callable[[int, int], None] | None = None,
-        crs: str | None = None,
-        dtm_source: str | None = None,
-        workers: int = 1,
+        *, crs: str, dtm_source: str, workers: int = 1,
         cache_dir: Path | None = None) -> int:
     """Precompute anchors + pairs for ``bbox`` under
     ``data_dir/<country>/<region>``. Writes grid.json, then processes every
@@ -138,11 +140,8 @@ def precompute(  # noqa: PLR0913
     if workers < 1:
         raise ValueError("workers must be >= 1")
 
-    rdir = region_dir(data_dir, region)
-    cnig_cache_dir = Path(cache_dir or config.CACHE_DIR) / country_for_region(region)
-    defaults = defaults_for_region(region)
-    crs = crs or defaults.crs
-    dtm_source = dtm_source or defaults.dtm_source
+    rdir = region_output_dir(data_dir, country, region)
+    cnig_cache_dir = Path(cache_dir or config.CACHE_DIR) / country
     rdir.mkdir(parents=True, exist_ok=True)
     (rdir / "grid.json").write_text(json.dumps(
         {"bbox": list(bbox), "chunk_m": chunk_m,

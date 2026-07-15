@@ -8,7 +8,7 @@ per-row Python object boundary — panning re-requests the same partition files,
 so the hit rate stays high even though no two viewports are identical.
 
 The write side and stored-column layout live in
-``highliner.etl.chunk.{candidates,anchors}``.
+``highliner.etls.chunk.{candidates,anchors}``.
 """
 import json
 from dataclasses import dataclass

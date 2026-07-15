@@ -4,7 +4,9 @@ from typing import cast
 
 import pytest
 from highliner.core import config
-from highliner.etl.chunk import precompute
+from highliner.etls.chunk import shared
+
+precompute = shared
 
 
 def test_chunk_grid_tiles_bbox() -> None:
@@ -19,11 +21,31 @@ def test_chunk_grid_tiles_bbox() -> None:
     assert top_right[2] == (20000.0, 10000.0, 25000.0, 15000.0)   # clipped remainder
 
 
+def test_precompute_uses_explicit_country_for_outputs_and_cache(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    seen: list[Path | None] = []
+
+    def capture_cache(*args: object, **kwargs: Path | None) -> int:
+        seen.append(kwargs["cnig_cache_dir"])
+        return 0
+
+    monkeypatch.setattr(shared, "process_chunk", capture_cache)
+
+    shared.precompute(
+        "france", "alps", (0.0, 0.0, 10.0, 10.0), tmp_path,
+        chunk_m=10.0, crs="EPSG:2154", dtm_source="cnig",
+        cache_dir=tmp_path / "cache",
+    )
+
+    assert (tmp_path / "france" / "alps" / "grid.json").exists()
+    assert seen == [tmp_path / "cache" / "france"]
+
+
 def _patch_gap_download(monkeypatch: pytest.MonkeyPatch) -> None:
     """Make dtm._download_tile synthesize terrain: plateau 100 m everywhere
     except a deep N-S trench (elev 20) 40 m wide near the chunk's west side, so
     facing anchors exist across the trench (exposure ~80)."""
-    from highliner.etl.chunk import dtm as _dtm
+    from highliner.etls.chunk import dtm as _dtm
 
     def fake(bbox: tuple[float, float, float, float], width: int, height: int,
              dest: Path) -> Path:
@@ -57,7 +79,7 @@ def test_process_chunk_writes_partitions_and_deletes_tiles(
     assert not list((region_dir / "tiles").glob("*.asc"))     # cleaned up
     assert not (region_dir / "dtm").exists()                  # no DTM persisted
 
-    from highliner.etl.density.candidates import load_candidates
+    from highliner.etls.density.candidates import load_candidates
     cands = load_candidates(qpath)
     assert len(cands) > 0
     for c in cands:
@@ -73,7 +95,7 @@ def test_process_chunk_resumes(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
     core = (485000.0, 4646000.0, 495000.0, 4656000.0)
     precompute.process_chunk(0, 0, core, region_dir)
 
-    from highliner.etl.chunk import dtm as _dtm
+    from highliner.etls.chunk import dtm as _dtm
     monkeypatch.setattr(_dtm, "_download_tile",
                         lambda *a, **k: pytest.fail("re-downloaded a finished chunk"))
     precompute.process_chunk(0, 0, core, region_dir)           # returns immediately
@@ -81,7 +103,7 @@ def test_process_chunk_resumes(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
 
 def test_process_chunk_empty_marks_done(
         tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    from highliner.etl.chunk import dtm as _dtm
+    from highliner.etls.chunk import dtm as _dtm
     monkeypatch.setattr(
         _dtm, "_download_tile",
         lambda *a, **k: (_ for _ in ()).throw(RuntimeError("no coverage")))
@@ -90,7 +112,7 @@ def test_process_chunk_empty_marks_done(
     precompute.process_chunk(0, 0, core, region_dir)
     assert (region_dir / "anchors" / "p_0_0.parquet").exists()
     assert (region_dir / "pairs" / "q_0_0.parquet").exists()
-    from highliner.etl.density.candidates import load_candidates
+    from highliner.etls.density.candidates import load_candidates
     assert load_candidates(region_dir / "pairs" / "q_0_0.parquet") == []
 
 
@@ -99,9 +121,9 @@ def test_process_chunk_stays_retriable_after_persistent_rate_limit(
     """A rate-limited chunk must fail loudly (no partitions, no leftover
     tiles) so a later run retries it, instead of writing terrain holes."""
     import requests
-    from highliner.etl.chunk import dtm as _dtm
+    from highliner.etls.chunk import dtm as _dtm
 
-    monkeypatch.setattr("highliner.etl.chunk.dtm.time.sleep", lambda s: None)
+    monkeypatch.setattr("highliner.etls.chunk.dtm.time.sleep", lambda s: None)
     resp = requests.Response()
     resp.status_code = 429
 
@@ -126,7 +148,7 @@ def test_process_chunk_stays_retriable_after_persistent_rate_limit(
 
 def test_process_chunk_uses_chunk_scoped_transient_tiles(
         tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    from highliner.etl.chunk import dtm as _dtm
+    from highliner.etls.chunk import dtm as _dtm
 
     seen: list[Path] = []
 
@@ -155,7 +177,7 @@ def test_process_chunk_uses_chunk_scoped_transient_tiles(
 
 def test_process_chunk_does_not_mark_done_when_candidate_write_fails(
         tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    from highliner.etl.chunk import dtm as _dtm
+    from highliner.etls.chunk import dtm as _dtm
 
     monkeypatch.setattr(_dtm, "fetch_tiles", lambda *a, **k: [])
 
@@ -186,8 +208,9 @@ def test_precompute_writes_grid_and_all_chunks(
     bbox = (485000.0, 4646000.0, 505000.0, 4656000.0)        # 20 x 10 km -> 2 chunks
     seen = []
     n = precompute.precompute(
-        "catalonia", bbox, tmp_path, chunk_m=10000.0,
-        report=lambda done, total: seen.append((done, total)))
+        "spain", "catalonia", bbox, tmp_path, chunk_m=10000.0,
+        report=lambda done, total: seen.append((done, total)),
+        crs="EPSG:25831", dtm_source="icgc")
     region_dir = tmp_path / "spain" / "catalonia"
 
     import json
@@ -203,8 +226,8 @@ def test_precompute_writes_grid_and_all_chunks(
 def test_precompute_rejects_invalid_worker_count(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="workers"):
         precompute.precompute(
-            "catalonia", (0.0, 0.0, 10000.0, 10000.0), tmp_path,
-            chunk_m=10000.0, workers=0)
+            "spain", "catalonia", (0.0, 0.0, 10000.0, 10000.0), tmp_path,
+            chunk_m=10000.0, crs="EPSG:25831", dtm_source="icgc", workers=0)
 
 
 def test_precompute_submits_chunks_to_parallel_pool(
@@ -241,8 +264,8 @@ def test_precompute_submits_chunks_to_parallel_pool(
 
     seen: list[tuple[int, int]] = []
     n = precompute.precompute(
-        "catalonia", (0.0, 0.0, 30000.0, 10000.0), tmp_path,
-        chunk_m=10000.0, workers=3,
+        "spain", "catalonia", (0.0, 0.0, 30000.0, 10000.0), tmp_path,
+        chunk_m=10000.0, crs="EPSG:25831", dtm_source="icgc", workers=3,
         report=lambda done, total: seen.append((done, total)))
 
     assert n == 3
@@ -275,15 +298,15 @@ def test_precompute_uses_process_pool_for_parallel_workers(
     monkeypatch.setattr("concurrent.futures.as_completed", lambda futures: futures)
 
     precompute.precompute(
-        "catalonia", (0.0, 0.0, 20000.0, 10000.0), tmp_path,
-        chunk_m=10000.0, workers=2)
+        "spain", "catalonia", (0.0, 0.0, 20000.0, 10000.0), tmp_path,
+        chunk_m=10000.0, crs="EPSG:25831", dtm_source="icgc", workers=2)
 
     assert seen == {"max_workers": 2, "submitted": 2}
 
 
 def test_precompute_writes_region_crs_and_source_defaults(
         tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    from highliner.etl.chunk import dtm as _dtm
+    from highliner.etls.chunk import dtm as _dtm
 
     seen: list[tuple[tuple[float, float, float, float], str, str,
                      Path | None]] = []
@@ -302,7 +325,8 @@ def test_precompute_writes_region_crs_and_source_defaults(
 
     monkeypatch.setattr(_dtm, "fetch_tiles", fake_fetch)
     bbox = (188000.0, 3060000.0, 198000.0, 3070000.0)
-    precompute.precompute("canarias", bbox, tmp_path, chunk_m=10000.0,
+    precompute.precompute("spain", "canarias", bbox, tmp_path, chunk_m=10000.0,
+                          crs="EPSG:4083", dtm_source="cnig",
                           cache_dir=tmp_path / "cache")
 
     import json
@@ -315,7 +339,7 @@ def test_precompute_writes_region_crs_and_source_defaults(
 def _patch_seam_gap_download(monkeypatch: pytest.MonkeyPatch) -> None:
     """Terrain: plateau 100 m except a 40 m-wide N-S trench (elev 20) centred on
     x=495000 — the seam between chunk (0,0) and chunk (1,0)."""
-    from highliner.etl.chunk import dtm as _dtm
+    from highliner.etls.chunk import dtm as _dtm
 
     def fake(bbox: tuple[float, float, float, float], width: int, height: int,
              dest: Path) -> Path:
@@ -340,10 +364,11 @@ def test_cross_chunk_pair_owned_by_exactly_one_partition(
         tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     _patch_seam_gap_download(monkeypatch)
     bbox = (485000.0, 4646000.0, 505000.0, 4656000.0)   # two 10 km chunks side by side
-    precompute.precompute("catalonia", bbox, tmp_path, chunk_m=10000.0)
+    precompute.precompute("spain", "catalonia", bbox, tmp_path, chunk_m=10000.0,
+                          crs="EPSG:25831", dtm_source="icgc")
     region_dir = tmp_path / "spain" / "catalonia"
 
-    from highliner.etl.density.candidates import load_candidates
+    from highliner.etls.density.candidates import load_candidates
     from highliner.models.candidate import Candidate
     c0 = load_candidates(region_dir / "pairs" / "q_0_0.parquet")
     c1 = load_candidates(region_dir / "pairs" / "q_1_0.parquet")

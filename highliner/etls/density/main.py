@@ -4,7 +4,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from highliner.core import config
-from highliner.etl.density import builder
+from highliner.etls.density import builder
 
 PROGRESS_INTERVAL_S = 30.0
 

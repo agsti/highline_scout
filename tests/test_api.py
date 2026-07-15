@@ -5,8 +5,8 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 from highliner.core import config
-from highliner.etl.chunk.anchors import save_anchors
-from highliner.etl.chunk.candidates import save_candidates
+from highliner.etls.chunk.anchors import save_anchors
+from highliner.etls.chunk.candidates import save_candidates
 from highliner.models.anchor import Anchor
 from highliner.models.candidate import Candidate
 from highliner.server.app import create_app

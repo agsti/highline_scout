@@ -1,61 +1,32 @@
-# Task 1 report: restriction-area mode menu
+# Task 1 report: country-neutral ETLs
 
 ## Delivered
 
-- Added the `RestrictionAreaMode` union (`"informative" | "exclude"`).
-- Added the restriction-area label and two mode-option strings to Catalan,
-  Spanish, and English catalogs.
-- Added the top-right menu select above language controls, including its
-  accessible label and controlled value/change callback.
-- Added App-owned default `informative` state and passed it through the menu
-  chrome and into the `MapView` element for Task 3 consumption.
-- Added focused menu-selection and App-to-map wiring coverage.
+- Moved the ETL package from `highliner.etl` to `highliner.etls`, including
+  chunk, density, restrictions, entry-point, and supporting modules.
+- Renamed chunk precompute to `highliner.etls.chunk.shared` and exposed the
+  country-explicit `precompute()` and `region_output_dir()` interfaces.
+- Made output and CNIG cache paths use the passed country rather than a region
+  lookup; the chunk CLI obtains its legacy defaults then passes them explicitly.
+- Made density require `grid.json` and read its CRS from that precomputed
+  metadata, eliminating the region-default fallback.
+- Updated production references, entry points, documentation strings, and tests
+  to use `highliner.etls`.
 
 ## TDD evidence
 
-The focused tests were run after adding the tests and before production code.
-They failed as expected because `Restriction areas` and the combobox did not
-exist (2 failing tests, 12 existing tests passing). After implementation, the
-same focused run passed with 14 tests across 2 files.
+1. Added `test_precompute_uses_explicit_country_for_outputs_and_cache`.
+2. Verified it failed before the package existed:
+   `ModuleNotFoundError: No module named 'highliner.etls'`.
+3. Implemented the move and explicit interface.
+4. Verified the target test passed, then the focused migration suite passed.
 
 ## Verification
 
-```text
-npm test -- --run src/components/NavMenu.test.tsx src/App.test.tsx
-2 test files passed; 14 tests passed.
-
-npm run build
-tsc -b && vite build exited 0.
-```
-
-The build retained Vite's existing chunk-size warning only.
-
-## Scope note
-
-`MapView` is intentionally not edited in Task 1. The App forwards the mode via
-a JSX spread so the Task 3 implementation can add it to `MapViewProps` and
-consume it without duplicating state or wiring.
-
-## Review fix (2026-07-13)
-
-The Task 1 wiring now uses the explicit, type-checked
-`restrictionAreaMode={restrictionAreaMode}` prop. `MapViewProps` declares
-`restrictionAreaMode: RestrictionAreaMode`; the component still does not
-consume it, leaving filtering to its later task. The existing `MapView` test
-fixtures supply the inert `"informative"` value so the required contract is
-maintained at every render site.
-
-### Commands and output
-
-```text
-env PATH=/home/gus/.nvm/versions/node/v20.20.2/bin:/usr/local/bin:/usr/bin:/bin npm test -- --run src/components/NavMenu.test.tsx src/App.test.tsx
-Test Files  2 passed (2)
-Tests  14 passed (14)
-
-env PATH=/home/gus/.nvm/versions/node/v20.20.2/bin:/usr/local/bin:/usr/bin:/bin npm run build
-tsc -b && vite build
-✓ built in 2.28s
-```
-
-Vite emitted its existing chunk-size warning; it did not affect the successful
-build.
+- `uv run pytest tests/test_precompute.py tests/test_ingest.py tests/test_density.py tests/test_candidates.py tests/test_anchors.py tests/test_partition_cache.py -v`
+  — 49 passed.
+- Remaining moved-import tests including characterization, terrain, CLI, and
+  integration — 24 passed.
+- `uv run pytest -v` — 210 passed (three existing dependency/runtime warnings).
+- `just check` passed ruff, file-length, mypy, and vulture. Its final frontend
+  `npm test` step could not run because `npm` is unavailable in this environment.

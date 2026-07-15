@@ -1,6 +1,6 @@
 import numpy as np
 from affine import Affine
-from highliner.etl.chunk import pairing
+from highliner.etls.chunk import pairing
 from highliner.models.anchor import Anchor
 from highliner.models.raster import Raster
 

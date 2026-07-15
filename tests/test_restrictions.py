@@ -2,7 +2,7 @@ from pathlib import Path
 
 import geopandas as gpd
 import pytest
-from highliner.etl.repositories import restrictions as R
+from highliner.etls.repositories import restrictions as R
 from highliner.server.repositories.restrictions import load_layer
 from shapely.geometry import Polygon
 

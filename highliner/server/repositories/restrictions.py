@@ -1,7 +1,7 @@
 """Read stored protected-area overlay layers (read side).
 
 The build side (``fetch_all``) lives in
-``highliner.etl.repositories.restrictions`` and the ``LAYERS`` registry both
+``highliner.etls.repositories.restrictions`` and the ``LAYERS`` registry both
 sides consume lives in ``highliner.core.restrictions``.
 """
 from functools import lru_cache

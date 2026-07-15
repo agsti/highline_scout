@@ -3,8 +3,8 @@ import time
 from pathlib import Path
 
 from highliner.core import config
-from highliner.core.regions import defaults_for_region, region_dir
-from highliner.etl.chunk import precompute as precompute_service
+from highliner.core.regions import defaults_for_region
+from highliner.etls.chunk import shared
 
 
 def _fmt_hms(seconds: float) -> str:
@@ -40,8 +40,9 @@ def main(argv: list[str] | None = None) -> None:
               end="", flush=True)
 
     data_dir = Path(args.data_dir)
-    n = precompute_service.precompute(
-        args.region, bbox, data_dir, chunk_m=args.chunk_km * 1000.0,
+    n = shared.precompute(
+        defaults.country, args.region, bbox, data_dir, chunk_m=args.chunk_km * 1000.0,
         report=report, crs=args.crs or defaults.crs,
         dtm_source=args.dtm_source or defaults.dtm_source, workers=args.workers)
-    print(f"\nprocessed {n} chunks -> {region_dir(data_dir, args.region)}")
+    print(f"\nprocessed {n} chunks -> "
+          f"{shared.region_output_dir(data_dir, defaults.country, args.region)}")

@@ -1,3 +1,4 @@
+import json
 import shutil
 from pathlib import Path
 
@@ -5,8 +6,8 @@ import geopandas as gpd
 import numpy as np
 import pytest
 from highliner.core import config, tiles
-from highliner.etl.chunk.candidates import save_candidates
-from highliner.etl.density import builder
+from highliner.etls.chunk.candidates import save_candidates
+from highliner.etls.density import builder
 from highliner.models.anchor import Anchor
 from highliner.models.candidate import Candidate
 from shapely.geometry import box
@@ -25,6 +26,9 @@ def _pair(mx: float, my: float, exposure: float, spread: float = 40.0) -> Candid
 def _write_region(tmp_path: Path, pairs: list[Candidate]) -> Path:
     region = tmp_path / "catalonia"
     (region / "pairs").mkdir(parents=True)
+    (region / "grid.json").write_text(json.dumps({
+        "bbox": [0, 0, 1, 1], "chunk_m": 1, "crs": "EPSG:25831",
+    }))
     save_candidates(pairs, region / "pairs" / "q_0_0.parquet")
     return region
 
@@ -108,6 +112,9 @@ def test_parallel_density_matches_single_worker_output(tmp_path: Path) -> None:
     region = tmp_path / "catalonia"
     pairs_dir = region / "pairs"
     pairs_dir.mkdir(parents=True)
+    (region / "grid.json").write_text(json.dumps({
+        "bbox": [0, 0, 1, 1], "chunk_m": 1, "crs": "EPSG:25831",
+    }))
     save_candidates([_pair(near[0], near[1], exposure=30.0)],
                     pairs_dir / "q_0_0.parquet")
     save_candidates([_pair(near[0] + 20, near[1], exposure=40.0)],

@@ -28,6 +28,10 @@ build-web:
 test-web:
     cd frontend && npm test
 
+# Drive the real FastAPI + Vite map in Chromium with the committed mini dataset.
+test-e2e *args:
+    cd frontend && npm run test:e2e -- {{args}}
+
 # Production-style server via the CLI (no auto-reload). Override like: just serve 0.0.0.0 9000
 serve host="127.0.0.1" port="8000":
     uv run highliner-server --host {{host}} --port {{port}}

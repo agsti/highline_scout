@@ -25,7 +25,7 @@ dev = ["pytest", "httpx", "mypy", "types-requests", "ruff", "vulture"]
 highliner-server = "highliner.server.main:main"
 highliner-etl-chunk = "highliner.etls.chunk.spain:main"
 highliner-etl-density = "highliner.etls.density.spain:main"
-highliner-restrictions = "highliner.restrictions.main:main"
+highliner-restrictions = "highliner.etls.restriction.spain:main"
 
 [build-system]
 requires = ["setuptools>=68"]

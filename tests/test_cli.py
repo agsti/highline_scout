@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 from highliner.etls.density import shared, spain
-from highliner.restrictions import main as restrictions_main
+from highliner.etls.restriction import spain as restrictions_main
 from highliner.server import main as server_main
 
 
@@ -72,19 +72,22 @@ def test_density_progress_throttles_between_first_and_final(
 
 
 def test_restrictions_command_builds_layers(
-        monkeypatch: pytest.MonkeyPatch) -> None:
-    calls: list[str] = []
-    monkeypatch.setattr(restrictions_main, "fetch_all",
-                        lambda: calls.append("called"))
-    restrictions_main.main([])
-    assert calls == ["called"]
+        monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    calls: list[Path] = []
+    monkeypatch.setattr(restrictions_main, "download_sources",
+                        lambda raw_dir: calls.append(raw_dir))
+    monkeypatch.setattr(restrictions_main.shared, "write_layers",
+                        lambda *args, **kwargs: {})
+    restrictions_main.main(["--data-dir", str(tmp_path)])
+    assert calls == [tmp_path / "spain" / "restrictions" / "raw"]
 
 
 def test_project_defines_focused_command_scripts() -> None:
     project = Path("pyproject.toml").read_text()
     assert 'highliner-server = "highliner.server.main:main"' in project
     assert 'highliner-etl-density = "highliner.etls.density.spain:main"' in project
-    assert 'highliner-restrictions = "highliner.restrictions.main:main"' in project
+    assert ('highliner-restrictions = '
+            '"highliner.etls.restriction.spain:main"') in project
     assert "highliner.cli:main" not in project
 
 

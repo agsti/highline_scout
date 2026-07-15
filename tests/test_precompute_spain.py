@@ -1,27 +1,23 @@
-import sys
+from typing import Any
 
 import pytest
-from scripts import precompute_spain
+from highliner.etls.chunk import spain
 
 
-def test_precompute_spain_forwards_chunk_workers(
+def test_spain_chunk_adapter_forwards_country_and_region(
         monkeypatch: pytest.MonkeyPatch) -> None:
-    commands: list[list[str]] = []
-    monkeypatch.setattr(sys, "argv", [
-        "precompute_spain.py",
-        "--data-dir", "/tmp/highliner-data",
-        "--only", "madrid",
-        "--chunk-workers", "5",
-    ])
-    monkeypatch.setattr(precompute_spain, "run", commands.append)
+    calls: list[dict[str, Any]] = []
 
-    precompute_spain.main()
+    def fake(*args: object, **kwargs: object) -> int:
+        calls.append({"args": args, **kwargs})
+        return 1
 
-    assert commands[0][-2:] == ["--workers", "5"]
-    assert commands[0][:2] == [".venv/bin/highliner-etl-chunk", "--data-dir"]
-    assert commands[1] == [
-        ".venv/bin/highliner-etl-density",
-        "--data-dir", "/tmp/highliner-data",
-        "--region", "madrid",
-        "--workers", "5",
-    ]
+    monkeypatch.setattr(
+        spain.shared, "precompute", fake)
+
+    spain.main(["--only", "madrid", "--data-dir", "/tmp/data", "--workers", "5"])
+
+    assert calls[0]["args"][:2] == ("spain", "madrid")
+    assert calls[0]["workers"] == 5
+    assert calls[0]["crs"] == "EPSG:25830"
+    assert calls[0]["dtm_source"] == "cnig"

@@ -1,7 +1,6 @@
 from pathlib import Path
 
 import pytest
-from highliner.etls.chunk import main as chunk_main
 from highliner.etls.density import main as density_main
 from highliner.restrictions import main as restrictions_main
 from highliner.server import main as server_main
@@ -25,27 +24,6 @@ def test_server_command_starts_uvicorn(monkeypatch: pytest.MonkeyPatch) -> None:
     assert calls["host"] == "0.0.0.0"
     assert calls["port"] == 9000
 
-
-def test_chunk_command_uses_region_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
-    calls: dict[str, object] = {}
-
-    def fake(country: str, region: str, bbox: tuple[float, ...], data_dir: Path,
-             **kwargs: object) -> int:
-        calls.update(country=country, region=region, bbox=bbox, data_dir=data_dir,
-                     **kwargs)
-        return 1
-
-    monkeypatch.setattr("highliner.etls.chunk.shared.precompute", fake)
-    chunk_main.main(["--region", "catalonia", "--data-dir", "/tmp/x",
-                     "--bbox", "0,0,10000,10000", "--chunk-km", "10",
-                     "--workers", "4"])
-    assert calls["region"] == "catalonia"
-    assert calls["country"] == "spain"
-    assert calls["bbox"] == (0.0, 0.0, 10000.0, 10000.0)
-    assert calls["chunk_m"] == 10000.0
-    assert calls["crs"] == "EPSG:25831"
-    assert calls["dtm_source"] == "icgc"
-    assert calls["workers"] == 4
 
 
 def test_density_command_uses_region_directory(
@@ -127,4 +105,4 @@ def test_project_defines_focused_command_scripts() -> None:
 
 def test_chunk_entry_point_declared() -> None:
     project = Path("pyproject.toml").read_text()
-    assert 'highliner-etl-chunk = "highliner.etls.chunk.main:main"' in project
+    assert 'highliner-etl-chunk = "highliner.etls.chunk.spain:main"' in project

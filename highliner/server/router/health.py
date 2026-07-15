@@ -12,6 +12,8 @@ from fastapi import APIRouter
 router = APIRouter()
 
 
-@router.get("/healthz", include_in_schema=False)
+# GET and HEAD: some uptime monitors and Traefik probe with HEAD, which a
+# GET-only route would reject. Starlette drops the body for HEAD automatically.
+@router.api_route("/healthz", methods=["GET", "HEAD"], include_in_schema=False)
 def healthz() -> dict[str, str]:
     return {"status": "ok"}

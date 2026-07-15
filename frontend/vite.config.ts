@@ -2,6 +2,8 @@ import path from "node:path";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
+const apiOrigin = process.env.HIGHLINER_API_ORIGIN ?? "http://127.0.0.1:8000";
+
 export default defineConfig({
   plugins: [react()],
   resolve: {
@@ -12,12 +14,12 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      "/countries": "http://127.0.0.1:8000",
-      "/regions": "http://127.0.0.1:8000",
-      "/zones": "http://127.0.0.1:8000",
-      "/density": "http://127.0.0.1:8000",
-      "/anchors": "http://127.0.0.1:8000",
-      "/restrictions": "http://127.0.0.1:8000",
+      "/countries": apiOrigin,
+      "/regions": apiOrigin,
+      "/zones": apiOrigin,
+      "/density": apiOrigin,
+      "/anchors": apiOrigin,
+      "/restrictions": apiOrigin,
     },
   },
 });

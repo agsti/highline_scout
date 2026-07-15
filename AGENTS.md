@@ -75,7 +75,7 @@ Local dev and production serve the frontend differently:
 CLI entry points:
 
     .venv/bin/highliner-etl-chunk --region NAME --bbox minx,miny,maxx,maxy [--chunk-km N]
-    .venv/bin/highliner-etl-density --region NAME
+    .venv/bin/highliner-etl-density [--data-dir PATH] [--workers N]  # all Spain regions
     .venv/bin/highliner-server
     .venv/bin/highliner-restrictions
 

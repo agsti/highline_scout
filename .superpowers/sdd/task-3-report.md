@@ -45,3 +45,10 @@
 - The full density-package ruff command still reports two pre-existing I001
   import-order issues in untouched `builder.py` and `restrictions.py`; those are
   outside Task 3 and are not included in this change.
+
+## Review follow-up
+
+- Updated `AGENTS.md` to document the country-wide Spain density command:
+  `.venv/bin/highliner-etl-density [--data-dir PATH] [--workers N]`. It no
+  longer advertises a nonexistent `--region` option.
+- Verified the installed CLI help lists only `--data-dir` and `--workers`.

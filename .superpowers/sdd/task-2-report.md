@@ -1,62 +1,123 @@
-# Task 2 report: Spain chunk ETL adapter
+# Task 2 report: country-derived density restrictions
 
 ## Scope
 
-- Added `highliner.etls.chunk.spain`, the Spain-specific chunk precompute
-  adapter with an explicit `COUNTRY`, immutable `Region` catalogue, per-region
-  CRS/source configuration, serial and concurrent execution, and `python -m`
-  support.
-- Replaced the generic chunk console target with
-  `highliner.etls.chunk.spain:main`.
-- Removed the legacy generic chunk CLI and subprocess-oriented Spain wrapper.
-- Replaced the subprocess test with a direct adapter contract test and updated
-  the console entry-point assertion.
+- `highliner/etls/density/builder.py`
+- `highliner/core/density.py`
+- `tests/test_density.py`
+
+`build_density()` now defaults its restrictions directory to the parent country
+of `region_dir`. Explicit `restrictions_dir` arguments remain authoritative.
 
 ## TDD evidence
 
-### RED
+### Red
 
-After replacing the legacy Spain-wrapper test with the direct adapter test, I
-ran:
+Added `test_builder_defaults_to_its_region_country_restrictions`, which creates
+an Italy-parent region and an adjacent `zps.parquet` restriction. Before the
+implementation, this command failed as expected:
 
-```text
-uv run pytest tests/test_precompute_spain.py::test_spain_chunk_adapter_forwards_country_and_region -v
+```
+uv run pytest tests/test_density.py::test_builder_defaults_to_its_region_country_restrictions -v
+FAILED ... assert np.int8(7) == 8
+1 failed
 ```
 
-It failed at collection because `highliner.etls.chunk.spain` did not exist.
+The pre-change builder read the repository's Spain restriction directory,
+producing the Spain mask (`7`) rather than the Italian `zps` mask (`8`).
 
-### GREEN
+After replacing the fallback, the same test still failed with mask `0`.
+Root-cause inspection found that `highliner/core/density.py` omitted the
+already-registered Italian IDs from `LAYER_BITS`. The task owner authorized the
+minimal scope expansion to add `zps`, `zsc`, and `euap` as bits 8, 16, and 32.
 
-After adding the adapter, the focused test passed. The requested test set then
-passed:
+### Green
 
-```text
-uv run pytest tests/test_precompute_spain.py tests/test_cli.py -v
-10 passed in 0.64s
+```
+uv run pytest tests/test_density.py::test_builder_defaults_to_its_region_country_restrictions -v
+1 passed
+
+uv run pytest tests/test_density.py -v
+10 passed, 2 warnings in 2.42s
 ```
 
-## Verification
+The two warnings are the existing multiprocessing `fork()` deprecation warning
+from the parallel-worker coverage; there were no test failures.
 
-- `git diff --check` passed.
-- Ruff, file-length validation, mypy, and vulture passed through `just check`.
-- The final frontend test step of `just check` could not run because `npm` is
-  not installed in this environment (`sh: 1: npm: not found`).
+## Files changed
 
-## Commit
+- `highliner/etls/density/builder.py` — derive standalone restriction input
+  from `region_dir.parent / "restrictions"`.
+- `highliner/core/density.py` — assign the existing Italian layer IDs their
+  next registry-order mask bits: 8, 16, and 32.
+- `tests/test_density.py` — regression coverage for the Italy-parent default.
 
-`feat: add Spain chunk ETL adapter`
+## Self-review
+
+- The explicit `restrictions_dir` parameter is unchanged and still takes
+  precedence via `or`.
+- `build_country_density` was not changed.
+- The NPZ mask field remains the existing integer representation; only new bit
+  values were registered.
+- No unrelated user changes are included in the intended commit.
 
 ## Concerns
 
-`catalonia2` remains in the inherited Spain catalogue and is configured for
-ICGC/EPSG:25831. The task brief did not provide a replacement full-Catalonia
-bbox; no new geographic extent was invented.
+None. The test suite reports only the known multiprocessing fork deprecation
+warnings.
 
-## Follow-up: reviewer configuration gap
+## Review fix: deterministic former-default fixture
 
-- Added explicit `catalonia` and `catalunya` catalogue entries, both with the
-  inherited Catalonia sample bbox, `EPSG:25831`, and the `icgc` source.
-- Added parameterized direct-adapter coverage proving each alias is selected
-  and forwards those exact CRS/source values to shared precompute.
-- Verification: `uv run pytest tests/test_precompute_spain.py tests/test_cli.py
-  -v` passed with 12 tests.
+### Scope
+
+Addressed the review finding in
+`test_builder_defaults_to_its_region_country_restrictions` only. The test now
+creates the historical default directory under its own `tmp_path`:
+`<DATA_DIR>/spain/restrictions/{zepa,zec,enp}.parquet`. It patches
+`config.DATA_DIR` to that temporary root, alongside its Italy `zps.parquet`
+fixture.
+
+This makes the old fallback deterministic: it reads the overlapping Spain
+fixtures and produces mask `7`; the country-derived fallback reads only Italy
+`zps` and produces mask `8`.
+
+### TDD evidence
+
+After adding the Spain fixture and temporary configuration, I temporarily
+restored the former `config.DATA_DIR / config.DEFAULT_COUNTRY / "restrictions"`
+fallback and ran:
+
+```
+uv run pytest tests/test_density.py::test_builder_defaults_to_its_region_country_restrictions -v
+FAILED ... assert np.int8(7) == 8
+1 failed
+```
+
+That failure proves the regression no longer depends on ambient repository
+`data/spain` state. Restoring the country-derived fallback made the same test
+pass.
+
+### Verification
+
+```
+uv run pytest tests/test_density.py::test_builder_defaults_to_its_region_country_restrictions -v
+1 passed in 1.39s
+
+uv run pytest tests/test_density.py -v
+10 passed, 2 warnings in 1.96s
+```
+
+The two warnings are the known multiprocessing `fork()` deprecation warnings
+from `test_parallel_density_matches_single_worker_output`.
+
+### Self-review
+
+- The temporary Spain fixture exactly models the previous fallback path by
+  patching `config.DATA_DIR`; no repository data participates.
+- Spain's combined bits (`7`) differ from Italy's `zps` bit (`8`), so the
+  assertion distinguishes the former default from the intended country path.
+- The production fallback and all unrelated Task 2 changes remain untouched.
+
+### Concerns
+
+None.

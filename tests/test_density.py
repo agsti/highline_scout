@@ -108,16 +108,24 @@ def test_builder_uses_country_restrictions(tmp_path: Path) -> None:
 
 
 def test_builder_defaults_to_its_region_country_restrictions(
-        tmp_path: Path) -> None:
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     near = to_utm(1.83, 41.59)
     region = _write_region(tmp_path / "italy", [
         _pair(near[0], near[1], exposure=30.0),
     ])
-    path = tmp_path / "italy" / "restrictions" / "zps.parquet"
-    path.parent.mkdir(parents=True)
+    italy_path = tmp_path / "italy" / "restrictions" / "zps.parquet"
+    italy_path.parent.mkdir(parents=True)
     gpd.GeoDataFrame({"name": ["test"]}, geometry=[box(
         near[0] - 50, near[1] - 50, near[0], near[1] + 50)],
-        crs="EPSG:25831").to_parquet(path)
+        crs="EPSG:25831").to_parquet(italy_path)
+    spain_dir = tmp_path / "spain" / "restrictions"
+    spain_dir.mkdir(parents=True)
+    spain_restriction = gpd.GeoDataFrame({"name": ["test"]}, geometry=[box(
+        near[0] - 50, near[1] - 50, near[0], near[1] + 50)],
+        crs="EPSG:25831")
+    for layer_id in ("zepa", "zec", "enp"):
+        spain_restriction.to_parquet(spain_dir / f"{layer_id}.parquet")
+    monkeypatch.setattr(config, "DATA_DIR", tmp_path)
 
     builder.build_density(region, zoom_levels=[12])
 

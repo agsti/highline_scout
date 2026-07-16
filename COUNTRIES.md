@@ -46,7 +46,7 @@ Markers: `[ ]` todo · `[O]` ongoing (agent dispatched) · `[P]` PR open · `[X]
 - [ ] Slovakia
 - [ ] Slovenia
 - [X] Spain
-- [O] Sweden
+- [ ] Sweden
 - [ ] Switzerland
 - [ ] Ukraine
 - [P] United Kingdom

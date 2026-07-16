@@ -36,7 +36,7 @@ from shapely.geometry import box, mapping
 from shapely.geometry.base import BaseGeometry
 from shapely.ops import transform as shapely_transform
 
-from highliner.etls.chunk import dtm_hrdtm
+from highliner.etls.chunk import dtm_bkg, dtm_hrdtm
 
 if TYPE_CHECKING:
     from highliner.models.raster import Raster
@@ -382,8 +382,14 @@ def fetch_tiles(bbox: Bbox, tiles_dir: Path, res: float = NATIVE_RES,  # noqa: P
     tiles_dir.mkdir(parents=True, exist_ok=True)
     if source in ("cnig", "hrdtm"):
         return _fetch_from_cache(source, bbox, crs, cache_dir)
-    if source not in ("icgc", "idee"):
+    if source not in ("icgc", "idee", "bkg_dgm200"):
         raise RuntimeError(f"unknown DTM source '{source}'")
+
+    if source == "bkg_dgm200":
+        dest = tiles_dir / "bkg_dgm200.tif"
+        if not dest.exists():
+            _download_with_retries(lambda: dtm_bkg.download_tile(bbox, dest))
+        return [dest]
 
     def fetch_one(spec: tuple[Bbox, int, int]) -> Path | None:
         tb, w, h = spec
@@ -409,7 +415,7 @@ def fetch_tiles(bbox: Bbox, tiles_dir: Path, res: float = NATIVE_RES,  # noqa: P
     return [p for p in results if p is not None]
 
 
-def raster_from_tiles(paths: list[Path], res: float = NATIVE_RES,
+def raster_from_tiles(paths: list[Path], res: float | None = None,
                       bbox: Bbox | None = None) -> "Raster | None":
     """Merge tile rasters into one in-memory ``Raster`` (NaN nodata), or None."""
     from highliner.models.raster import Raster
@@ -422,5 +428,6 @@ def raster_from_tiles(paths: list[Path], res: float = NATIVE_RES,
         for s in srcs:
             s.close()
     data = arr[0].astype("float32")
-    data[(data == NODATA) | (data == SEA_SENTINEL)] = np.nan
-    return Raster(data=data, transform=transform, res=res)
+    data[(data == NODATA) | (data == SEA_SENTINEL) | (data < -1e30)] = np.nan
+    return Raster(data=data, transform=transform,
+                  res=abs(transform.a) if res is None else res)

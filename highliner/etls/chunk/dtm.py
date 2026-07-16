@@ -36,7 +36,7 @@ from shapely.geometry import box, mapping
 from shapely.geometry.base import BaseGeometry
 from shapely.ops import transform as shapely_transform
 
-from highliner.etls.chunk import dtm_hrdtm
+from highliner.etls.chunk import dtm_hrdtm, dtm_os
 
 if TYPE_CHECKING:
     from highliner.models.raster import Raster
@@ -363,7 +363,11 @@ def _fetch_from_cache(source: str, bbox: Bbox, crs: str,
         raise ValueError(f"{source} source requires cache_dir")
     if source == "cnig":
         return _fetch_cnig_tiles(bbox, cache_dir, crs)
-    return dtm_hrdtm.fetch_hrdtm(cache_dir)
+    if source == "hrdtm":
+        return dtm_hrdtm.fetch_hrdtm(cache_dir)
+    if source == "os_terrain_50":
+        return dtm_os.fetch_os_terrain_50(bbox, cache_dir)
+    return dtm_os.fetch_osni_dtm_10m(bbox, cache_dir)
 
 
 def fetch_tiles(bbox: Bbox, tiles_dir: Path, res: float = NATIVE_RES,  # noqa: PLR0913
@@ -380,7 +384,7 @@ def fetch_tiles(bbox: Bbox, tiles_dir: Path, res: float = NATIVE_RES,  # noqa: P
     them)."""
     tiles_dir = Path(tiles_dir)
     tiles_dir.mkdir(parents=True, exist_ok=True)
-    if source in ("cnig", "hrdtm"):
+    if source in ("cnig", "hrdtm", "os_terrain_50", "osni_dtm_10m"):
         return _fetch_from_cache(source, bbox, crs, cache_dir)
     if source not in ("icgc", "idee"):
         raise RuntimeError(f"unknown DTM source '{source}'")
@@ -423,4 +427,4 @@ def raster_from_tiles(paths: list[Path], res: float = NATIVE_RES,
             s.close()
     data = arr[0].astype("float32")
     data[(data == NODATA) | (data == SEA_SENTINEL)] = np.nan
-    return Raster(data=data, transform=transform, res=res)
+    return Raster(data=data, transform=transform, res=abs(transform.a))

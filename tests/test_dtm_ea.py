@@ -101,10 +101,15 @@ def _fake_download(tmp_path: Path, calls: list[str]
     return download
 
 
+def _stub_catalog(monkeypatch: pytest.MonkeyPatch, tiles: set[str]) -> None:
+    monkeypatch.setattr(dtm_ea, "catalog", lambda root: frozenset(tiles))
+
+
 def test_fetch_downloads_resamples_and_cleans_up(
         tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     calls: list[str] = []
     monkeypatch.setattr(dtm_ea, "_download_zip", _fake_download(tmp_path, calls))
+    _stub_catalog(monkeypatch, {"ST4550"})
 
     paths = dtm_ea.fetch_ea_lidar((345000, 150000, 350000, 155000), tmp_path)
 
@@ -122,27 +127,28 @@ def test_fetch_downloads_resamples_and_cleans_up(
     assert calls == ["ST4550"]
 
 
-def test_fetch_marks_out_of_coverage_tiles(
+def test_ensure_tile_skips_tiles_outside_the_catalog(
         tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # The tile endpoint 500s (a generic error, indistinguishable from an
+    # outage) for any gridref outside its catalog — sea, Scotland, the ~1%
+    # lidar gaps. The cached catalog is the authority: uncataloged tiles are
+    # never requested at all.
     calls: list[str] = []
+    monkeypatch.setattr(dtm_ea, "_download_zip", _fake_download(tmp_path, calls))
+    _stub_catalog(monkeypatch, {"ST4550"})
 
-    def no_tile(tile_id: str, dest: Path) -> bool:
-        calls.append(tile_id)
-        return False
-
-    monkeypatch.setattr(dtm_ea, "_download_zip", no_tile)
-
-    paths = dtm_ea.fetch_ea_lidar((345000, 150000, 350000, 155000), tmp_path)
-    assert paths == []
-    # The miss is remembered: a re-run does not re-request the sea tile.
-    dtm_ea.fetch_ea_lidar((345000, 150000, 350000, 155000), tmp_path)
-    assert calls == ["ST4550"]
+    assert dtm_ea.ensure_tile("SV0000", tmp_path) is None
+    assert calls == []
+    assert dtm_ea.fetch_ea_lidar((340000, 150000, 350000, 155000),
+                                 tmp_path) != []
+    assert calls == ["ST4550"]     # ST4045/ST4050 skipped without a request
 
 
-def test_ensure_tile_returns_path_when_fetched_and_none_when_missing(
+def test_ensure_tile_returns_path_and_caches(
         tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     calls: list[str] = []
     monkeypatch.setattr(dtm_ea, "_download_zip", _fake_download(tmp_path, calls))
+    _stub_catalog(monkeypatch, {"ST4550"})
 
     path = dtm_ea.ensure_tile("ST4550", tmp_path)
     assert path is not None
@@ -152,10 +158,61 @@ def test_ensure_tile_returns_path_when_fetched_and_none_when_missing(
     assert dtm_ea.ensure_tile("ST4550", tmp_path) == path
     assert calls == ["ST4550"]
 
-    monkeypatch.setattr(dtm_ea, "_download_zip", lambda tile, dest: False)
-    assert dtm_ea.ensure_tile("SV0000", tmp_path) is None
-    # The miss marker short-circuits the retry too.
-    assert dtm_ea.ensure_tile("SV0000", tmp_path) is None
+
+def test_catalog_queries_every_block_once_then_reads_disk(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    blocks: list[tuple[float, float, float, float]] = []
+
+    def fake_query(block: tuple[float, float, float, float]) -> set[str]:
+        blocks.append(block)
+        return {"ST4550"} if block[0] == 300000 and block[1] == 100000 else set()
+
+    monkeypatch.setattr(dtm_ea, "_query_block", fake_query)
+
+    root = tmp_path / "ea-lidar-5m"
+    root.mkdir(parents=True)
+    tiles = dtm_ea.catalog(root)
+    assert tiles == frozenset({"ST4550"})
+    assert len(blocks) == 49       # 7x7 100 km blocks over the coverage bbox
+    assert (root / "catalog.json").exists()
+
+    # Second call is served from disk.
+    assert dtm_ea.catalog(root) == tiles
+    assert len(blocks) == 49
+
+
+def test_download_zip_retries_transient_errors_then_raises(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import time
+
+    import requests
+
+    attempts: list[str] = []
+
+    class FakeResponse:
+        status_code = 500
+
+        def __enter__(self) -> "FakeResponse":
+            return self
+
+        def __exit__(self, *exc: object) -> None:
+            return None
+
+        def raise_for_status(self) -> None:
+            raise requests.HTTPError("500 Server Error")
+
+    def fake_get(url: str, **kwargs: object) -> FakeResponse:
+        attempts.append(url)
+        return FakeResponse()
+
+    # dtm_ea imports these modules, so patching the shared objects reaches it
+    # without relying on implicit re-exports mypy rejects.
+    monkeypatch.setattr(requests, "get", fake_get)
+    monkeypatch.setattr(time, "sleep", lambda s: None)
+
+    with pytest.raises(requests.HTTPError):
+        dtm_ea._download_zip("ST4550", tmp_path / "t.zip")
+    assert len(attempts) == 4
 
 
 def test_fetch_tiles_dispatches_ea_lidar(

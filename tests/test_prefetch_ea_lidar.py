@@ -19,6 +19,9 @@ def test_prefetch_populates_cache_for_bbox(
         tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     calls: list[str] = []
     monkeypatch.setattr(dtm_ea, "_download_zip", _fake_download(tmp_path, calls))
+    monkeypatch.setattr(
+        dtm_ea, "catalog",
+        lambda root: frozenset({"ST4550", "ST4555", "ST5050", "ST5055"}))
 
     code = prefetch.main(["--cache-dir", str(tmp_path / "cache"),
                           "--bbox", "345000", "150000", "351000", "156000",
@@ -31,15 +34,16 @@ def test_prefetch_populates_cache_for_bbox(
     assert sorted(calls) == ["ST4550", "ST4555", "ST5050", "ST5055"]
 
 
-def test_prefetch_counts_missing_tiles_and_still_succeeds(
+def test_prefetch_counts_uncataloged_tiles_and_still_succeeds(
         tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
         capsys: pytest.CaptureFixture[str]) -> None:
-    monkeypatch.setattr(dtm_ea, "_download_zip", lambda tile, dest: False)
+    calls: list[str] = []
+    monkeypatch.setattr(dtm_ea, "_download_zip", _fake_download(tmp_path, calls))
+    monkeypatch.setattr(dtm_ea, "catalog", lambda root: frozenset())
 
     code = prefetch.main(["--cache-dir", str(tmp_path / "cache"),
                           "--bbox", "345000", "150000", "350000", "155000"])
 
     assert code == 0
-    root = tmp_path / "cache" / "united_kingdom" / "ea-lidar-5m"
-    assert (root / "ST4550.missing").exists()
+    assert calls == []                       # sea tile: no request at all
     assert "1 missing" in capsys.readouterr().out

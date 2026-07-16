@@ -185,6 +185,34 @@ def test_rgealti_departments_retries_rate_limited_wfs(
     assert sleeps == [7.0]
 
 
+def test_rgealti_departments_closes_response_on_wfs_exception_retry(
+        monkeypatch: pytest.MonkeyPatch) -> None:
+    sleeps: list[float] = []
+    closed: list[bool] = []
+    monkeypatch.setattr("highliner.etls.chunk.dtm_rgealti.time.sleep",
+                        sleeps.append)
+    discarded = _response(503, retry_after="7")
+    monkeypatch.setattr(discarded, "close", lambda: closed.append(True))
+    responses = iter([
+        requests.RequestException("connection dropped", response=discarded),
+        _response(200, '{"features": [{"properties": {"code_insee": "73"}}]}'),
+    ])
+
+    class FakeSession:
+        def get(self, url: str, params: dict[str, str],
+                timeout: int) -> requests.Response:
+            response = next(responses)
+            if isinstance(response, requests.RequestException):
+                raise response
+            return response
+
+    assert dtm_rgealti._departments(
+        cast(requests.Session, FakeSession()),
+        (925000.0, 6540000.0, 935000.0, 6550000.0)) == ["73"]
+    assert closed == [True]
+    assert sleeps == [7.0]
+
+
 def test_fetch_rgealti_tiles_serves_cached_department_dalles(
         tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     cache_root = tmp_path / "cache" / "france"

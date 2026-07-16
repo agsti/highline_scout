@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Final
 
 from highliner.core import config
-from highliner.etls.chunk import shared
+from highliner.etls.chunk import shared as shared
 from highliner.etls.chunk.shared import Bbox
 
 COUNTRY: Final[str] = "united_kingdom"

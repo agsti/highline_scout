@@ -73,6 +73,32 @@ def test_rgealti_cached_departments_queries_wfs_once(
     assert len(calls) == 1
 
 
+def test_rgealti_cached_departments_rechecks_cache_under_lock(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    bbox = (925000.0, 6540000.0, 935000.0, 6550000.0)
+    cache_dir = tmp_path / "rgealti_dep_index"
+    cache_dir.mkdir()
+    key = dtm_rgealti._department_cache_key(bbox)
+    path = cache_dir / f"{key}.json"
+    calls: list[tuple[float, float, float, float]] = []
+
+    def fake_flock(fd: object, operation: int) -> None:
+        path.write_text('["01", "73"]')
+
+    def fake_departments(session: object,
+                         requested: tuple[float, float, float, float],
+                         ) -> list[str]:
+        calls.append(requested)
+        return ["01", "73"]
+
+    monkeypatch.setattr(dtm_rgealti.fcntl, "flock", fake_flock)
+    monkeypatch.setattr(dtm_rgealti, "_departments", fake_departments)
+
+    assert dtm_rgealti._cached_departments(
+        cast(requests.Session, object()), bbox, cache_dir) == ["01", "73"]
+    assert calls == []
+
+
 def test_rgealti_catalog_crawl_maps_departments_to_5m_archives(
         monkeypatch: pytest.MonkeyPatch) -> None:
     pages = {
@@ -135,6 +161,27 @@ def test_rgealti_catalog_crawl_retries_rate_limited_page(
             return next(responses)
 
     assert dtm_rgealti._crawl_catalog(cast(requests.Session, FakeSession())) == {}
+    assert sleeps == [7.0]
+
+
+def test_rgealti_departments_retries_rate_limited_wfs(
+        monkeypatch: pytest.MonkeyPatch) -> None:
+    sleeps: list[float] = []
+    monkeypatch.setattr("highliner.etls.chunk.dtm_rgealti.time.sleep",
+                        sleeps.append)
+    responses = iter([
+        _response(429, retry_after="7"),
+        _response(200, '{"features": [{"properties": {"code_insee": "73"}}]}'),
+    ])
+
+    class FakeSession:
+        def get(self, url: str, params: dict[str, str],
+                timeout: int) -> requests.Response:
+            return next(responses)
+
+    assert dtm_rgealti._departments(
+        cast(requests.Session, FakeSession()),
+        (925000.0, 6540000.0, 935000.0, 6550000.0)) == ["73"]
     assert sleeps == [7.0]
 
 

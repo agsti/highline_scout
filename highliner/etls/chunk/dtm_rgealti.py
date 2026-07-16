@@ -14,7 +14,7 @@ the dalles intersecting its bbox. Which departments a chunk touches is
 resolved through the ADMIN EXPRESS WFS and cached, mirroring the CNIG
 sheet-index cache.
 """
-import fcntl
+import fcntl as fcntl
 import hashlib
 import json
 import os
@@ -40,6 +40,7 @@ _TIMEOUT_S = 300
 _RETRY_ATTEMPTS = 6           # archives are 50-500 MB streams; resume on drop
 _RETRY_BASE_S = 3.0
 _CATALOG_RETRY_STATUS = frozenset({429, 500, 502, 503, 504})
+_WFS_RETRY_STATUS = frozenset({429, 500, 502, 503, 504})
 _ARCHIVE_RE = re.compile(r"RGEALTI_2-0_5M_ASC_LAMB93-[A-Z0-9]+_(D\w{3})_")
 _DALLE_RE = re.compile(r"_(\d{4})_(\d{4})_")
 
@@ -77,6 +78,26 @@ def _zone(code_insee: str) -> str:
     return "D" + code_insee.rjust(3, "0")
 
 
+def _wfs_request(session: requests.Session,
+                 params: dict[str, str]) -> requests.Response:
+    """Fetch one WFS response, retrying throttles and transient failures."""
+    for attempt in range(_RETRY_ATTEMPTS):
+        last = attempt == _RETRY_ATTEMPTS - 1
+        try:
+            response = session.get(WFS_URL, params=params, timeout=120)
+        except requests.RequestException as exc:
+            if last:
+                raise
+            time.sleep(_catalog_retry_delay(attempt, exc.response))
+            continue
+        if response.status_code in _WFS_RETRY_STATUS and not last:
+            response.close()
+            time.sleep(_catalog_retry_delay(attempt, response))
+            continue
+        return response
+    raise RuntimeError("unreachable")
+
+
 def _departments(session: requests.Session, bbox: Bbox) -> list[str]:
     """INSEE codes of the departments intersecting ``bbox`` (EPSG:2154)."""
     minx, miny, maxx, maxy = bbox
@@ -91,31 +112,41 @@ def _departments(session: requests.Session, bbox: Bbox) -> list[str]:
         "PROPERTYNAME": "code_insee",
         "COUNT": "50",
     }
-    r = session.get(WFS_URL, params=params, timeout=120)
+    r = _wfs_request(session, params)
     r.raise_for_status()
     return sorted({feature["properties"]["code_insee"]
                    for feature in r.json()["features"]})
 
 
+def _department_cache_key(bbox: Bbox) -> str:
+    return hashlib.sha1(json.dumps(list(bbox)).encode()).hexdigest()
+
+
 def _cached_departments(session: requests.Session, bbox: Bbox,
                         cache_dir: Path) -> list[str]:
-    """Resolve ``bbox`` to department codes, caching the WFS query to disk.
-    The chunk grid is deterministic, so re-runs and adjacent chunks reuse the
-    cached resolution. Written atomically (tmp keyed by pid + replace)."""
-    key = hashlib.sha1(json.dumps(list(bbox)).encode()).hexdigest()
+    """Resolve ``bbox`` once across workers and cache its department codes."""
+    key = _department_cache_key(bbox)
     path = cache_dir / f"{key}.json"
     if path.exists():
         return list(json.loads(path.read_text()))
-    codes = _departments(session, bbox)
     cache_dir.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(f".json.{os.getpid()}.tmp")
-    tmp.write_text(json.dumps(codes))
-    tmp.replace(path)
+    lock_path = path.with_suffix(".json.lock")
+    with lock_path.open("w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        if path.exists():
+            return list(json.loads(path.read_text()))
+        codes = _departments(session, bbox)
+        tmp = path.with_suffix(f".json.{os.getpid()}.tmp")
+        tmp.write_text(json.dumps(codes))
+        tmp.replace(path)
     return codes
 
 
-def _catalog_retry_delay(attempt: int, response: requests.Response) -> float:
+def _catalog_retry_delay(attempt: int,
+                         response: requests.Response | None = None) -> float:
     """Back off exponentially, honoring a longer catalog Retry-After."""
+    if response is None:
+        return _RETRY_BASE_S * 2.0 ** attempt
     try:
         retry_after = float(response.headers.get("Retry-After", 0) or 0)
     except ValueError:

@@ -19,7 +19,7 @@ Markers: `[ ]` todo · `[O]` ongoing (agent dispatched) · `[P]` PR open · `[X]
 - [ ] Estonia
 - [ ] Finland
 - [P] France
-- [O] Germany
+- [P] Germany
 - [ ] Greece
 - [ ] Hungary
 - [ ] Iceland

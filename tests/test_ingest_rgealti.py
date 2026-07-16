@@ -7,12 +7,15 @@ from highliner.etls.chunk import dtm as ingest
 from highliner.etls.chunk import dtm_rgealti
 
 
-def _response(status: int, text: str = "") -> requests.Response:
+def _response(status: int, text: str = "", retry_after: str | None = None,
+              ) -> requests.Response:
     resp = requests.Response()
     resp.status_code = status
     resp._content = text.encode()
     resp._content_consumed = True      # type: ignore[attr-defined]
     resp.encoding = "utf-8"
+    if retry_after is not None:
+        resp.headers["Retry-After"] = retry_after
     return resp
 
 
@@ -95,6 +98,44 @@ def test_rgealti_catalog_crawl_maps_departments_to_5m_archives(
         "D001": "RGEALTI_2-0_5M_ASC_LAMB93-IGN69_D001_2023-08-08",
         "D02A": "RGEALTI_2-0_5M_ASC_LAMB93-IGN78C_D02A_2020-04-16",
     }
+
+
+def test_rgealti_catalog_crawl_paces_page_requests(
+        monkeypatch: pytest.MonkeyPatch) -> None:
+    sleeps: list[float] = []
+    monkeypatch.setattr("highliner.etls.chunk.dtm_rgealti.time.sleep",
+                        sleeps.append)
+    pages = {
+        "1": '<feed pagecount="2"></feed>',
+        "2": '<feed pagecount="2"></feed>',
+    }
+
+    class FakeSession:
+        def get(self, url: str, params: dict[str, str],
+                timeout: int) -> requests.Response:
+            return _response(200, text=pages[params["page"]])
+
+    assert dtm_rgealti._crawl_catalog(cast(requests.Session, FakeSession())) == {}
+    assert sleeps == [1.0]
+
+
+def test_rgealti_catalog_crawl_retries_rate_limited_page(
+        monkeypatch: pytest.MonkeyPatch) -> None:
+    sleeps: list[float] = []
+    monkeypatch.setattr("highliner.etls.chunk.dtm_rgealti.time.sleep",
+                        sleeps.append)
+    responses = iter([
+        _response(429, retry_after="7"),
+        _response(200, '<feed pagecount="1"></feed>'),
+    ])
+
+    class FakeSession:
+        def get(self, url: str, params: dict[str, str],
+                timeout: int) -> requests.Response:
+            return next(responses)
+
+    assert dtm_rgealti._crawl_catalog(cast(requests.Session, FakeSession())) == {}
+    assert sleeps == [7.0]
 
 
 def test_fetch_rgealti_tiles_serves_cached_department_dalles(

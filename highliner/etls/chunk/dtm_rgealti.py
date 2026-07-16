@@ -39,6 +39,7 @@ _HALF_CELL_M = 2.5
 _TIMEOUT_S = 300
 _RETRY_ATTEMPTS = 6           # archives are 50-500 MB streams; resume on drop
 _RETRY_BASE_S = 3.0
+_CATALOG_RETRY_STATUS = frozenset({429, 500, 502, 503, 504})
 _ARCHIVE_RE = re.compile(r"RGEALTI_2-0_5M_ASC_LAMB93-[A-Z0-9]+_(D\w{3})_")
 _DALLE_RE = re.compile(r"_(\d{4})_(\d{4})_")
 
@@ -113,15 +114,38 @@ def _cached_departments(session: requests.Session, bbox: Bbox,
     return codes
 
 
+def _catalog_retry_delay(attempt: int, response: requests.Response) -> float:
+    """Back off exponentially, honoring a longer catalog Retry-After."""
+    try:
+        retry_after = float(response.headers.get("Retry-After", 0) or 0)
+    except ValueError:
+        retry_after = 0.0
+    return max(retry_after, _RETRY_BASE_S * 2.0 ** attempt)
+
+
+def _catalog_page(session: requests.Session, page: int) -> requests.Response:
+    """Fetch one catalog page, retrying provider throttles and 5xx errors."""
+    for attempt in range(_RETRY_ATTEMPTS):
+        response = session.get(f"{DOWNLOAD_BASE}/resource/RGEALTI",
+                               params={"page": str(page)}, timeout=60)
+        if response.status_code not in _CATALOG_RETRY_STATUS \
+                or attempt == _RETRY_ATTEMPTS - 1:
+            response.raise_for_status()
+            return response
+        response.close()
+        time.sleep(_catalog_retry_delay(attempt, response))
+    raise RuntimeError("unreachable")
+
+
 def _crawl_catalog(session: requests.Session) -> dict[str, str]:
     """Map department zones (D001) to 5M LAMB93 archive names, crawling the
     Atom feed of the RGEALTI download resource page by page."""
     out: dict[str, str] = {}
     page = 1
     while True:
-        r = session.get(f"{DOWNLOAD_BASE}/resource/RGEALTI",
-                        params={"page": str(page)}, timeout=60)
-        r.raise_for_status()
+        if page > 1:
+            time.sleep(1.0)
+        r = _catalog_page(session, page)
         for title in re.findall(r"<title>(RGEALTI_[^<]+)</title>", r.text):
             match = _ARCHIVE_RE.match(title)
             if match:

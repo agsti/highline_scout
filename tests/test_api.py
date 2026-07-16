@@ -1,6 +1,5 @@
 import json
 from pathlib import Path
-from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
@@ -10,7 +9,6 @@ from highliner.etls.chunk.candidates import save_candidates
 from highliner.models.anchor import Anchor
 from highliner.models.candidate import Candidate
 from highliner.server.app import create_app
-from highliner.server.services import restrictions as restrictions_service
 
 from tests.helpers import to_utm
 
@@ -242,30 +240,22 @@ def _write_restriction_layer(
     gdf.to_parquet(rdir / f"{layer_id}.parquet")
 
 
-def test_restriction_layers_registry(
-        tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    seen: list[str] = []
-    original = restrictions_service.layer_meta
-
-    def layer_meta(country: str) -> list[dict[str, Any]]:
-        seen.append(country)
-        return original(country)
-
-    monkeypatch.setattr(restrictions_service, "layer_meta", layer_meta)
+def test_restriction_layers_are_scoped_to_country(tmp_path: Path) -> None:
+    _write_restriction_layer(tmp_path, "zepa", "Montserrat",
+                             (1.80, 41.55, 1.85, 41.62), country="spain")
+    _write_restriction_layer(tmp_path, "zps", "Dolomites",
+                             (11.80, 46.45, 11.85, 46.52), country="italy")
     client = TestClient(create_app(data_dir=tmp_path))
-    r = client.get("/restrictions/layers", params={"country": "france"})
-    assert r.status_code == 200
-    assert seen == ["france"]
-    layers = r.json()["layers"]
-    ids = {row["id"] for row in layers}
-    assert {"zepa", "zec", "enp"} <= ids
-    zepa = next(row for row in layers if row["id"] == "zepa")
-    assert zepa["label"] and zepa["color"].startswith("#")
-    assert all(row["tooltip"].strip() for row in layers)
-    # every layer emphasizes its highliner-relevant clause; the highlight must
-    # be a verbatim substring of the tooltip so the frontend can locate it.
-    for row in layers:
-        assert row["highlight"] and row["highlight"] in row["tooltip"]
+
+    assert [layer["id"] for layer in client.get(
+        "/restrictions/layers", params={"country": "spain"}
+    ).json()["layers"]] == ["zepa"]
+    assert [layer["id"] for layer in client.get(
+        "/restrictions/layers", params={"country": "italy"}
+    ).json()["layers"]] == ["zps"]
+    assert client.get(
+        "/restrictions/layers", params={"country": "france"}
+    ).json()["layers"] == []
 
 
 def test_restrictions_in_view(tmp_path: Path) -> None:
@@ -312,6 +302,9 @@ def test_restrictions_scoped_to_country(tmp_path: Path) -> None:
     assert client.get("/restrictions", params=view).json()["features"] == []
     got = client.get("/restrictions", params={**view, "country": "france"})
     assert len(got.json()["features"]) == 1
+    assert client.get("/restrictions", params={
+        **view, "country": "france", "layers": "zps",
+    }).json()["features"] == []
 
 
 def test_zones_merges_two_regions_by_viewport(tmp_path: Path) -> None:

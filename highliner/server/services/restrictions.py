@@ -17,11 +17,20 @@ from highliner.server.repositories.restrictions import load_layer
 Bbox = tuple[float, float, float, float]
 
 
-def layer_meta(country: str) -> list[dict[str, Any]]:
-    """Registry of overlay layers (id/label/color/tooltip) for the frontend."""
-    return [{"id": lid, "label": s["label"], "color": s["color"],
-             "tooltip": s["tooltip"], "highlight": s.get("highlight")}
-            for lid, s in LAYERS.items()]
+def available_layer_ids(data_dir: str | Path, country: str) -> list[str]:
+    """Return registered layers with stored output for ``country``."""
+    rdir = Path(data_dir) / country / "restrictions"
+    return [layer_id for layer_id in LAYERS
+            if (rdir / f"{layer_id}.parquet").is_file()]
+
+
+def layer_meta(data_dir: str | Path, country: str) -> list[dict[str, Any]]:
+    """Available overlay metadata for ``country``'s frontend controls."""
+    return [{"id": layer_id, "label": LAYERS[layer_id]["label"],
+             "color": LAYERS[layer_id]["color"],
+             "tooltip": LAYERS[layer_id]["tooltip"],
+             "highlight": LAYERS[layer_id].get("highlight")}
+            for layer_id in available_layer_ids(data_dir, country)]
 
 
 def clip_to_features(layer_id: str, gdf: gpd.GeoDataFrame,
@@ -45,14 +54,13 @@ def features_in_view(data_dir: str | Path, bbox: Bbox, country: str,
     ``<data_dir>/<country>/restrictions``. ``layer_ids`` restricts to a subset
     (unknown ids ignored; ``None`` means all layers); ``limit`` short-circuits
     once that many features have accumulated so callers can cap the response."""
-    ids = ([x for x in layer_ids if x in LAYERS] if layer_ids
-           else list(LAYERS))
     rdir = Path(data_dir) / country / "restrictions"
+    available = available_layer_ids(data_dir, country)
+    ids = ([layer_id for layer_id in layer_ids if layer_id in available]
+           if layer_ids else available)
     feats: list[dict[str, Any]] = []
     for layer_id in ids:
         path = rdir / f"{layer_id}.parquet"
-        if not path.exists():
-            continue
         feats.extend(clip_to_features(layer_id, load_layer(str(path)), bbox))
         if limit is not None and len(feats) > limit:
             break

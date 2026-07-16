@@ -11,9 +11,11 @@ router = APIRouter()
 
 @router.get("/restrictions/layers")
 def restriction_layers(
+    request: Request,
     country: str = config.DEFAULT_COUNTRY,
 ) -> dict[str, Any]:
-    return {"layers": restrictions_service.layer_meta(country)}
+    return {"layers": restrictions_service.layer_meta(
+        get_data_dir(request), country)}
 
 
 @router.get("/restrictions")

@@ -5,7 +5,14 @@ from collections.abc import Iterable
 from highliner.core import config
 
 BUCKET_M = config.DENSITY_BUCKET_M
-LAYER_BITS = {"zepa": 1, "zec": 2, "enp": 4}
+LAYER_BITS = {
+    "zepa": 1,
+    "zec": 2,
+    "enp": 4,
+    "zps": 8,
+    "zsc": 16,
+    "euap": 32,
+}
 
 
 def bucket_for(value: float) -> int:

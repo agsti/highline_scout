@@ -213,8 +213,7 @@ def build_density(region_dir: Path,
         return 0
     crs = chunked_store.read_grid(region_dir).crs
     pair_files = sorted((region_dir / "pairs").glob("q_*.parquet"))
-    restrictions_dir = restrictions_dir or (
-        Path(config.DATA_DIR) / config.DEFAULT_COUNTRY / "restrictions")
+    restrictions_dir = restrictions_dir or region_dir.parent / "restrictions"
     batches = _file_batches(pair_files)
     finest_zoom = max(zooms)
     cells: dict[CellKey, CellSummary] = {}

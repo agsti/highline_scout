@@ -107,6 +107,23 @@ def test_builder_uses_country_restrictions(tmp_path: Path) -> None:
     assert _load(region, 12)["hm"][0] == 1
 
 
+def test_builder_defaults_to_its_region_country_restrictions(
+        tmp_path: Path) -> None:
+    near = to_utm(1.83, 41.59)
+    region = _write_region(tmp_path / "italy", [
+        _pair(near[0], near[1], exposure=30.0),
+    ])
+    path = tmp_path / "italy" / "restrictions" / "zps.parquet"
+    path.parent.mkdir(parents=True)
+    gpd.GeoDataFrame({"name": ["test"]}, geometry=[box(
+        near[0] - 50, near[1] - 50, near[0], near[1] + 50)],
+        crs="EPSG:25831").to_parquet(path)
+
+    builder.build_density(region, zoom_levels=[12])
+
+    assert _load(region, 12)["hm"][0] == 8
+
+
 def test_parallel_density_matches_single_worker_output(tmp_path: Path) -> None:
     near = to_utm(1.83, 41.59)
     region = tmp_path / "catalonia"

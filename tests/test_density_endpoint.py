@@ -19,6 +19,8 @@ def _write_density(data_dir: Path, region: str, z: int,
                    ) -> tuple[int, int]:
     """Write a one-cell z-layer near Montserrat; return its (xtile, ytile)."""
     tx, ty = tiles.lonlat_to_tile(1.83, 41.59, z)
+    cx, cy = to_utm(1.83, 41.59)
+    _write_grid(data_dir, region, (cx - 500, cy - 500, cx + 500, cy + 500))
     density_dir = data_dir / "spain" / region / "density"
     density_dir.mkdir(parents=True, exist_ok=True)
     np.savez(

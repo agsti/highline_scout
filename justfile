@@ -83,48 +83,18 @@ update:
     uv lock --upgrade
     uv sync --extra dev
 
-# Download national protected-area files (once) into data/restrictions/raw/
-# and transform them into data/restrictions/<id>.parquet.
-RN2000_URL := "https://www.miteco.gob.es/content/dam/miteco/es/biodiversidad/servicios/banco-datos-naturaleza/3-rn2000/PS.Natura2000_2025_gml.zip"
-ENP_URL := "https://www.miteco.gob.es/content/dam/miteco/es/biodiversidad/servicios/banco-datos-naturaleza/enp/Enp2025_geojson.zip"
+# Country adapters own terrain sources and country-specific ETL configuration.
+# Keep countries sequential: each adapter can use its own worker pool safely.
+ETL_COUNTRIES := "spain"
 
-fetch-restrictions:
-    mkdir -p data/restrictions/raw
-    ls data/restrictions/raw/*.gml >/dev/null 2>&1 || \
-      (curl -fL "{{RN2000_URL}}" -o data/restrictions/raw/rn2000.zip && \
-       unzip -o -j data/restrictions/raw/rn2000.zip -d data/restrictions/raw && \
-       rm data/restrictions/raw/rn2000.zip)
-    [ -n "$(ls data/restrictions/raw/*.geojson data/restrictions/raw/*.json 2>/dev/null)" ] || \
-      (curl -fL "{{ENP_URL}}" -o data/restrictions/raw/enp.zip && \
-       unzip -o -j data/restrictions/raw/enp.zip -d data/restrictions/raw && \
-       rm data/restrictions/raw/enp.zip)
-    uv run highliner-restrictions
+etl-chunk-8:
+    for country in {{ETL_COUNTRIES}}; do uv run python -m highliner.etls.chunk.$country --workers 8; done
 
-# Precompute anchors + candidate pairs for a region into data/<region>/.
-# Long, resumable batch: Ctrl-C anytime and re-run to continue where it left off.
-# Test a small area first, e.g.:
-#   just precompute --region catalonia --bbox 399134,4603853,403346,4607126 --chunk-km 5
-precompute *args:
-    uv run highliner-etl-chunk {{args}}
+etl-density-8:
+    for country in {{ETL_COUNTRIES}}; do uv run python -m highliner.etls.density.$country --workers 8; done
 
-# Build the zoomed-out density pyramid from precomputed pairs.
-precompute-density *args:
-    uv run highliner-etl-density {{args}}
-
-# Build every discovered region's density pyramid for one country, with up to
-# eight regions running concurrently. Each density process keeps its own
-# default worker count, avoiding eight nested worker pools.
-# Usage: just precompute-country-density-8 spain
-precompute-country-density-8 country data_dir="data":
-    find "{{data_dir}}/{{country}}" -mindepth 1 -maxdepth 1 -type d -exec sh -c '[ -f "$1/grid.json" ] && printf "%s\0" "$1"' _ {} \; | xargs -0 -r -n 1 -P 8 sh -c 'uv run highliner-etl-density --data-dir "$1" --country "$2" --region "$(basename "$3")"' _ "{{data_dir}}" "{{country}}"
-
-# Precompute all non-Catalonia Spain regions, resuming completed chunks.
-precompute-spain *args:
-    uv run python scripts/precompute_spain.py {{args}}
-
-# Precompute Spain one region at a time, with 8 chunks in parallel per region.
-precompute-spain-8 *args:
-    uv run python scripts/precompute_spain.py --jobs 1 --chunk-workers 8 {{args}}
+etl-restriction:
+    for country in {{ETL_COUNTRIES}}; do uv run python -m highliner.etls.restriction.$country; done
 
 # rsync data/ to the prod machine. The raw-DTM CNIG cache
 # (mdt05_tiles/, mdt05_sheet_index/) lives in the sibling cache/ folder, not

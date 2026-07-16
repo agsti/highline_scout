@@ -11,10 +11,10 @@ from fastapi import APIRouter, HTTPException, Request
 
 from highliner.core import config, tiles
 from highliner.core.density import layer_mask
-from highliner.core.regions import defaults_for_region, region_dir
-from highliner.server.repositories import chunked_store, density_store
+from highliner.server.repositories import density_store
 from highliner.server.repositories.density_store import DensityFilter
 from highliner.server.router.deps import (
+    find_region,
     get_region_index,
     parse_bbox_lonlat,
     regions_in_country,
@@ -80,20 +80,15 @@ def density(  # noqa: PLR0913
     exclude_layers: str | None = None,
 ) -> dict[str, Any]:
     zoom = _clamp_zoom(z)
-    data_dir = request.app.state.data_dir
     density_filter = _density_filter(min_len, max_len, min_exposure,
                                      exclude_layers)
 
     if region is not None:
-        region_path = region_dir(data_dir, region)
-        density_dir = region_path / "density"
+        entry = find_region(get_region_index(request), region)
+        density_dir = entry.region_dir / "density"
         if not density_dir.is_dir():
             raise HTTPException(404, f"no density layer for region '{region}'")
-        try:
-            crs = chunked_store.read_grid(region_path).crs
-        except FileNotFoundError:
-            crs = defaults_for_region(region).crs
-        view = parse_bbox_lonlat(bbox, bbox_lonlat, crs)
+        view = parse_bbox_lonlat(bbox, bbox_lonlat, entry.grid.crs)
         return {"type": "FeatureCollection",
                 "features": _features(density_dir / f"z{zoom}.npz", zoom,
                                       view, density_filter)}

@@ -94,3 +94,12 @@ def test_project_defines_focused_command_scripts() -> None:
 def test_chunk_entry_point_declared() -> None:
     project = Path("pyproject.toml").read_text()
     assert 'highliner-etl-chunk = "highliner.etls.chunk.spain:main"' in project
+
+
+def test_justfile_runs_country_etl_adapters_sequentially() -> None:
+    justfile = Path("justfile").read_text()
+
+    assert 'ETL_COUNTRIES := "spain"' in justfile
+    for family in ("chunk", "density", "restriction"):
+        assert f"etl-{family}-8:" in justfile or f"etl-{family}:" in justfile
+        assert f"highliner.etls.{family}.$country" in justfile

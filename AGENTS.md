@@ -31,7 +31,9 @@ automatically, so separate environments remain quick and isolated.
     just lint --fix                # ruff, applying safe autofixes
     just deadcode                  # vulture, on its own
     just dev                       # FastAPI dev server, auto-reload, :8000
-    just fetch-restrictions        # download protected-area layers -> data/spain/restrictions/
+    just etl-chunk-8               # precompute configured countries (8 workers)
+    just etl-density-8             # build country density layers (8 workers)
+    just etl-restriction           # build protected-area layers by country
 
 CI runs `ruff check`, the file-length cap, `mypy`, `vulture` and `pytest`;
 `pre-commit install` runs everything but the tests on commit. Ruff is lint-only
@@ -74,10 +76,10 @@ Local dev and production serve the frontend differently:
 
 CLI entry points:
 
-    .venv/bin/highliner-etl-chunk --region NAME --bbox minx,miny,maxx,maxy [--chunk-km N]
-    .venv/bin/highliner-etl-density [--data-dir PATH] [--workers N]  # all Spain regions
+    uv run python -m highliner.etls.chunk.spain [--workers N]
+    uv run python -m highliner.etls.density.spain [--data-dir PATH] [--workers N]
     .venv/bin/highliner-server
-    .venv/bin/highliner-restrictions
+    uv run python -m highliner.etls.restriction.spain
 
 ## Telemetry
 
@@ -128,7 +130,7 @@ nothing and needs no setup.
 
 ## Package layout
 
-The package is split top-level by the two stages — `etl/` (offline precompute)
+The package is split top-level by the two stages — `etls/` (offline precompute)
 and `server/` (serving) — over a shared `core/` + `models/` foundation. Each
 stage keeps the same layered structure (repositories / services, plus router on
 the server). Command entry points live beside the stage they drive:
@@ -138,19 +140,18 @@ the server). Command entry points live beside the stage they drive:
                              regions, tiles, telemetry, restrictions (the LAYERS
                              overlay registry both stages consume)
       models/                shared pure domain dataclasses: anchor, candidate, zone, raster
-      etl/                   offline precompute pipeline
-        chunk/               complete chunk-precompute pipeline: command, orchestration,
+      etls/                  country adapters plus offline precompute pipeline
+        chunk/               country-neutral chunk precompute utilities plus adapters,
                              DTM download, terrain extraction, pairing, and parquet writers
-          main.py            chunk-precompute command
-          precompute.py      chunk-grid orchestration
+          spain.py           Spain chunk-precompute command
+          shared.py          chunk-grid orchestration
           dtm.py             ICGC/IGN WCS terrain download
           terrain.py         anchor extraction
           pairing.py         candidate pairing
           anchors.py         anchor parquet writer
           candidates.py      candidate parquet writer
-        density/main.py      density-precompute command
-        repositories/        restrictions (build national MITECO layers)
-        services/            density
+        density/             country density adapters and aggregation
+        restriction/         country protected-area adapters
       server/                serving
         main.py              server command
         app.py               FastAPI factory: wires routers, CORS, and the
@@ -168,10 +169,10 @@ the server). Command entry points live beside the stage they drive:
 
 Dependencies flow router → services → repositories → models/core, and both
 stages depend only on the shared `core/` + `models/`. The one exception is the
-offline `etl/services/density.py`, which aggregates the already-precomputed
+offline `etls/density/`, which aggregates the already-precomputed
 store and so reads back through the server-side read layer
 (`server/repositories/chunked_store` + `candidates`); that dependency only ever
-points etl → server, never the reverse.
+points etls → server, never the reverse.
 
 ## Architecture
 
@@ -179,20 +180,20 @@ Two stages. All geospatial work is done offline by `precompute` and cached as
 parquet partitions; the server only does cheap in-viewport reads and filtering
 on every request — no DTM raster is ever touched at serve time.
 
-1. **Precompute** (`highliner-etl-chunk`, `etl/chunk/precompute.py`) — tiles
+1. **Precompute** (`highliner.etls.chunk.<country>`, `etls/chunk/shared.py`) — tiles
    the region's bbox into `chunk_m`-sized squares (`chunk_grid`). For each chunk
    (`process_chunk`): downloads ICGC bare-earth DTM tiles (5 m, EPSG:25831) over
-   a WCS endpoint for the chunk's core plus a halo (`etl/chunk/dtm.py`; each
+   a WCS endpoint for the chunk's core plus a halo (`etls/chunk/dtm.py`; each
    WCS request is capped at ~140 KB, so tiles are downloaded individually and
-   merged in memory), runs `extract_anchors` (`etl/chunk/terrain.py` — slope
+   merged in memory), runs `extract_anchors` (`etls/chunk/terrain.py` — slope
    threshold, directional drop-sector sweep, greedy non-max-suppression spacing)
-   to get anchors, then `find_candidates` (`etl/chunk/pairing.py`) to get
+   to get anchors, then `find_candidates` (`etls/chunk/pairing.py`) to get
    candidate pairs (length / height-diff / directional / exposure gated,
    exposure computed by sampling the raster between each pair) at a loose
    envelope. Anchors owned by the chunk's core and pairs whose canonical endpoint
    falls in the core are written as `anchors/p_{cx}_{cy}.parquet` /
-   `pairs/q_{cx}_{cy}.parquet` (`etl/chunk/anchors.py`,
-   `etl/chunk/candidates.py`); the raw DTM tiles are deleted afterward —
+   `pairs/q_{cx}_{cy}.parquet` (`etls/chunk/anchors.py`,
+   `etls/chunk/candidates.py`); the raw DTM tiles are deleted afterward —
    nothing raster-shaped persists.
 
 2. **Serve** (`server/app.py` + `server/router/`) — FastAPI + a Vite/React frontend in
@@ -209,7 +210,7 @@ on every request — no DTM raster is ever touched at serve time.
    (`server/repositories/partition_cache.py`), so panning re-hits warm
    partitions without re-reading or re-parsing.
 
-**Pairing** (`etl/services/pairing.py`): for anchor pairs within `max_len`, gates on
+**Pairing** (`etls/chunk/pairing.py`): for anchor pairs within `max_len`, gates on
 length, height difference, a **directional check** (each anchor's bearing to the
 other must fall within one of its drop sectors, ± `SECTOR_TOL_DEG`), and
 **exposure** (lower anchor's elevation minus the lowest terrain point strictly
@@ -230,14 +231,14 @@ only at the web boundary, in `core/geo.py` (and the GeoJSON serializers in
 `server/router/serializers.py`). API bbox params accept either `bbox` (UTM) or
 `bbox_lonlat`.
 
-**Restrictions** (`etl/repositories/restrictions.py` builds/stores the layers,
+**Restrictions** (`etls/restriction/` builds/stores the layers,
 `server/repositories/restrictions.py` reads them, `server/services/restrictions.py`
 serves them, and the shared `LAYERS` registry lives in `core/restrictions.py`): informational protected-area overlays
 covering all of Spain, built from MITECO's (national) Banco de Datos de la
 Naturaleza files — Red Natura 2000 GML (INSPIRE ProtectedSites) and Espacios
 Naturales Protegidos GeoJSON, each shipped as a peninsula+Baleares file and a
-Canarias file in different CRSes. `just fetch-restrictions` downloads the raw
-files into `data/spain/restrictions/raw/` and runs `highliner-restrictions`
+Canarias file in different CRSes. `just etl-restriction` downloads the raw
+files into `data/spain/restrictions/raw/` through the country adapter
 to derive three layers — `zepa` (Special Protection Area for Birds) and `zec`
 (Site/Area of Community Importance), both filtered from the RN2000 GML by
 designation code (parsed from the raw XML, since GDAL doesn't expose it as an
@@ -249,16 +250,15 @@ language for restrictions text; see i18n below).
 ## Data layout (gitignored)
 
 Both `data/` and `cache/` are partitioned by country at the top level (all
-current data is `spain`); more countries slot in as sibling folders. A region's
-country is looked up in `REGION_DEFAULTS` (`core/regions.py`), and
-`regions.region_dir(data_dir, region)` resolves `<data_dir>/<country>/<region>`
-— the single place the mapping is applied.
+current data is `spain`); more countries slot in as sibling folders. The server
+builds a filesystem index from `data/<country>/<region>/grid.json`; explicit
+region requests use that index, including its on-disk country.
 
     data/<country>/<region>/grid.json                    {bbox, chunk_m, crs, dtm_source}
     data/<country>/<region>/anchors/p_{cx}_{cy}.parquet  anchors per chunk
     data/<country>/<region>/pairs/q_{cx}_{cy}.parquet    candidate pairs per chunk (exposure baked in)
     data/<country>/<region>/tiles/                       transient DTM tile cache, deleted once a chunk finishes
-    data/<country>/<region>/density/z{z}.npz             zoomed-out density pyramid (optional, `precompute-density`)
+    data/<country>/<region>/density/z{z}.npz             zoomed-out density pyramid (optional, `etl-density-8`)
     data/<country>/restrictions/<id>.parquet             protected-area overlays (national per country)
     cache/<country>/mdt05_tiles/                         persistent CNIG MDT05 sheet cache (national, cross-region)
     cache/<country>/mdt05_sheet_index/                   cached CNIG sheet-index catalog queries
@@ -275,7 +275,7 @@ partition, defaulting to `config.DEFAULT_COUNTRY` (`"spain"`) — the single
 source of that default. `/regions` returns each region's `country` and lists
 only the requested one; `/zones`, `/anchors` and `/density` only serve that
 country's regions when no explicit `region` is given (an explicit `region`
-resolves its own country via `REGION_DEFAULTS`); `/restrictions` reads only
+uses its indexed filesystem country); `/restrictions` reads only
 `data/<country>/restrictions/`. Existing callers that omit `country` keep
 getting Spain unchanged.
 

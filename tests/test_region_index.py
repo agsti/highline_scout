@@ -54,6 +54,18 @@ def test_build_index_sets_country_from_partition(tmp_path: Path) -> None:
     assert [e.name for e in deps.regions_in_country(index, "france")] == ["alps"]
 
 
+def test_resolve_regions_named_region_uses_indexed_country(
+        tmp_path: Path) -> None:
+    _write_grid(tmp_path, "alps", (0.0, 0.0, 1.0, 1.0), country="france")
+    request = SimpleNamespace(app=SimpleNamespace(
+        state=SimpleNamespace(data_dir=tmp_path, region_index=None)))
+
+    entries = deps.resolve_regions(request, "alps", None, None)  # type: ignore[arg-type]
+
+    assert [(entry.name, entry.country) for entry in entries] == [(
+        "alps", "france")]
+
+
 def test_countries_from_index_unions_bounds_and_centers(tmp_path: Path) -> None:
     _write_grid(tmp_path, "east", (100, 100, 200, 200), country="spain")
     _write_grid(tmp_path, "west", (0, 0, 50, 50), country="spain")

@@ -9,7 +9,6 @@ from pathlib import Path
 from fastapi import HTTPException, Request
 
 from highliner.core import config, geo
-from highliner.core.regions import country_for_region, region_dir
 from highliner.server.repositories import chunked_store
 
 Bbox = tuple[float, float, float, float]
@@ -108,17 +107,20 @@ def regions_in_country(
     return [e for e in index if e.country == country]
 
 
+def find_region(index: list[RegionEntry], name: str) -> RegionEntry:
+    """Return the indexed region called ``name``, or report it as unknown."""
+    for entry in index:
+        if entry.name == name:
+            return entry
+    raise HTTPException(404, f"unknown region '{name}'")
+
+
 def resolve_regions(request: Request, region: str | None,  # noqa: PLR0913
                     bbox: str | None, bbox_lonlat: str | None,
                     country: str = config.DEFAULT_COUNTRY) -> list[RegionEntry]:
-    """Regions to serve for a request. If ``region`` is given, that single region
-    (read directly, may raise FileNotFoundError if absent); otherwise every
-    region of ``country`` whose extent overlaps the lon/lat viewport."""
+    """Regions to serve for a request, selected from the filesystem index."""
     if region is not None:
-        rdir = region_dir(request.app.state.data_dir, region)
-        grid = chunked_store.read_grid(rdir)
-        return [RegionEntry(region, country_for_region(region), rdir, grid,
-                            region_lonlat_bounds(grid))]
+        return [find_region(get_region_index(request), region)]
     view = parse_bbox_lonlat(bbox, bbox_lonlat)
     index = regions_in_country(get_region_index(request), country)
     return regions_in_view(index, view)

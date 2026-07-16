@@ -45,9 +45,8 @@ def test_spain_chunk_adapter_reports_region_progress(
         "[madrid] completed 4 chunks -> /tmp/data/spain/madrid\n")
 
 
-@pytest.mark.parametrize("region", ["catalonia", "catalunya"])
-def test_spain_chunk_adapter_configures_catalonia_aliases(
-        region: str, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_spain_chunk_adapter_configures_full_catalonia(
+        monkeypatch: pytest.MonkeyPatch) -> None:
     calls: list[dict[str, Any]] = []
 
     def fake(*args: object, **kwargs: object) -> int:
@@ -56,8 +55,16 @@ def test_spain_chunk_adapter_configures_catalonia_aliases(
 
     monkeypatch.setattr(spain.shared, "precompute", fake)
 
-    spain.main(["--only", region])
+    spain.main(["--only", "catalonia"])
 
-    assert calls[0]["args"][:2] == ("spain", region)
+    assert calls[0]["args"][:3] == (
+        "spain", "catalonia", (258000, 4485000, 528000, 4750000))
     assert calls[0]["crs"] == "EPSG:25831"
     assert calls[0]["dtm_source"] == "icgc"
+
+
+def test_spain_chunk_adapter_does_not_expose_montserrat_as_catalonia_alias() -> None:
+    region_names = {region.name for region in spain.REGIONS}
+
+    assert "catalonia" in region_names
+    assert {"catalunya", "catalonia2"}.isdisjoint(region_names)

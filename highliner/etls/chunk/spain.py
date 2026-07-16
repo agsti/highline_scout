@@ -16,7 +16,7 @@ COUNTRY: Final[str] = "spain"
 _PENINSULA_CRS: Final[str] = "EPSG:25830"
 _CATALONIA_CRS: Final[str] = "EPSG:25831"
 _CANARIES_CRS: Final[str] = "EPSG:4083"
-_CATALONIA_SAMPLE_BBOX: Final[Bbox] = (399134, 4603853, 403346, 4607126)
+_CATALONIA_BBOX: Final[Bbox] = (258000, 4485000, 528000, 4750000)
 
 
 @dataclass(frozen=True)
@@ -56,9 +56,7 @@ REGIONS: tuple[Region, ...] = (
     _peninsula("castilla_la_mancha", (294000, 4208000, 682000, 4576000)),
     _peninsula("castilla_y_leon", (165000, 4439000, 602000, 4790000)),
     _peninsula("andalucia", (100000, 3977000, 622000, 4289000)),
-    _catalonia("catalonia", _CATALONIA_SAMPLE_BBOX),
-    _catalonia("catalunya", _CATALONIA_SAMPLE_BBOX),
-    _catalonia("catalonia2", _CATALONIA_SAMPLE_BBOX),
+    _catalonia("catalonia", _CATALONIA_BBOX),
 )
 
 

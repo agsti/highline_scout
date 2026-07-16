@@ -26,7 +26,7 @@ def test_precompute_uses_explicit_country_for_outputs_and_cache(
     seen: list[Path | None] = []
 
     def capture_cache(*args: object, **kwargs: Path | None) -> int:
-        seen.append(kwargs["cnig_cache_dir"])
+        seen.append(kwargs["cache_dir"])
         return 0
 
     monkeypatch.setattr(shared, "process_chunk", capture_cache)
@@ -159,7 +159,7 @@ def test_process_chunk_uses_chunk_scoped_transient_tiles(
         tile_px: int = _dtm.MAX_TILE_PX,
         source: str = "icgc",
         crs: str = config.UTM_CRS,
-        cnig_cache_dir: Path | None = None,
+        cache_dir: Path | None = None,
     ) -> list[Path]:
         seen.append(tiles_dir)
         return []
@@ -318,9 +318,9 @@ def test_precompute_writes_region_crs_and_source_defaults(
         tile_px: int = _dtm.MAX_TILE_PX,
         source: str = "icgc",
         crs: str = config.UTM_CRS,
-        cnig_cache_dir: Path | None = None,
+        cache_dir: Path | None = None,
     ) -> list[Path]:
-        seen.append((bbox, source, crs, cnig_cache_dir))
+        seen.append((bbox, source, crs, cache_dir))
         return []
 
     monkeypatch.setattr(_dtm, "fetch_tiles", fake_fetch)

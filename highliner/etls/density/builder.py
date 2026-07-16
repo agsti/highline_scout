@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+
 from highliner.core import config, geo, tiles
 from highliner.core.density import bucket_for
 from highliner.etls.density.candidates import load_candidates

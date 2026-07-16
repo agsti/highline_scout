@@ -84,17 +84,16 @@ update:
     uv sync --extra dev
 
 # Country adapters own terrain sources and country-specific ETL configuration.
-# Keep countries sequential: each adapter can use its own worker pool safely.
-ETL_COUNTRIES := "spain"
+# Each recipe runs one country, e.g.: just etl-chunk-8 italy
 
-etl-chunk-8:
-    for country in {{ETL_COUNTRIES}}; do uv run python -m highliner.etls.chunk.$country --workers 8; done
+etl-chunk-8 country:
+    uv run python -m highliner.etls.chunk.{{country}} --workers 8
 
-etl-density-8:
-    for country in {{ETL_COUNTRIES}}; do uv run python -m highliner.etls.density.$country --workers 8; done
+etl-density-8 country:
+    uv run python -m highliner.etls.density.{{country}} --workers 8
 
-etl-restriction:
-    for country in {{ETL_COUNTRIES}}; do uv run python -m highliner.etls.restriction.$country; done
+etl-restriction country:
+    uv run python -m highliner.etls.restriction.{{country}}
 
 # rsync data/ to the prod machine. The raw-DTM CNIG cache
 # (mdt05_tiles/, mdt05_sheet_index/) lives in the sibling cache/ folder, not

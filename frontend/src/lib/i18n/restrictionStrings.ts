@@ -29,6 +29,27 @@ export const RESTRICTION_STRINGS: Partial<Record<Lang, Record<string, Restrictio
       highlight:
         "La escalada, el vivac, los drones y los actos organizados suelen estar regulados y pueden necesitar autorización del órgano gestor.",
     },
+    zps: {
+      label: "ZPS (Aves)",
+      tooltip:
+        "Zona de Protección Especial para las Aves — Natura 2000 (Directiva Aves; ZPS italiana). Los cortados de estas zonas suelen tener cierres estacionales de escalada y acceso por la nidificación de rapaces (aprox. de invierno a verano, varía según el espacio); consulta al órgano gestor antes de instalar.",
+      highlight:
+        "Los cortados de estas zonas suelen tener cierres estacionales de escalada y acceso por la nidificación de rapaces (aprox. de invierno a verano, varía según el espacio); consulta al órgano gestor antes de instalar.",
+    },
+    zsc: {
+      label: "ZSC / SIC",
+      tooltip:
+        "Lugar de Importancia Comunitaria / Zona Especial de Conservación — Natura 2000 (Directiva Hábitats; ZSC/SIC italiana). Las actividades que puedan dañar los hábitats protegidos pueden estar reguladas y requerir evaluación de impacto ambiental.",
+      highlight:
+        "Las actividades que puedan dañar los hábitats protegidos pueden estar reguladas y requerir evaluación de impacto ambiental.",
+    },
+    euap: {
+      label: "Áreas Protegidas (EUAP)",
+      tooltip:
+        "Área natural protegida del elenco oficial italiano (EUAP) — un parque nacional o regional, una reserva natural u otra figura de protección, cada una con sus propias normas y órgano gestor. La escalada, el vivac, los drones y los actos organizados suelen estar regulados y pueden necesitar autorización del órgano gestor.",
+      highlight:
+        "La escalada, el vivac, los drones y los actos organizados suelen estar regulados y pueden necesitar autorización del órgano gestor.",
+    },
   },
   ca: {
     zepa: {
@@ -49,6 +70,27 @@ export const RESTRICTION_STRINGS: Partial<Record<Lang, Record<string, Restrictio
       label: "Espais Naturals Protegits",
       tooltip:
         "Espai Natural Protegit — una figura de protecció estatal o autonòmica com un parc nacional o natural, una reserva natural o un monument natural, cadascun amb el seu pla de gestió. L'escalada, el vivac, els drons i els actes organitzats sovint estan regulats i poden necessitar autorització de l'òrgan gestor.",
+      highlight:
+        "L'escalada, el vivac, els drons i els actes organitzats sovint estan regulats i poden necessitar autorització de l'òrgan gestor.",
+    },
+    zps: {
+      label: "ZPS (Aus)",
+      tooltip:
+        "Zona de Protecció Especial per a les Aus — Natura 2000 (Directiva Aus; ZPS italiana). Els cingles d'aquestes zones sovint tenen tancaments estacionals d'escalada i accés per la nidificació de rapinyaires (aprox. d'hivern a estiu, varia segons l'espai); consulteu l'òrgan gestor abans d'instal·lar.",
+      highlight:
+        "Els cingles d'aquestes zones sovint tenen tancaments estacionals d'escalada i accés per la nidificació de rapinyaires (aprox. d'hivern a estiu, varia segons l'espai); consulteu l'òrgan gestor abans d'instal·lar.",
+    },
+    zsc: {
+      label: "ZSC / SIC",
+      tooltip:
+        "Lloc d'Importància Comunitària / Zona Especial de Conservació — Natura 2000 (Directiva Hàbitats; ZSC/SIC italiana). Les activitats que puguin malmetre els hàbitats protegits poden estar regulades i requerir avaluació d'impacte ambiental.",
+      highlight:
+        "Les activitats que puguin malmetre els hàbitats protegits poden estar regulades i requerir avaluació d'impacte ambiental.",
+    },
+    euap: {
+      label: "Àrees Protegides (EUAP)",
+      tooltip:
+        "Àrea natural protegida de l'elenc oficial italià (EUAP) — un parc nacional o regional, una reserva natural o una altra figura de protecció, cadascuna amb les seves normes i òrgan gestor. L'escalada, el vivac, els drons i els actes organitzats sovint estan regulats i poden necessitar autorització de l'òrgan gestor.",
       highlight:
         "L'escalada, el vivac, els drons i els actes organitzats sovint estan regulats i poden necessitar autorització de l'òrgan gestor.",
     },

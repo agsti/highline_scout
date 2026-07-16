@@ -58,7 +58,7 @@ def process_chunk(cx: int, cy: int, core_bbox: Bbox, region_dir: Path,  # noqa: 
                   halo: float = config.CHUNK_HALO_M,
                   crs: str = config.UTM_CRS,
                   dtm_source: str = "icgc",
-                  cnig_cache_dir: Path | None = None) -> int:
+                  cache_dir: Path | None = None) -> int:
     """Process one chunk into anchor + pair partitions. Returns the number of
     pairs kept. Idempotent: a chunk whose pair partition exists is skipped
     (returns -1)."""
@@ -73,7 +73,7 @@ def process_chunk(cx: int, cy: int, core_bbox: Bbox, region_dir: Path,  # noqa: 
     try:
         tiles = dtm.fetch_tiles(halo_bbox, tiles_dir,
                                 source=dtm_source, crs=crs,
-                                cnig_cache_dir=cnig_cache_dir)
+                                cache_dir=cache_dir)
     except Exception:
         # Failed download (e.g. exhausted rate-limit retries): drop the
         # partial tiles and re-raise so the chunk stays unfinished/retriable.
@@ -134,14 +134,14 @@ def precompute(  # noqa: PLR0913
         cache_dir: Path | None = None) -> int:
     """Precompute anchors + pairs for ``bbox`` under
     ``data_dir/<country>/<region>``. Writes grid.json, then processes every
-    chunk (skipping finished ones). Returns the number of chunks. The CNIG
-    source cache is kept per-country under ``cache_dir`` (default
-    ``config.CACHE_DIR``), outside ``data_dir``."""
+    chunk (skipping finished ones). Returns the number of chunks. Persistent
+    DTM source caches (CNIG sheets, the HR-DTM file) are kept per-country
+    under ``cache_dir`` (default ``config.CACHE_DIR``), outside ``data_dir``."""
     if workers < 1:
         raise ValueError("workers must be >= 1")
 
     rdir = region_output_dir(data_dir, country, region)
-    cnig_cache_dir = Path(cache_dir or config.CACHE_DIR) / country
+    country_cache_dir = Path(cache_dir or config.CACHE_DIR) / country
     rdir.mkdir(parents=True, exist_ok=True)
     (rdir / "grid.json").write_text(json.dumps(
         {"bbox": list(bbox), "chunk_m": chunk_m,
@@ -152,7 +152,7 @@ def precompute(  # noqa: PLR0913
     if workers == 1:
         for i, (cx, cy, core) in enumerate(chunks, start=1):
             process_chunk(cx, cy, core, rdir, crs=crs, dtm_source=dtm_source,
-                          cnig_cache_dir=cnig_cache_dir)
+                          cache_dir=country_cache_dir)
             if report is not None:
                 report(i, total)
         return total
@@ -162,7 +162,7 @@ def precompute(  # noqa: PLR0913
         futures = [
             pool.submit(process_chunk, cx, cy, core, rdir,
                         crs=crs, dtm_source=dtm_source,
-                        cnig_cache_dir=cnig_cache_dir)
+                        cache_dir=country_cache_dir)
             for cx, cy, core in chunks
         ]
         for future in concurrent.futures.as_completed(futures):

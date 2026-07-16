@@ -10,6 +10,9 @@ fetches each chunk as a grid of small tiles and merges them in memory.
 
 IGN/IDEE serves the national MDT05 through OGC API Coverages. The code here
 requests small COG subsets from the EPSG-specific 5 m collections.
+
+Italy's HR-DTM-5m single-file source lives in ``dtm_hrdtm`` and is dispatched
+from ``fetch_tiles`` like the sources above.
 """
 import concurrent.futures
 import fcntl
@@ -32,6 +35,8 @@ from rasterio.merge import merge
 from shapely.geometry import box, mapping
 from shapely.geometry.base import BaseGeometry
 from shapely.ops import transform as shapely_transform
+
+from highliner.etls.chunk import dtm_hrdtm
 
 if TYPE_CHECKING:
     from highliner.models.raster import Raster
@@ -351,23 +356,32 @@ def tile_specs(bbox: Bbox, res: float = NATIVE_RES, tile_px: int = MAX_TILE_PX
     return out
 
 
+def _fetch_from_cache(source: str, bbox: Bbox, crs: str,
+                      cache_dir: Path | None) -> list[Path]:
+    """Dispatch the sources whose downloads persist in the country cache."""
+    if cache_dir is None:
+        raise ValueError(f"{source} source requires cache_dir")
+    if source == "cnig":
+        return _fetch_cnig_tiles(bbox, cache_dir, crs)
+    return dtm_hrdtm.fetch_hrdtm(cache_dir)
+
+
 def fetch_tiles(bbox: Bbox, tiles_dir: Path, res: float = NATIVE_RES,  # noqa: PLR0913
                 tile_px: int = MAX_TILE_PX, source: str = "icgc",
                 crs: str = "EPSG:25831",
-                cnig_cache_dir: Path | None = None) -> list[Path]:
+                cache_dir: Path | None = None) -> list[Path]:
     """Download tiles covering ``bbox`` into ``tiles_dir``; reuse cached tiles;
     skip tiles whose response body is not raster data (out of coverage).
     Transient HTTP failures (rate limits, 5xx, timeouts) are retried with
     backoff and raised once ``TILE_RETRY_ATTEMPTS`` is exhausted, so a
     throttled run fails loudly instead of writing holes into the terrain.
-    Returns the paths that exist on disk. The ``cnig`` source ignores
-    ``tiles_dir`` (its sheets persist in ``cnig_cache_dir``, required for it)."""
+    Returns the paths that exist on disk. The ``cnig`` and ``hrdtm`` sources
+    ignore ``tiles_dir`` (their sheets persist in ``cache_dir``, required for
+    them)."""
     tiles_dir = Path(tiles_dir)
     tiles_dir.mkdir(parents=True, exist_ok=True)
-    if source == "cnig":
-        if cnig_cache_dir is None:
-            raise ValueError("cnig source requires cnig_cache_dir")
-        return _fetch_cnig_tiles(bbox, cnig_cache_dir, crs)
+    if source in ("cnig", "hrdtm"):
+        return _fetch_from_cache(source, bbox, crs, cache_dir)
     if source not in ("icgc", "idee"):
         raise RuntimeError(f"unknown DTM source '{source}'")
 

@@ -3,11 +3,12 @@ from collections.abc import Mapping
 from pathlib import Path
 
 import geopandas as gpd
+from shapely.geometry import Point
+
 from highliner.core.density import layer_mask
 from highliner.core.restrictions import LAYERS
 from highliner.models.anchor import Anchor
 from highliner.models.candidate import Candidate
-from shapely.geometry import Point
 
 
 def load_layers(restrictions_dir: Path,

@@ -16,6 +16,7 @@ dependencies = [
     "pydantic-settings",
     "posthog>=7.22.1",
     "sentry-sdk[fastapi]>=2.64.0",
+    "openpyxl>=3.1.5",
 ]
 
 [project.optional-dependencies]

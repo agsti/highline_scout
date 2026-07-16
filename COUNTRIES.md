@@ -18,7 +18,7 @@ Markers: `[ ]` todo · `[O]` ongoing (agent dispatched) · `[P]` PR open · `[X]
 - [ ] Denmark
 - [ ] Estonia
 - [ ] Finland
-- [ ] France
+- [O] France
 - [ ] Germany
 - [ ] Greece
 - [ ] Hungary

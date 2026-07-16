@@ -165,3 +165,23 @@ def test_spain_restriction_main_downloads_then_writes(
     spain.main(["--data-dir", str(tmp_path)])
 
     assert calls == [tmp_path / "spain" / "restrictions" / "raw"]
+
+
+def test_download_sources_fetches_missing_and_skips_present(
+        monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    # Regression: raw_dir.glob() returns generators, which are truthy even
+    # when empty — a bare any(...) skipped every download on a fresh checkout.
+    (tmp_path / "enp_x.geojson").write_bytes(b"")     # enp already present
+    fetched: list[str] = []
+
+    def fake_urlretrieve(url: str, dest: Path) -> None:
+        fetched.append(url)
+        dest.write_bytes(b"zip")
+
+    monkeypatch.setattr(spain, "urlretrieve", fake_urlretrieve)
+    monkeypatch.setattr(spain, "_extract_flattened",
+                        lambda archive, dest_dir: None)
+
+    spain.download_sources(tmp_path)
+
+    assert fetched == [spain.SOURCE_URLS["rn2000"]]

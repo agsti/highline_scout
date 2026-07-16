@@ -108,7 +108,11 @@ def _default_raw_dir() -> Path:
 
 
 def _has_source(raw_dir: Path, patterns: tuple[str, ...]) -> bool:
-    return any(raw_dir.glob(pattern) for pattern in patterns)
+    # next(...), not bare any(...): glob returns generator objects, which are
+    # truthy even when they'd yield nothing, so downloads would always be
+    # skipped and a fresh checkout could never bootstrap its raw sources.
+    return any(next(iter(raw_dir.glob(pattern)), None) is not None
+               for pattern in patterns)
 
 
 def _extract_flattened(archive_path: Path, dest_dir: Path) -> None:
@@ -142,3 +146,7 @@ def main(argv: list[str] | None = None) -> None:
     shared.write_layers(SPECS.values(),
                         lambda source: _load_source(source, raw_dir),
                         restrictions_dir)
+
+
+if __name__ == "__main__":
+    main()

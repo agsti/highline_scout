@@ -15,7 +15,6 @@ resolved through the ADMIN EXPRESS WFS and cached, mirroring the CNIG
 sheet-index cache.
 """
 import fcntl as fcntl
-import hashlib
 import json
 import os
 import re
@@ -26,6 +25,8 @@ from pathlib import Path
 import py7zr
 import rasterio
 import requests
+from shapely.geometry import box, shape
+from shapely.geometry.base import BaseGeometry
 
 DOWNLOAD_BASE = "https://data.geopf.fr/telechargement"
 WFS_URL = "https://data.geopf.fr/wfs/ows"
@@ -41,6 +42,8 @@ _RETRY_ATTEMPTS = 6           # archives are 50-500 MB streams; resume on drop
 _RETRY_BASE_S = 3.0
 _CATALOG_RETRY_STATUS = frozenset({429, 500, 502, 503, 504})
 _WFS_RETRY_STATUS = frozenset({429, 500, 502, 503, 504})
+_DEPARTMENT_INDEX = "rgealti_departments.geojson"
+_WFS_PAGE_SIZE = 500
 _ARCHIVE_RE = re.compile(r"RGEALTI_2-0_5M_ASC_LAMB93-[A-Z0-9]+_(D\w{3})_")
 _DALLE_RE = re.compile(r"_(\d{4})_(\d{4})_")
 
@@ -56,8 +59,8 @@ def fetch_rgealti_tiles(bbox: Bbox, cache_root: Path, crs: str) -> list[Path]:
     session = _session()
     catalog = _cached_catalog(session, cache_root)
     out: list[Path] = []
-    for code in _cached_departments(session, bbox,
-                                    cache_root / "rgealti_dep_index"):
+    features = _cached_department_features(session, cache_root)
+    for code in _departments_for_bbox(features, bbox):
         zone = _zone(code)
         archive = catalog.get(zone)
         if archive is None:
@@ -101,48 +104,91 @@ def _wfs_request(session: requests.Session,
     raise RuntimeError("unreachable")
 
 
-def _departments(session: requests.Session, bbox: Bbox) -> list[str]:
-    """INSEE codes of the departments intersecting ``bbox`` (EPSG:2154)."""
-    minx, miny, maxx, maxy = bbox
+def _department_feature_page(session: requests.Session,
+                             start_index: int) -> list[dict[str, object]]:
+    """Fetch one page of ADMIN EXPRESS department features in EPSG:2154."""
     params = {
         "SERVICE": "WFS",
         "VERSION": "2.0.0",
         "REQUEST": "GetFeature",
         "TYPENAMES": "ADMINEXPRESS-COG-CARTO.LATEST:departement",
         "SRSNAME": "urn:ogc:def:crs:EPSG::2154",
-        "BBOX": f"{minx},{miny},{maxx},{maxy},urn:ogc:def:crs:EPSG::2154",
         "outputFormat": "application/json",
-        "PROPERTYNAME": "code_insee",
-        "COUNT": "50",
+        "COUNT": str(_WFS_PAGE_SIZE),
+        "STARTINDEX": str(start_index),
     }
-    r = _wfs_request(session, params)
-    r.raise_for_status()
-    return sorted({feature["properties"]["code_insee"]
-                   for feature in r.json()["features"]})
+    response = _wfs_request(session, params)
+    response.raise_for_status()
+    return list(response.json()["features"])
 
 
-def _department_cache_key(bbox: Bbox) -> str:
-    return hashlib.sha1(json.dumps(list(bbox)).encode()).hexdigest()
+def _fetch_department_features(session: requests.Session) -> list[dict[str, object]]:
+    """Fetch every ADMIN EXPRESS department feature, following WFS pages."""
+    features: list[dict[str, object]] = []
+    start_index = 0
+    while True:
+        page = _department_feature_page(session, start_index)
+        features.extend(page)
+        if len(page) < _WFS_PAGE_SIZE:
+            return features
+        start_index += len(page)
 
 
-def _cached_departments(session: requests.Session, bbox: Bbox,
-                        cache_dir: Path) -> list[str]:
-    """Resolve ``bbox`` once across workers and cache its department codes."""
-    key = _department_cache_key(bbox)
-    path = cache_dir / f"{key}.json"
+def _read_department_features(path: Path) -> list[dict[str, object]]:
+    """Read a non-empty cached department GeoJSON collection."""
+    collection = json.loads(path.read_text())
+    features = collection.get("features")
+    if not isinstance(features, list) or not features:
+        raise RuntimeError("RGE ALTI department index is empty or invalid")
+    return list(features)
+
+
+def _cached_department_features(session: requests.Session,
+                                cache_root: Path) -> list[dict[str, object]]:
+    """Load the department geometry index, building it once across workers."""
+    path = cache_root / _DEPARTMENT_INDEX
     if path.exists():
-        return list(json.loads(path.read_text()))
-    cache_dir.mkdir(parents=True, exist_ok=True)
-    lock_path = path.with_suffix(".json.lock")
+        return _read_department_features(path)
+    cache_root.mkdir(parents=True, exist_ok=True)
+    lock_path = path.with_suffix(path.suffix + ".lock")
     with lock_path.open("w") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
-        if path.exists():
-            return list(json.loads(path.read_text()))
-        codes = _departments(session, bbox)
-        tmp = path.with_suffix(f".json.{os.getpid()}.tmp")
-        tmp.write_text(json.dumps(codes))
-        tmp.replace(path)
-    return codes
+        if not path.exists():
+            features = _fetch_department_features(session)
+            if not features:
+                raise RuntimeError("RGE ALTI department index fetch found no features")
+            tmp = path.with_suffix(f"{path.suffix}.{os.getpid()}.tmp")
+            tmp.write_text(json.dumps({"type": "FeatureCollection",
+                                       "features": features}))
+            tmp.replace(path)
+    return _read_department_features(path)
+
+
+def _feature_geometry(feature: dict[str, object]) -> BaseGeometry:
+    """Return a department feature's geometry or reject a malformed index."""
+    geometry = feature.get("geometry")
+    if not isinstance(geometry, dict):
+        raise RuntimeError("RGE ALTI department index has a feature without geometry")
+    return shape(geometry)
+
+
+def _departments_for_bbox(features: list[dict[str, object]],
+                          bbox: Bbox) -> list[str]:
+    """INSEE codes whose indexed department geometries intersect ``bbox``."""
+    requested = box(*bbox)
+    codes: list[str] = []
+    for feature in features:
+        properties = feature.get("properties")
+        if not isinstance(properties, dict):
+            raise RuntimeError(
+                "RGE ALTI department index has a feature without properties")
+        code = properties.get("code_insee")
+        geometry = _feature_geometry(feature)
+        if isinstance(code, str) and geometry.intersects(requested):
+            codes.append(code)
+    if not codes:
+        raise RuntimeError("no RGE ALTI department intersects requested bbox")
+    return sorted(set(codes))
 
 
 def _catalog_retry_delay(attempt: int,

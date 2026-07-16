@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 from typing import cast
 
@@ -54,49 +55,112 @@ def test_rgealti_select_dalles_by_filename_bounds(tmp_path: Path) -> None:
     assert selected == [inside]
 
 
-def test_rgealti_cached_departments_queries_wfs_once(
+def test_rgealti_department_feature_index_rechecks_cache_under_lock(
         tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    calls: list[tuple[float, float, float, float]] = []
-
-    def fake_departments(session: object, bbox: tuple[float, float, float, float],
-                         ) -> list[str]:
-        calls.append(bbox)
-        return ["01", "73"]
-
-    monkeypatch.setattr(dtm_rgealti, "_departments", fake_departments)
-    bbox = (925000.0, 6540000.0, 935000.0, 6550000.0)
-    cache_dir = tmp_path / "rgealti_dep_index"
-
-    session = cast(requests.Session, object())
-    assert dtm_rgealti._cached_departments(session, bbox, cache_dir) == ["01", "73"]
-    assert dtm_rgealti._cached_departments(session, bbox, cache_dir) == ["01", "73"]
-    assert len(calls) == 1
-
-
-def test_rgealti_cached_departments_rechecks_cache_under_lock(
-        tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    bbox = (925000.0, 6540000.0, 935000.0, 6550000.0)
-    cache_dir = tmp_path / "rgealti_dep_index"
-    cache_dir.mkdir()
-    key = dtm_rgealti._department_cache_key(bbox)
-    path = cache_dir / f"{key}.json"
-    calls: list[tuple[float, float, float, float]] = []
+    cache_root = tmp_path / "cache" / "france"
+    cache_root.mkdir(parents=True)
+    path = cache_root / "rgealti_departments.geojson"
+    calls: list[bool] = []
+    feature: dict[str, object] = {
+        "type": "Feature", "properties": {"code_insee": "73"},
+        "geometry": {"type": "Polygon", "coordinates": []},
+    }
 
     def fake_flock(fd: object, operation: int) -> None:
-        path.write_text('["01", "73"]')
+        path.write_text(json.dumps({"type": "FeatureCollection",
+                                    "features": [feature]}))
 
-    def fake_departments(session: object,
-                         requested: tuple[float, float, float, float],
-                         ) -> list[str]:
-        calls.append(requested)
-        return ["01", "73"]
+    def fake_fetch(session: object) -> list[dict[str, object]]:
+        calls.append(True)
+        return [feature]
 
     monkeypatch.setattr(dtm_rgealti.fcntl, "flock", fake_flock)
-    monkeypatch.setattr(dtm_rgealti, "_departments", fake_departments)
+    monkeypatch.setattr(dtm_rgealti, "_fetch_department_features", fake_fetch)
 
-    assert dtm_rgealti._cached_departments(
-        cast(requests.Session, object()), bbox, cache_dir) == ["01", "73"]
+    assert dtm_rgealti._cached_department_features(
+        cast(requests.Session, object()), cache_root) == [feature]
     assert calls == []
+
+
+def test_rgealti_department_feature_index_fetches_once_and_reuses_cache(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    feature = {
+        "type": "Feature",
+        "properties": {"code_insee": "73"},
+        "geometry": {
+            "type": "Polygon",
+            "coordinates": [[[925000, 6540000], [935000, 6540000],
+                             [935000, 6550000], [925000, 6550000],
+                             [925000, 6540000]]],
+        },
+    }
+    calls: list[dict[str, str]] = []
+
+    def fake_request(session: object,
+                     params: dict[str, str]) -> requests.Response:
+        calls.append(params)
+        return _response(200, '{"type":"FeatureCollection","features":['
+                         + json.dumps(feature) + ']}')
+
+    monkeypatch.setattr(dtm_rgealti, "_wfs_request", fake_request)
+    session = cast(requests.Session, object())
+    cache_root = tmp_path / "cache" / "france"
+
+    assert dtm_rgealti._cached_department_features(session, cache_root) == [feature]
+    assert dtm_rgealti._cached_department_features(session, cache_root) == [feature]
+    assert len(calls) == 1
+    assert calls[0]["COUNT"] == "500"
+    assert "PROPERTYNAME" not in calls[0]
+    assert (cache_root / "rgealti_departments.geojson").exists()
+
+
+def test_rgealti_department_index_keeps_both_border_departments() -> None:
+    features: list[dict[str, object]] = [
+        {"type": "Feature", "properties": {"code_insee": "01"},
+         "geometry": {"type": "Polygon", "coordinates":
+                      [[[0, 0], [10, 0], [10, 10], [0, 10], [0, 0]]]}},
+        {"type": "Feature", "properties": {"code_insee": "73"},
+         "geometry": {"type": "Polygon", "coordinates":
+                      [[[10, 0], [20, 0], [20, 10], [10, 10], [10, 0]]]}},
+        {"type": "Feature", "properties": {"code_insee": "74"},
+         "geometry": {"type": "Polygon", "coordinates":
+                      [[[30, 0], [40, 0], [40, 10], [30, 10], [30, 0]]]}},
+    ]
+
+    assert dtm_rgealti._departments_for_bbox(
+        features, (9.0, 2.0, 11.0, 8.0)) == ["01", "73"]
+
+
+def test_rgealti_multiple_chunks_share_department_index(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    feature: dict[str, object] = {
+        "type": "Feature",
+        "properties": {"code_insee": "73"},
+        "geometry": {"type": "Polygon", "coordinates":
+                     [[[0, 0], [30, 0], [30, 10], [0, 10], [0, 0]]]},
+    }
+    loads = 0
+
+    def fake_features(session: object, cache_root: Path) -> list[dict[str, object]]:
+        nonlocal loads
+        loads += 1
+        return [feature]
+
+    monkeypatch.setattr(dtm_rgealti, "_cached_catalog",
+                        lambda session, cache_root: {"D073": "archive"})
+    monkeypatch.setattr(dtm_rgealti, "_cached_department_features",
+                        fake_features)
+    monkeypatch.setattr(dtm_rgealti, "_ensure_department",
+                        lambda session, archive, zone, cache_root: tmp_path)
+    monkeypatch.setattr(dtm_rgealti, "_select_dalles",
+                        lambda dep_dir, bbox: [])
+
+    cache_root = tmp_path / "cache" / "france"
+    assert dtm_rgealti.fetch_rgealti_tiles(
+        (1.0, 1.0, 9.0, 9.0), cache_root, "EPSG:2154") == []
+    assert dtm_rgealti.fetch_rgealti_tiles(
+        (11.0, 1.0, 19.0, 9.0), cache_root, "EPSG:2154") == []
+    assert loads == 2
 
 
 def test_rgealti_catalog_crawl_maps_departments_to_5m_archives(
@@ -164,7 +228,7 @@ def test_rgealti_catalog_crawl_retries_rate_limited_page(
     assert sleeps == [7.0]
 
 
-def test_rgealti_departments_retries_rate_limited_wfs(
+def test_rgealti_department_page_retries_rate_limited_wfs(
         monkeypatch: pytest.MonkeyPatch) -> None:
     sleeps: list[float] = []
     monkeypatch.setattr("highliner.etls.chunk.dtm_rgealti.time.sleep",
@@ -179,13 +243,13 @@ def test_rgealti_departments_retries_rate_limited_wfs(
                 timeout: int) -> requests.Response:
             return next(responses)
 
-    assert dtm_rgealti._departments(
-        cast(requests.Session, FakeSession()),
-        (925000.0, 6540000.0, 935000.0, 6550000.0)) == ["73"]
+    assert dtm_rgealti._department_feature_page(
+        cast(requests.Session, FakeSession()), 0) == [
+            {"properties": {"code_insee": "73"}}]
     assert sleeps == [7.0]
 
 
-def test_rgealti_departments_closes_response_on_wfs_exception_retry(
+def test_rgealti_department_page_closes_response_on_wfs_exception_retry(
         monkeypatch: pytest.MonkeyPatch) -> None:
     sleeps: list[float] = []
     closed: list[bool] = []
@@ -206,9 +270,9 @@ def test_rgealti_departments_closes_response_on_wfs_exception_retry(
                 raise response
             return cast(requests.Response, response)
 
-    assert dtm_rgealti._departments(
-        cast(requests.Session, FakeSession()),
-        (925000.0, 6540000.0, 935000.0, 6550000.0)) == ["73"]
+    assert dtm_rgealti._department_feature_page(
+        cast(requests.Session, FakeSession()), 0) == [
+            {"properties": {"code_insee": "73"}}]
     assert closed == [True]
     assert sleeps == [7.0]
 
@@ -222,8 +286,15 @@ def test_fetch_rgealti_tiles_serves_cached_department_dalles(
     dalle.write_bytes(b"tif")
     (dep_dir / ".complete").touch()
 
-    monkeypatch.setattr(dtm_rgealti, "_cached_departments",
-                        lambda session, bbox, cache_dir: ["90"])
+    monkeypatch.setattr(
+        dtm_rgealti, "_cached_department_features",
+        lambda session, cache: [{
+            "type": "Feature", "properties": {"code_insee": "90"},
+            "geometry": {"type": "Polygon", "coordinates":
+                         [[[980000, 6720000], [990000, 6720000],
+                          [990000, 6740000], [980000, 6740000],
+                          [980000, 6720000]]]},
+        }])
     monkeypatch.setattr(
         dtm_rgealti, "_cached_catalog",
         lambda session, root: {

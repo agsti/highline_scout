@@ -19,7 +19,7 @@ Markers: `[ ]` todo · `[O]` ongoing (agent dispatched) · `[P]` PR open · `[X]
 - [ ] Estonia
 - [ ] Finland
 - [P] France
-- [ ] Germany
+- [O] Germany
 - [ ] Greece
 - [ ] Hungary
 - [ ] Iceland
@@ -46,8 +46,8 @@ Markers: `[ ]` todo · `[O]` ongoing (agent dispatched) · `[P]` PR open · `[X]
 - [ ] Slovakia
 - [ ] Slovenia
 - [X] Spain
-- [ ] Sweden
+- [O] Sweden
 - [ ] Switzerland
 - [ ] Ukraine
-- [ ] United Kingdom
+- [O] United Kingdom
 - [ ] Vatican City

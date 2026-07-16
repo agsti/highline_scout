@@ -10,6 +10,12 @@ from highliner.models.raster import Raster
 # a few tens of MB on pair-dense chunks.
 _PROFILE_BLOCK_SAMPLES = 2_000_000
 
+# Raw KD-tree pairs pre-filtered per batch: bounds the derived per-pair arrays
+# (lengths, bearings, ...) to a few tens of MB. Cliff-dense alpine chunks
+# produce tens of millions of raw pairs; deriving them all at once costs
+# ~90 bytes per pair (multi-GB per worker, OOM at 8 workers).
+_PREFILTER_BLOCK_PAIRS = 1_000_000
+
 
 def _profile_lows(raster: Raster, x1: np.ndarray, y1: np.ndarray,  # noqa: PLR0913
                   x2: np.ndarray, y2: np.ndarray, ns: np.ndarray) -> np.ndarray:
@@ -62,46 +68,72 @@ def find_candidates(  # noqa: PLR0913
     pairs = tree.query_pairs(max_len, output_type="ndarray")
     if pairs.size == 0:
         return []
-    pairs = pairs[np.lexsort((pairs[:, 1], pairs[:, 0]))]
-    pi, pj = pairs[:, 0], pairs[:, 1]
+    # Sort (i asc, j asc) by packing each pair into one uint64 key sorted in
+    # place (anchor indices are far below 2**32). Compared to lexsort + take
+    # this keeps the transient under query_pairs' own ~32 B/pair internals on
+    # pair-dense chunks, and scalar sort is much faster than a record sort.
+    # Built with in-place ops (and bit-level views of the index columns) so at
+    # most one extra 8 B/pair array exists at a time.
+    key = pairs[:, 0].astype(np.uint64)
+    key <<= np.uint64(32)
+    key |= pairs[:, 1].view(np.uint64)
+    key.sort()
+    pairs[:, 0] = key >> np.uint64(32)
+    key &= np.uint64(0xFFFFFFFF)
+    pairs[:, 1] = key
+    del key
 
-    dx = coords[pj, 0] - coords[pi, 0]
-    dy = coords[pj, 1] - coords[pi, 1]
-    lengths = np.hypot(dx, dy)
-    dhs = np.abs(elevs[pi] - elevs[pj])
-    cheap = (lengths >= min_len) & (lengths <= max_len) & (dhs <= max_dh)
+    # Pre-filter one block of raw pairs at a time; only survivors (typically
+    # ~1% on dense chunks) persist across blocks, in the same sorted order.
+    si_parts, sj_parts, len_parts, dh_parts = [], [], [], []
+    for off in range(0, len(pairs), _PREFILTER_BLOCK_PAIRS):
+        pi = pairs[off:off + _PREFILTER_BLOCK_PAIRS, 0]
+        pj = pairs[off:off + _PREFILTER_BLOCK_PAIRS, 1]
+        dx = coords[pj, 0] - coords[pi, 0]
+        dy = coords[pj, 1] - coords[pi, 1]
+        lengths = np.hypot(dx, dy)
+        dhs = np.abs(elevs[pi] - elevs[pj])
+        cheap = (lengths >= min_len) & (lengths <= max_len) & (dhs <= max_dh)
 
-    bearings = np.degrees(np.arctan2(dx, dy)) % 360.0
-    ks = np.array([k for k in np.flatnonzero(cheap)
-                   if geo.bearing_in_sectors(
-                       float(bearings[k]), anchors[pi[k]].sectors, sector_tol)
-                   and geo.bearing_in_sectors(
-                       (float(bearings[k]) + 180.0) % 360.0,
-                       anchors[pj[k]].sectors, sector_tol)])
-    if ks.size == 0:
+        bearings = np.degrees(np.arctan2(dx, dy)) % 360.0
+        ks = np.array([k for k in np.flatnonzero(cheap)
+                       if geo.bearing_in_sectors(
+                           float(bearings[k]), anchors[pi[k]].sectors, sector_tol)
+                       and geo.bearing_in_sectors(
+                           (float(bearings[k]) + 180.0) % 360.0,
+                           anchors[pj[k]].sectors, sector_tol)],
+                      dtype=np.int64)
+        if ks.size:
+            si_parts.append(pi[ks])
+            sj_parts.append(pj[ks])
+            len_parts.append(lengths[ks])
+            dh_parts.append(dhs[ks])
+    if not si_parts:
         return []
+    si = np.concatenate(si_parts)
+    sj = np.concatenate(sj_parts)
+    lengths = np.concatenate(len_parts)
+    dhs = np.concatenate(dh_parts)
 
-    ns = np.maximum(2, (lengths[ks] / raster.res).astype(np.int64) + 1)
-    lows = np.empty(len(ks))
+    ns = np.maximum(2, (lengths / raster.res).astype(np.int64) + 1)
+    lows = np.empty(len(si))
     # Block by total sample count so the flattened profile arrays stay small
     # even on chunks with hundreds of thousands of surviving pairs.
     bounds = np.searchsorted(np.cumsum(ns), np.arange(
         _PROFILE_BLOCK_SAMPLES, int(ns.sum()), _PROFILE_BLOCK_SAMPLES), side="left") + 1
-    for lo, hi in zip(np.r_[0, bounds], np.r_[bounds, len(ks)], strict=True):
+    for lo, hi in zip(np.r_[0, bounds], np.r_[bounds, len(si)], strict=True):
         if lo >= hi:
             continue
-        kb = ks[lo:hi]
         lows[lo:hi] = _profile_lows(raster,
-                                    coords[pi[kb], 0], coords[pi[kb], 1],
-                                    coords[pj[kb], 0], coords[pj[kb], 1],
+                                    coords[si[lo:hi], 0], coords[si[lo:hi], 1],
+                                    coords[sj[lo:hi], 0], coords[sj[lo:hi], 1],
                                     ns[lo:hi])
-    exposures = np.minimum(elevs[pi[ks]], elevs[pj[ks]]) - lows
+    exposures = np.minimum(elevs[si], elevs[sj]) - lows
 
     out = []
     for m in np.flatnonzero(~np.isnan(lows) & (exposures >= min_exposure)):
-        k = ks[m]
-        a, b = anchors[pi[k]], anchors[pj[k]]
-        out.append(Candidate(a=a, b=b, length=round(float(lengths[k]), 1),
+        a, b = anchors[si[m]], anchors[sj[m]]
+        out.append(Candidate(a=a, b=b, length=round(float(lengths[m]), 1),
                              exposure=round(float(exposures[m]), 1),
-                             height_diff=round(float(dhs[k]), 1)))
+                             height_diff=round(float(dhs[m]), 1)))
     return out

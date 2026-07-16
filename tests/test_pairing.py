@@ -1,3 +1,5 @@
+import tracemalloc
+
 import numpy as np
 from affine import Affine
 from highliner.etls.chunk import pairing
@@ -57,6 +59,40 @@ def test_rejected_when_not_facing() -> None:
     res = pairing.find_candidates([a, b_wrong], r, max_len=60, min_len=10,
                                   min_exposure=50, max_dh=5)
     assert res == []
+
+
+def test_memory_bounded_on_pair_dense_chunks() -> None:
+    # Cliff-dense alpine chunks produce tens of millions of raw KD-tree pairs
+    # (Valle d'Aosta chunk 0,3: 39k anchors -> 42M raw pairs). The pre-filter
+    # stage must process them in blocks, not materialize ~90 bytes of derived
+    # float64 arrays per raw pair at once (4.6 GB per worker -> OOM at 8
+    # workers). 55x55 anchors at 5 m spacing -> ~4.6M raw pairs; min_len=500
+    # rejects them all (max distance ~382 m), so only the pre-filter runs.
+    n = 55
+    xs, ys = np.meshgrid(np.arange(n) * 5.0, np.arange(n) * 5.0)
+    anchors = [Anchor(x=float(x), y=float(y), elev=100.0,
+                      sectors=((0.0, 345.0, 60.0),))
+               for x, y in zip(xs.ravel(), ys.ravel(), strict=True)]
+    raster = Raster(data=np.full((8, 8), 100.0, dtype="float32"),
+                    transform=Affine(50.0, 0, 0, 0, -50.0, 400.0), res=50.0)
+    n_raw_pairs = len(anchors) * (len(anchors) - 1) // 2
+
+    tracemalloc.start()
+    try:
+        res = pairing.find_candidates(anchors, raster, max_len=1000.0,
+                                      min_len=500.0, min_exposure=10.0,
+                                      max_dh=30.0)
+        _, peak = tracemalloc.get_traced_memory()
+    finally:
+        tracemalloc.stop()
+
+    assert res == []
+    # Budget: the raw pair index array itself (16 B/pair) + sort scratch +
+    # constant-size per-block arrays. The unblocked pipeline needs ~90 B/pair.
+    budget = 40 * n_raw_pairs + 64 * 2**20
+    assert peak < budget, (
+        f"peak {peak / 2**20:.0f} MiB over budget {budget / 2**20:.0f} MiB "
+        f"({peak / n_raw_pairs:.0f} B per raw pair)")
 
 
 def test_rejected_when_height_diff_too_big() -> None:

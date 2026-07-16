@@ -68,8 +68,10 @@ Do this:
 1. Create and check out branch `etl/<country>`.
 2. Invoke the `adding-country-etls` skill and follow it completely for
    <Country>: DTM source client, chunk adapter, density adapter,
-   restrictions adapter (if a usable source exists), justfile ETL_COUNTRIES
-   wiring, tests.
+   restrictions adapter (if a usable source exists), and tests. Do not add
+   country-specific Justfile wiring: after merge, use
+   `just etl-chunk <country> <workers>`, `just etl-density <country> <workers>`,
+   and `just etl-restriction <country>`.
 3. Verify per that skill: `--help` smoke tests for each adapter,
    `just test && just check`, and a small real-chunk smoke test of the DTM
    source. Do NOT launch the full national precompute/density run — that

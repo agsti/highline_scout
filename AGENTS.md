@@ -3,6 +3,19 @@
 This file provides guidance to coding agents (Claude Code, etc.) when working
 with code in this repository.
 
+## Project skills
+
+The versioned, project-local skills live in `.claude/skills/`. Before starting
+work that matches a skill's description, read and follow its `SKILL.md`:
+
+- `.claude/skills/adding-country-etls/SKILL.md` — add a country or region to
+  the ETL pipeline.
+- `.claude/skills/dispatching-country-etls/SKILL.md` — dispatch a batch of
+  country ETL additions from `COUNTRIES.md`.
+
+This applies to Codex as well as Claude. Keep skills in this shared location;
+do not copy them into a user-level skills directory.
+
 ## What this is
 
 Finds potential highline zones in Catalonia from ICGC LIDAR terrain. A highline is
@@ -31,9 +44,9 @@ automatically, so separate environments remain quick and isolated.
     just lint --fix                # ruff, applying safe autofixes
     just deadcode                  # vulture, on its own
     just dev                       # FastAPI dev server, auto-reload, :8000
-    just etl-chunk-8               # precompute configured countries (8 workers)
-    just etl-density-8             # build country density layers (8 workers)
-    just etl-restriction           # build protected-area layers by country
+    just etl-chunk spain 8         # precompute one country's regions (8 workers)
+    just etl-density spain 8       # build one country's density layers (8 workers)
+    just etl-restriction spain     # build one country's protected-area layers
 
 CI runs `ruff check`, the file-length cap, `mypy`, `vulture` and `pytest`;
 `pre-commit install` runs everything but the tests on commit. Ruff is lint-only
@@ -237,7 +250,7 @@ serves them, and the shared `LAYERS` registry lives in `core/restrictions.py`): 
 covering all of Spain, built from MITECO's (national) Banco de Datos de la
 Naturaleza files — Red Natura 2000 GML (INSPIRE ProtectedSites) and Espacios
 Naturales Protegidos GeoJSON, each shipped as a peninsula+Baleares file and a
-Canarias file in different CRSes. `just etl-restriction` downloads the raw
+Canarias file in different CRSes. `just etl-restriction spain` downloads the raw
 files into `data/spain/restrictions/raw/` through the country adapter
 to derive three layers — `zepa` (Special Protection Area for Birds) and `zec`
 (Site/Area of Community Importance), both filtered from the RN2000 GML by
@@ -258,7 +271,7 @@ region requests use that index, including its on-disk country.
     data/<country>/<region>/anchors/p_{cx}_{cy}.parquet  anchors per chunk
     data/<country>/<region>/pairs/q_{cx}_{cy}.parquet    candidate pairs per chunk (exposure baked in)
     data/<country>/<region>/tiles/                       transient DTM tile cache, deleted once a chunk finishes
-    data/<country>/<region>/density/z{z}.npz             zoomed-out density pyramid (optional, `etl-density-8`)
+    data/<country>/<region>/density/z{z}.npz             zoomed-out density pyramid (optional, `etl-density <country> <workers>`)
     data/<country>/restrictions/<id>.parquet             protected-area overlays (national per country)
     cache/<country>/mdt05_tiles/                         persistent CNIG MDT05 sheet cache (national, cross-region)
     cache/<country>/mdt05_sheet_index/                   cached CNIG sheet-index catalog queries

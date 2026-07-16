@@ -30,7 +30,7 @@ country needs no request-time work at all.
 | Density CLI | `highliner/etls/density/<country>.py` | `density/spain.py` |
 | Restrictions CLI (optional) | `highliner/etls/restriction/<country>.py` | `restriction/spain.py` |
 | DTM source branch | extend `highliner/etls/chunk/dtm.py` | `_fetch_cnig_tiles` |
-| Wiring | add to `ETL_COUNTRIES` in `justfile` | — |
+| Run commands | `just etl-chunk <country> <workers>` | — |
 | Tests | `tests/test_precompute_<country>.py` | `tests/test_precompute_spain.py` |
 
 Output lands in `data/<country>/<region>/{grid.json,anchors/,pairs/}`; the DTM
@@ -140,8 +140,10 @@ license permitting reuse. Copy `restriction/spain.py`:
 
 ## 5. Wire and verify
 
-- `justfile`: append to `ETL_COUNTRIES := "spain <country>"`. Recipes loop
-  countries sequentially by design — each adapter owns its worker pool.
+- `justfile`: no country registry or per-country wiring is needed. The recipes
+  take a country explicitly: `just etl-chunk <country> <workers>`,
+  `just etl-density <country> <workers>`, and
+  `just etl-restriction <country>`.
 - Tests mirror the Spain adapter tests: monkeypatch `spain.shared.precompute`
   and assert argument forwarding; never hit the network.
 - Verify: `uv run python -m highliner.etls.chunk.<country> --help` (and
@@ -165,5 +167,5 @@ license permitting reuse. Copy `restriction/spain.py`:
 | WCS source when bulk sheets exist | slow, rate-limited, re-downloads every run |
 | unmasked sea/nodata sentinel | coastlines become giant fake cliffs |
 | coarser-than-5 m DTM without retuning | cliff faces unresolved, anchors missing |
-| country not added to `ETL_COUNTRIES` | adapter never runs via `just` recipes |
+| inventing country-specific recipes | use the parameterized `etl-*` recipes instead |
 | layer strings only in English | i18n catalog-parity test fails |

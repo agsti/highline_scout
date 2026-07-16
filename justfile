@@ -84,13 +84,13 @@ update:
     uv sync --extra dev
 
 # Country adapters own terrain sources and country-specific ETL configuration.
-# Each recipe runs one country, e.g.: just etl-chunk-8 italy
+# Each recipe runs one country, e.g.: just etl-chunk italy 8
 
-etl-chunk-8 country:
-    uv run python -m highliner.etls.chunk.{{country}} --workers 8
+etl-chunk country concurrency:
+    uv run python -m highliner.etls.chunk.{{country}} --workers {{concurrency}}
 
-etl-density-8 country:
-    uv run python -m highliner.etls.density.{{country}} --workers 8
+etl-density country concurrency:
+    uv run python -m highliner.etls.density.{{country}} --workers {{concurrency}}
 
 etl-restriction country:
     uv run python -m highliner.etls.restriction.{{country}}

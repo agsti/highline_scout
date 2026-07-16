@@ -99,7 +99,9 @@ def test_chunk_entry_point_declared() -> None:
 def test_justfile_runs_one_country_etl_adapter_per_invocation() -> None:
     justfile = Path("justfile").read_text()
 
-    for family in ("chunk", "density", "restriction"):
-        assert (f"etl-{family}-8 country:" in justfile
-                or f"etl-{family} country:" in justfile)
+    for family in ("chunk", "density"):
+        assert f"etl-{family} country concurrency:" in justfile
         assert f"highliner.etls.{family}.{{{{country}}}}" in justfile
+
+    assert "etl-restriction country:" in justfile
+    assert "highliner.etls.restriction.{{country}}" in justfile

@@ -68,7 +68,7 @@ def _read_site_db(raw_dir: Path) -> dict[str, tuple[str, str]]:
     if not paths:
         raise FileNotFoundError(
             f"no Natura 2000 database xlsx in {raw_dir} "
-            "(run `just etl-restriction`)")
+            "(run `just etl-restriction italy`)")
     db = pd.read_excel(paths[0], sheet_name=_DB_SHEET,
                        usecols=[_DB_CODE, _DB_TYPE, _DB_NAME])
     return {str(row[_DB_CODE]): (str(row[_DB_TYPE]), str(row[_DB_NAME]))
@@ -89,7 +89,7 @@ def _load_files(raw_dir: Path, patterns: tuple[str, ...]) -> gpd.GeoDataFrame:
     if not frames:
         raise FileNotFoundError(
             f"no raw files matching {patterns} in {raw_dir} "
-            "(run `just etl-restriction`)")
+            "(run `just etl-restriction italy`)")
     return gpd.GeoDataFrame(pd.concat(frames, ignore_index=True), crs="EPSG:4326")
 
 

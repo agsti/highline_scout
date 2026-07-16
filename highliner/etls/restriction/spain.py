@@ -82,7 +82,7 @@ def _load_files(raw_dir: Path, patterns: tuple[str, ...]) -> gpd.GeoDataFrame:
     if not frames:
         raise FileNotFoundError(
             f"no raw files matching {patterns} in {raw_dir} "
-            "(run `just etl-restriction`)")
+            "(run `just etl-restriction spain`)")
     return gpd.GeoDataFrame(pd.concat(frames, ignore_index=True), crs="EPSG:4326")
 
 

@@ -21,10 +21,12 @@ class Region:
     dtm_source: str
 
 
-# Rounded-out projected administrative extents. OS Terrain 50 covers Great
-# Britain; OSNI's open DTM fills the separate Northern Ireland grid.
+# Rounded-out projected administrative extents. England uses the Environment
+# Agency's 1 m lidar composite (OGL, ~99% coverage, cached resampled to 5 m);
+# Wales and Scotland fall back to OS Terrain 50 and Northern Ireland to
+# OSNI's open 10 m DTM.
 REGIONS: tuple[Region, ...] = (
-    Region("england", (70000, 0, 660000, 660000), "EPSG:27700", "os_terrain_50"),
+    Region("england", (70000, 0, 660000, 660000), "EPSG:27700", "ea_lidar_1m"),
     Region("wales", (140000, 0, 360000, 410000), "EPSG:27700", "os_terrain_50"),
     Region("scotland", (0, 530000, 500000, 1220000), "EPSG:27700", "os_terrain_50"),
     Region("northern_ireland", (200000, 220000, 390000, 460000), "EPSG:29903",

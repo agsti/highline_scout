@@ -204,7 +204,7 @@ def test_rgealti_departments_closes_response_on_wfs_exception_retry(
             response = next(responses)
             if isinstance(response, requests.RequestException):
                 raise response
-            return response
+            return cast(requests.Response, response)
 
     assert dtm_rgealti._departments(
         cast(requests.Session, FakeSession()),

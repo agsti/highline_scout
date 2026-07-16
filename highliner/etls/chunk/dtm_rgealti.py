@@ -88,10 +88,10 @@ def _wfs_request(session: requests.Session,
         except requests.RequestException as exc:
             if last:
                 raise
-            response = exc.response
-            if response is not None:
-                response.close()
-            time.sleep(_catalog_retry_delay(attempt, response))
+            retry_response = exc.response
+            if retry_response is not None:
+                retry_response.close()
+            time.sleep(_catalog_retry_delay(attempt, retry_response))
             continue
         if response.status_code in _WFS_RETRY_STATUS and not last:
             response.close()

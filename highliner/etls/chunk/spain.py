@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import concurrent.futures
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Final
@@ -87,11 +88,34 @@ def _select_regions(start_at: str | None, only: list[str] | None) -> tuple[Regio
     return regions
 
 
+def _fmt_hms(seconds: float) -> str:
+    """Format a duration as H:MM:SS."""
+    seconds_int = int(seconds)
+    return (f"{seconds_int // 3600}:"
+            f"{(seconds_int % 3600) // 60:02d}:{seconds_int % 60:02d}")
+
+
 def _precompute_region(region: Region, data_dir: Path, cache_dir: Path,
                        workers: int) -> int:
-    return shared.precompute(
+    print(f"[{region.name}] starting precompute", flush=True)
+    start = time.monotonic()
+
+    def report(done: int, total: int) -> None:
+        elapsed = time.monotonic() - start
+        pct = 100.0 * done / total if total else 100.0
+        eta = elapsed / done * (total - done) if done else 0.0
+        print(f"\rchunk {done}/{total} ({pct:4.1f}%)  "
+              f"elapsed {_fmt_hms(elapsed)}  eta {_fmt_hms(eta)}",
+              end="", flush=True)
+
+    count = shared.precompute(
         COUNTRY, region.name, region.bbox, data_dir, crs=region.crs,
-        dtm_source=region.dtm_source, workers=workers, cache_dir=cache_dir)
+        dtm_source=region.dtm_source, workers=workers, cache_dir=cache_dir,
+        report=report)
+    print()
+    print(f"[{region.name}] completed {count} chunks -> "
+          f"{shared.region_output_dir(data_dir, COUNTRY, region.name)}", flush=True)
+    return count
 
 
 def _run_parallel(regions: tuple[Region, ...], data_dir: Path, cache_dir: Path,

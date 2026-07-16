@@ -47,18 +47,20 @@ def fetch_ea_lidar(bbox: Bbox, cache_root: Path) -> list[Path]:
     Out-of-coverage tiles (sea, the ~1% lidar gaps) are remembered with a
     ``.missing`` marker so re-runs skip the request.
     """
+    paths = [ensure_tile(tile, cache_root) for tile in tile_ids(bbox)]
+    return [p for p in paths if p is not None]
+
+
+def ensure_tile(tile: str, cache_root: Path) -> Path | None:
+    """Materialize one tile in the cache; None when it has no coverage."""
     root = cache_root / "ea-lidar-5m"
     root.mkdir(parents=True, exist_ok=True)
-    paths = []
-    for tile in tile_ids(bbox):
-        dest = root / f"{tile}_5m.tif"
-        with (root / f"{tile}.lock").open("w") as lock:
-            fcntl.flock(lock, fcntl.LOCK_EX)
-            if not dest.exists() and not (root / f"{tile}.missing").exists():
-                _materialize(tile, root, dest)
-        if dest.exists():
-            paths.append(dest)
-    return paths
+    dest = root / f"{tile}_5m.tif"
+    with (root / f"{tile}.lock").open("w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        if not dest.exists() and not (root / f"{tile}.missing").exists():
+            _materialize(tile, root, dest)
+    return dest if dest.exists() else None
 
 
 def _materialize(tile: str, root: Path, dest: Path) -> None:

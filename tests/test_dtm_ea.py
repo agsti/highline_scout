@@ -139,6 +139,25 @@ def test_fetch_marks_out_of_coverage_tiles(
     assert calls == ["ST4550"]
 
 
+def test_ensure_tile_returns_path_when_fetched_and_none_when_missing(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[str] = []
+    monkeypatch.setattr(dtm_ea, "_download_zip", _fake_download(tmp_path, calls))
+
+    path = dtm_ea.ensure_tile("ST4550", tmp_path)
+    assert path is not None
+    assert path.name == "ST4550_5m.tif"
+    assert path.exists()
+    # Cached: no second download.
+    assert dtm_ea.ensure_tile("ST4550", tmp_path) == path
+    assert calls == ["ST4550"]
+
+    monkeypatch.setattr(dtm_ea, "_download_zip", lambda tile, dest: False)
+    assert dtm_ea.ensure_tile("SV0000", tmp_path) is None
+    # The miss marker short-circuits the retry too.
+    assert dtm_ea.ensure_tile("SV0000", tmp_path) is None
+
+
 def test_fetch_tiles_dispatches_ea_lidar(
         tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     from highliner.etls.chunk import dtm

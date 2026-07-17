@@ -8,12 +8,12 @@ coordination conflicts.
 
 ## Tracking model
 
-`COUNTRIES.md` is a static candidate list. It does not contain mutable status
-markers. A GitHub issue is the canonical work record for one country, and a PR
-is its review record.
+The dispatch workflow is independent of `COUNTRIES.md`. A GitHub issue is the
+canonical work record for one country, and a PR is its review record.
 
-Before dispatching a country, create one issue labelled `etl-country` and
-`in-progress`. The body contains these checkboxes:
+Before dispatching a country, locate its open country issue, then add the
+`in-progress` label. Every country issue has the `etl-country` label and this
+checkbox body:
 
 - DTM source and reuse licence selected
 - DTM smoke chunk validated
@@ -21,9 +21,24 @@ Before dispatching a country, create one issue labelled `etl-country` and
 - Tests and static checks passed
 - Pull request opened
 
-The dispatcher must first search for an open `etl-country` issue for the
-country. An existing issue means the country is already owned and must not be
-dispatched again.
+The dispatcher searches for an open `etl-country` issue for the country. A
+missing issue is an error: reconcile the backlog before dispatching. An issue
+already labelled `in-progress` or `needs-review` is already owned and must not
+be dispatched again.
+
+## Backlog reconciliation
+
+`scripts/sync_country_etl_issues.py` is the only workflow component that reads
+`COUNTRIES.md`. It parses checklist lines and, for every country not marked
+`[X]`, creates a country issue unless an open `etl-country` issue already
+exists for that country. It never edits `COUNTRIES.md`, closes issues, changes
+labels, or creates duplicates. The script supports a dry run by default and an
+explicit apply flag, uses `gh` authentication, and prints the created and
+already-existing issue URLs.
+
+The legacy `[O]` and `[P]` markers may remain in the file for migration, but
+the reconciliation script treats every non-`[X]` line as unfinished. They have
+no effect on dispatch or issue state.
 
 ## Progress contract
 
@@ -42,13 +57,17 @@ closes the issue when the PR merges. Agents do not edit `COUNTRIES.md`.
 ## Skill changes
 
 `adding-country-etls` gains the progress contract for a country implementation.
-`dispatching-country-etls` is rewritten to select candidates from the static
-list, create and validate issues, dispatch independently, and report issue and
-PR links. Its old shared-file marker state machine is removed.
+`dispatching-country-etls` is rewritten to dispatch explicitly named open
+issues, validate ownership, and report issue and PR links. It does not select
+or mutate entries in `COUNTRIES.md`. The new reconciliation script creates the
+initial country issues from that file.
 
 ## Validation
 
-Review the skill text for all required checkpoints, interval, labels, duplicate
-prevention, blocker handling, PR closing syntax, and the absence of mutable
-`COUNTRIES.md` status edits. Run a realistic dispatch scenario against the
-revised text and confirm the proposed workflow satisfies each condition.
+Test the reconciliation script against fixture Markdown and mocked `gh`
+responses: it must recognize every non-`[X]` line, skip each existing open
+issue, create only missing issues, and make no changes during a dry run. Review
+the skill text for all required checkpoints, interval, labels, duplicate
+prevention, blocker handling, PR closing syntax, and dispatch independence from
+`COUNTRIES.md`. Run a realistic dispatch scenario against the revised text and
+confirm the proposed workflow satisfies each condition.

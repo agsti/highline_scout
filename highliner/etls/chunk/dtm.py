@@ -11,9 +11,9 @@ fetches each chunk as a grid of small tiles and merges them in memory.
 IGN/IDEE serves the national MDT05 through OGC API Coverages. The code here
 requests small COG subsets from the EPSG-specific 5 m collections.
 
-Italy's HR-DTM-5m single-file source lives in ``dtm_hrdtm``, and France's
-RGE ALTI 5 m per-department sheets live in ``dtm_rgealti``; both are
-dispatched from ``fetch_tiles`` like the sources above.
+Italy's HR-DTM-5m single-file source lives in ``dtm_hrdtm``, France's RGE ALTI
+5 m per-department sheets live in ``dtm_rgealti``, and United Kingdom sources
+live in ``dtm_ea`` and ``dtm_os``. All are dispatched from ``fetch_tiles``.
 """
 import concurrent.futures
 import fcntl
@@ -37,7 +37,7 @@ from shapely.geometry import box, mapping
 from shapely.geometry.base import BaseGeometry
 from shapely.ops import transform as shapely_transform
 
-from highliner.etls.chunk import dtm_hrdtm, dtm_rgealti
+from highliner.etls.chunk import dtm_ea, dtm_hrdtm, dtm_os, dtm_rgealti
 
 if TYPE_CHECKING:
     from highliner.models.raster import Raster
@@ -366,7 +366,13 @@ def _fetch_from_cache(source: str, bbox: Bbox, crs: str,
         return _fetch_cnig_tiles(bbox, cache_dir, crs)
     if source == "rgealti":
         return dtm_rgealti.fetch_rgealti_tiles(bbox, cache_dir, crs)
-    return dtm_hrdtm.fetch_hrdtm(cache_dir)
+    if source == "hrdtm":
+        return dtm_hrdtm.fetch_hrdtm(cache_dir)
+    if source == "os_terrain_50":
+        return dtm_os.fetch_os_terrain_50(bbox, cache_dir)
+    if source == "ea_lidar_1m":
+        return dtm_ea.fetch_ea_lidar(bbox, cache_dir)
+    return dtm_os.fetch_osni_dtm_10m(bbox, cache_dir)
 
 
 def fetch_tiles(bbox: Bbox, tiles_dir: Path, res: float = NATIVE_RES,  # noqa: PLR0913
@@ -378,12 +384,13 @@ def fetch_tiles(bbox: Bbox, tiles_dir: Path, res: float = NATIVE_RES,  # noqa: P
     Transient HTTP failures (rate limits, 5xx, timeouts) are retried with
     backoff and raised once ``TILE_RETRY_ATTEMPTS`` is exhausted, so a
     throttled run fails loudly instead of writing holes into the terrain.
-    Returns the paths that exist on disk. The ``cnig``, ``hrdtm`` and
-    ``rgealti`` sources ignore ``tiles_dir`` (their sheets persist in
-    ``cache_dir``, required for them)."""
+    Returns the paths that exist on disk. The ``cnig``, ``hrdtm``, ``rgealti``,
+    ``os_terrain_50``, ``osni_dtm_10m``, and ``ea_lidar_1m`` sources ignore
+    ``tiles_dir`` (their sheets persist in ``cache_dir``, required for them)."""
     tiles_dir = Path(tiles_dir)
     tiles_dir.mkdir(parents=True, exist_ok=True)
-    if source in ("cnig", "hrdtm", "rgealti"):
+    if source in ("cnig", "hrdtm", "rgealti", "os_terrain_50",
+                  "osni_dtm_10m", "ea_lidar_1m"):
         return _fetch_from_cache(source, bbox, crs, cache_dir)
     if source not in ("icgc", "idee"):
         raise RuntimeError(f"unknown DTM source '{source}'")
@@ -426,4 +433,4 @@ def raster_from_tiles(paths: list[Path], res: float = NATIVE_RES,
             s.close()
     data = arr[0].astype("float32")
     data[(data == NODATA) | (data == SEA_SENTINEL)] = np.nan
-    return Raster(data=data, transform=transform, res=res)
+    return Raster(data=data, transform=transform, res=abs(transform.a))

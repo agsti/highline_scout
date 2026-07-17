@@ -52,7 +52,7 @@ not open a PR.
 
 An agent works on `etl/<country>` and opens a PR containing `Closes #<issue>`.
 It replaces `in-progress` with `needs-review` when the PR is open. GitHub
-closes the issue when the PR merges. Agents do not edit `COUNTRIES.md`.
+closes the issue when the PR merges.
 
 ## Skill changes
 
@@ -69,5 +69,5 @@ responses: it must recognize every non-`[X]` line, skip each existing open
 issue, create only missing issues, and make no changes during a dry run. Review
 the skill text for all required checkpoints, interval, labels, duplicate
 prevention, blocker handling, PR closing syntax, and dispatch independence from
-`COUNTRIES.md`. Run a realistic dispatch scenario against the revised text and
-confirm the proposed workflow satisfies each condition.
+all backlog-reconciliation details. Run a realistic dispatch scenario against
+the revised text and confirm the proposed workflow satisfies each condition.

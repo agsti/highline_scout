@@ -36,8 +36,7 @@ def test_dry_run_lists_issues_without_creating_them(
     monkeypatch.setattr(sync.subprocess, "run", fake_run)
 
     assert sync.main(["--countries-file", str(countries)]) == 0
-    assert calls == [["gh", "issue", "list", "--state", "open", "--label",
-                      "etl-country", "--json", "title,url", "--limit", "1000"]]
+    assert calls[0][:5] == ["gh", "api", "graphql", "--paginate", "--slurp"]
     assert "would create: ETL: Albania" in capsys.readouterr().out
 
 
@@ -52,16 +51,18 @@ def test_apply_skips_existing_titles_and_creates_missing_issue(
             command: list[str], **_kwargs: object,
     ) -> subprocess.CompletedProcess[str]:
         calls.append(command)
-        if command[2] == "list":
+        if command[1:3] == ["api", "graphql"]:
             return subprocess.CompletedProcess(
-                command, 0, '[{"title": "ETL: France", "url": "https://example/2"}]',
+                command, 0,
+                '[{"data": {"repository": {"issues": {"nodes": ['
+                '{"title": "ETL: France", "url": "https://example/2"}]}}}}]',
                 "")
         return subprocess.CompletedProcess(command, 0, "https://example/1\n", "")
 
     monkeypatch.setattr(sync.subprocess, "run", fake_run)
 
     assert sync.main(["--countries-file", str(countries), "--apply"]) == 0
-    assert [call[2] for call in calls] == ["list", "create"]
+    assert [call[1:3] for call in calls] == [["api", "graphql"], ["issue", "create"]]
     assert calls[1][calls[1].index("--title") + 1] == "ETL: Albania"
     assert "etl-country" in calls[1]
     body = calls[1][calls[1].index("--body") + 1]
@@ -80,14 +81,14 @@ def test_apply_creates_one_issue_for_duplicate_unfinished_country_entries(
             command: list[str], **_kwargs: object,
     ) -> subprocess.CompletedProcess[str]:
         calls.append(command)
-        if command[2] == "list":
+        if command[1:3] == ["api", "graphql"]:
             return subprocess.CompletedProcess(command, 0, "[]", "")
         return subprocess.CompletedProcess(command, 0, "https://example/1\n", "")
 
     monkeypatch.setattr(sync.subprocess, "run", fake_run)
 
     assert sync.main(["--countries-file", str(countries), "--apply"]) == 0
-    assert [call[2] for call in calls] == ["list", "create"]
+    assert [call[1:3] for call in calls] == [["api", "graphql"], ["issue", "create"]]
     assert capsys.readouterr().out.count("created: https://example/1") == 1
 
 
@@ -106,3 +107,27 @@ def test_gh_failure_returns_one_and_reports_the_error(
 
     assert sync.main(["--countries-file", str(countries)]) == 1
     assert "not authenticated" in capsys.readouterr().err
+
+
+def test_open_issues_reads_titles_from_every_paginated_response(
+        monkeypatch: pytest.MonkeyPatch) -> None:
+    def fake_run(
+            command: list[str], **_kwargs: object,
+    ) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(
+            command, 0,
+            "["
+            "{\"data\": {\"repository\": {\"issues\": {\"nodes\": ["
+            "{\"title\": \"ETL: Albania\", \"url\": \"https://example/1\"}"
+            "]}}}},"
+            "{\"data\": {\"repository\": {\"issues\": {\"nodes\": ["
+            "{\"title\": \"ETL: France\", \"url\": \"https://example/2\"}"
+            "]}}}}"
+            "]", "")
+
+    monkeypatch.setattr(sync.subprocess, "run", fake_run)
+
+    assert sync._open_issues() == {
+        "ETL: Albania": "https://example/1",
+        "ETL: France": "https://example/2",
+    }

@@ -15,6 +15,21 @@ _CHECKPOINTS = """- [ ] DTM source and reuse licence selected
 - [ ] Tests and static checks passed
 - [ ] Pull request opened
 """
+_OPEN_ISSUES_QUERY = """
+query($owner: String!, $name: String!, $endCursor: String) {
+  repository(owner: $owner, name: $name) {
+    issues(
+      first: 100
+      after: $endCursor
+      states: OPEN
+      labels: ["etl-country"]
+    ) {
+      nodes { title url }
+      pageInfo { hasNextPage endCursor }
+    }
+  }
+}
+"""
 
 
 def unfinished_countries(markdown: str) -> list[str]:
@@ -25,10 +40,17 @@ def unfinished_countries(markdown: str) -> list[str]:
 
 def _open_issues() -> dict[str, str]:
     result = subprocess.run(
-        ["gh", "issue", "list", "--state", "open", "--label", "etl-country",
-         "--json", "title,url", "--limit", "1000"],
+        ["gh", "api", "graphql", "--paginate", "--slurp", "-F",
+         "owner={owner}", "-F", "name={repo}", "-f",
+         f"query={_OPEN_ISSUES_QUERY}"],
         check=True, capture_output=True, text=True)
-    return {issue["title"]: issue["url"] for issue in json.loads(result.stdout)}
+    pages = json.loads(result.stdout)
+    issues = (
+        issue
+        for page in pages
+        for issue in page["data"]["repository"]["issues"]["nodes"]
+    )
+    return {issue["title"]: issue["url"] for issue in issues}
 
 
 def _create_issue(title: str) -> str:

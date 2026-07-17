@@ -50,6 +50,27 @@ export const RESTRICTION_STRINGS: Partial<Record<Lang, Record<string, Restrictio
       highlight:
         "La escalada, el vivac, los drones y los actos organizados suelen estar regulados y pueden necesitar autorización del órgano gestor.",
     },
+    fr_zps: {
+      label: "ZPS (Aves)",
+      tooltip:
+        "Zona de Protección Especial para las Aves — Natura 2000 (Directiva Aves; ZPS francesa). Los cortados de estas zonas suelen tener cierres estacionales de escalada y acceso por la nidificación de rapaces (aprox. de invierno a verano, varía según el espacio); consulta al órgano gestor antes de instalar.",
+      highlight:
+        "Los cortados de estas zonas suelen tener cierres estacionales de escalada y acceso por la nidificación de rapaces (aprox. de invierno a verano, varía según el espacio); consulta al órgano gestor antes de instalar.",
+    },
+    fr_zsc: {
+      label: "ZSC / SIC",
+      tooltip:
+        "Lugar de Importancia Comunitaria / Zona Especial de Conservación — Natura 2000 (Directiva Hábitats; ZSC/SIC francesa). Las actividades que puedan dañar los hábitats protegidos pueden estar reguladas y requerir evaluación de impacto ambiental.",
+      highlight:
+        "Las actividades que puedan dañar los hábitats protegidos pueden estar reguladas y requerir evaluación de impacto ambiental.",
+    },
+    fr_ep: {
+      label: "Áreas Protegidas (PN / RN / APPB)",
+      tooltip:
+        "Área protegida reglamentaria francesa — el corazón de un parque nacional, una reserva natural nacional o regional, o un decreto de protección de biotopo (APPB), cada uno con sus propias normas y órgano gestor. Los APPB en particular respaldan muchos cierres de cortados. La escalada, el vivac, los drones y los actos organizados suelen estar regulados y pueden necesitar autorización del órgano gestor.",
+      highlight:
+        "La escalada, el vivac, los drones y los actos organizados suelen estar regulados y pueden necesitar autorización del órgano gestor.",
+    },
   },
   ca: {
     zepa: {
@@ -91,6 +112,27 @@ export const RESTRICTION_STRINGS: Partial<Record<Lang, Record<string, Restrictio
       label: "Àrees Protegides (EUAP)",
       tooltip:
         "Àrea natural protegida de l'elenc oficial italià (EUAP) — un parc nacional o regional, una reserva natural o una altra figura de protecció, cadascuna amb les seves normes i òrgan gestor. L'escalada, el vivac, els drons i els actes organitzats sovint estan regulats i poden necessitar autorització de l'òrgan gestor.",
+      highlight:
+        "L'escalada, el vivac, els drons i els actes organitzats sovint estan regulats i poden necessitar autorització de l'òrgan gestor.",
+    },
+    fr_zps: {
+      label: "ZPS (Aus)",
+      tooltip:
+        "Zona de Protecció Especial per a les Aus — Natura 2000 (Directiva Aus; ZPS francesa). Els cingles d'aquestes zones sovint tenen tancaments estacionals d'escalada i accés per la nidificació de rapinyaires (aprox. d'hivern a estiu, varia segons l'espai); consulteu l'òrgan gestor abans d'instal·lar.",
+      highlight:
+        "Els cingles d'aquestes zones sovint tenen tancaments estacionals d'escalada i accés per la nidificació de rapinyaires (aprox. d'hivern a estiu, varia segons l'espai); consulteu l'òrgan gestor abans d'instal·lar.",
+    },
+    fr_zsc: {
+      label: "ZSC / SIC",
+      tooltip:
+        "Lloc d'Importància Comunitària / Zona Especial de Conservació — Natura 2000 (Directiva Hàbitats; ZSC/SIC francesa). Les activitats que puguin malmetre els hàbitats protegits poden estar regulades i requerir avaluació d'impacte ambiental.",
+      highlight:
+        "Les activitats que puguin malmetre els hàbitats protegits poden estar regulades i requerir avaluació d'impacte ambiental.",
+    },
+    fr_ep: {
+      label: "Àrees Protegides (PN / RN / APPB)",
+      tooltip:
+        "Àrea protegida reglamentària francesa — el cor d'un parc nacional, una reserva natural nacional o regional, o un decret de protecció de biòtop (APPB), cadascun amb les seves normes i òrgan gestor. Els APPB en particular sustenten molts tancaments de cingles. L'escalada, el vivac, els drons i els actes organitzats sovint estan regulats i poden necessitar autorització de l'òrgan gestor.",
       highlight:
         "L'escalada, el vivac, els drons i els actes organitzats sovint estan regulats i poden necessitar autorització de l'òrgan gestor.",
     },

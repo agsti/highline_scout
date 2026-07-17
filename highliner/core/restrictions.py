@@ -88,4 +88,46 @@ LAYERS: dict[str, LayerSpec] = {
                       "often regulated and may need authorization from the "
                       "managing body."),
     },
+    # France. Same semantics as the Spanish and Italian layers above (birds /
+    # habitats / national protected areas), so they share those layers'
+    # colors — the countries never overlap on the map.
+    "fr_zps": {
+        "label": "ZPS (Birds)",
+        "color": "#e31a1c",
+        "tooltip": ("Special Protection Area for Birds - Natura 2000 (EU Birds "
+                    "Directive; French ZPS). Cliffs in these areas commonly "
+                    "have seasonal climbing and access closures for raptor "
+                    "nesting (roughly winter to summer, varies by site); check "
+                    "with the managing body before rigging."),
+        "highlight": ("Cliffs in these areas commonly have seasonal climbing and "
+                      "access closures for raptor nesting (roughly winter to "
+                      "summer, varies by site); check with the managing body "
+                      "before rigging."),
+    },
+    "fr_zsc": {
+        "label": "ZSC / SIC",
+        "color": "#ff7f00",
+        "tooltip": ("Site of Community Importance / Special Area of Conservation "
+                    "- Natura 2000 (EU Habitats Directive; French ZSC/SIC). "
+                    "Activities that may harm the protected habitats can be "
+                    "regulated and may require an environmental impact "
+                    "assessment."),
+        "highlight": ("Activities that may harm the protected habitats can be "
+                      "regulated and may require an environmental impact "
+                      "assessment."),
+    },
+    "fr_ep": {
+        "label": "Protected Areas (PN / RN / APPB)",
+        "color": "#6a3d9a",
+        "tooltip": ("Regulatory protected area - a French national park core, "
+                    "a national or regional nature reserve, or a biotope "
+                    "protection order (APPB), each with its own rules and "
+                    "managing body. APPBs in particular back many cliff "
+                    "closures. Climbing, bivouacking, drones and organized "
+                    "events are often regulated and may need authorization "
+                    "from the managing body."),
+        "highlight": ("Climbing, bivouacking, drones and organized "
+                      "events are often regulated and may need authorization "
+                      "from the managing body."),
+    },
 }

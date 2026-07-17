@@ -58,6 +58,7 @@ def process_chunk(cx: int, cy: int, core_bbox: Bbox, region_dir: Path,  # noqa: 
                   halo: float = config.CHUNK_HALO_M,
                   crs: str = config.UTM_CRS,
                   dtm_source: str = "icgc",
+                  drop_radius_m: float = config.DROP_RADIUS_M,
                   cache_dir: Path | None = None) -> int:
     """Process one chunk into anchor + pair partitions. Returns the number of
     pairs kept. Idempotent: a chunk whose pair partition exists is skipped
@@ -86,7 +87,7 @@ def process_chunk(cx: int, cy: int, core_bbox: Bbox, region_dir: Path,  # noqa: 
         raster = dtm.raster_from_tiles(tiles, bbox=halo_bbox)
         if raster is not None:
             anchors = extract_anchors(
-                raster, slope_min=config.SLOPE_MIN_DEG, radius=config.DROP_RADIUS_M,
+                raster, slope_min=config.SLOPE_MIN_DEG, radius=drop_radius_m,
                 n_azimuths=config.N_AZIMUTHS, min_sector_drop=config.MIN_SECTOR_DROP_M,
                 thin_dist=config.THIN_DIST_M)
             core_anchors = [a for a in anchors if _in_core(a.x, a.y, core_bbox)]
@@ -131,6 +132,7 @@ def precompute(  # noqa: PLR0913
         chunk_m: float = config.CHUNK_M,
         report: Callable[[int, int], None] | None = None,
         *, crs: str, dtm_source: str, workers: int = 1,
+        drop_radius_m: float = config.DROP_RADIUS_M,
         cache_dir: Path | None = None) -> int:
     """Precompute anchors + pairs for ``bbox`` under
     ``data_dir/<country>/<region>``. Writes grid.json, then processes every
@@ -152,6 +154,7 @@ def precompute(  # noqa: PLR0913
     if workers == 1:
         for i, (cx, cy, core) in enumerate(chunks, start=1):
             process_chunk(cx, cy, core, rdir, crs=crs, dtm_source=dtm_source,
+                          drop_radius_m=drop_radius_m,
                           cache_dir=country_cache_dir)
             if report is not None:
                 report(i, total)
@@ -162,6 +165,7 @@ def precompute(  # noqa: PLR0913
         futures = [
             pool.submit(process_chunk, cx, cy, core, rdir,
                         crs=crs, dtm_source=dtm_source,
+                        drop_radius_m=drop_radius_m,
                         cache_dir=country_cache_dir)
             for cx, cy, core in chunks
         ]

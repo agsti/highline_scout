@@ -19,6 +19,7 @@ class Region:
     bbox: Bbox
     crs: str
     dtm_source: str
+    drop_radius_m: float = config.DROP_RADIUS_M
 
 
 # Rounded-out projected administrative extents. England uses the Environment
@@ -27,8 +28,10 @@ class Region:
 # OSNI's open 10 m DTM.
 REGIONS: tuple[Region, ...] = (
     Region("england", (70000, 0, 660000, 660000), "EPSG:27700", "ea_lidar_1m"),
-    Region("wales", (140000, 0, 360000, 410000), "EPSG:27700", "os_terrain_50"),
-    Region("scotland", (0, 530000, 500000, 1220000), "EPSG:27700", "os_terrain_50"),
+    Region("wales", (140000, 0, 360000, 410000), "EPSG:27700", "os_terrain_50",
+           drop_radius_m=50.0),
+    Region("scotland", (0, 530000, 500000, 1220000), "EPSG:27700", "os_terrain_50",
+           drop_radius_m=50.0),
     Region("northern_ireland", (200000, 220000, 390000, 460000), "EPSG:29903",
            "osni_dtm_10m"),
 )
@@ -59,6 +62,7 @@ def main(argv: list[str] | None = None) -> None:
     for region in regions:
         shared.precompute(COUNTRY, region.name, region.bbox, args.data_dir,
                           crs=region.crs, dtm_source=region.dtm_source,
+                          drop_radius_m=region.drop_radius_m,
                           workers=args.workers, cache_dir=args.cache_dir)
 
 

@@ -1,12 +1,16 @@
 """Cached bulk terrain downloads from Great Britain's national mapping agencies."""
 import fcntl
+import io
 import json
 import time
 import zipfile
 from pathlib import Path
 from typing import TypeAlias
 
+import numpy as np
+import rasterio
 import requests
+from rasterio.transform import from_origin
 
 Bbox: TypeAlias = tuple[float, float, float, float]
 
@@ -23,8 +27,57 @@ def fetch_os_terrain_50(bbox: Bbox, cache_root: Path) -> list[Path]:
 
 
 def fetch_osni_dtm_10m(bbox: Bbox, cache_root: Path) -> list[Path]:
-    """Return cached OSNI 10 m DTM ASCII tiles intersecting a Northern Ireland bbox."""
-    return _fetch(bbox, cache_root / "osni-dtm-10m", OSNI_DTM_10M_URL)
+    """Return cached OSNI 10 m DTM tiles intersecting a Northern Ireland bbox."""
+    root = cache_root / "osni-dtm-10m"
+    root.mkdir(parents=True, exist_ok=True)
+    archive = root / "source.zip"
+    index_path = root / "index.json"
+    with (root / ".lock").open("w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        if not archive.exists():
+            _download(OSNI_DTM_10M_URL, archive)
+        if not _osni_index_is_current(index_path):
+            _extract_osni_and_index(archive, root, index_path)
+    index = json.loads(index_path.read_text())["tiles"]
+    return [root / path for path, bounds in index if _intersects(bounds, bbox)]
+
+
+def _osni_index_is_current(index_path: Path) -> bool:
+    if not index_path.exists():
+        return False
+    return isinstance(json.loads(index_path.read_text()), dict)
+
+
+def _extract_osni_and_index(archive: Path, root: Path, index_path: Path) -> None:
+    index: list[tuple[str, Bbox]] = []
+    with zipfile.ZipFile(archive) as source:
+        for member in source.infolist():
+            if member.is_dir() or not member.filename.lower().endswith(".txt"):
+                continue
+            path = root / f"{Path(member.filename).stem}.tif"
+            if not path.exists():
+                _xyz_to_geotiff(source.read(member), path)
+            with rasterio.open(path) as tile:
+                bounds = tile.bounds
+            index.append((path.name, (bounds.left, bounds.bottom,
+                                      bounds.right, bounds.top)))
+    index_path.write_text(json.dumps({"format": "xyz-v1", "tiles": index}))
+
+
+def _xyz_to_geotiff(data: bytes, dest: Path) -> None:
+    points = np.loadtxt(io.BytesIO(data), dtype="float64")
+    xs, ys = np.unique(points[:, 0]), np.unique(points[:, 1])
+    res = float(min(np.diff(xs).min(), np.diff(ys).min()))
+    array = np.full((len(ys), len(xs)), -9999.0, dtype="float32")
+    cols = np.searchsorted(xs, points[:, 0])
+    rows = len(ys) - 1 - np.searchsorted(ys, points[:, 1])
+    array[rows, cols] = points[:, 2]
+    transform = from_origin(xs[0] - res / 2, ys[-1] + res / 2, res, res)
+    profile = {"driver": "GTiff", "width": len(xs), "height": len(ys),
+               "count": 1, "dtype": "float32", "crs": "EPSG:29903",
+               "nodata": -9999.0, "transform": transform, "compress": "lzw"}
+    with rasterio.open(dest, "w", **profile) as tile:
+        tile.write(array, 1)
 
 
 def _fetch(bbox: Bbox, root: Path, url: str) -> list[Path]:

@@ -37,6 +37,27 @@ Output lands in `data/<country>/<region>/{grid.json,anchors/,pairs/}`; the DTM
 cache in `cache/<country>/`. The server discovers regions from `grid.json` on
 disk — **no server code changes are needed for a new country**.
 
+## Progress reporting
+
+The work is tracked by its assigned GitHub issue. Add an evidence-bearing
+comment to that issue at least every 30 minutes while work is active; do not
+wait for a phase to finish if it is taking longer. Each comment must say what
+changed or was learned and include concrete evidence: a source URL, command
+and result, commit SHA, PR link, or a concise blocker with the failed command.
+
+Post a comment at each of these checkpoints:
+
+1. **Source selection** — chosen DTM product/provider, licence, resolution,
+   delivery method, and source URL.
+2. **DTM smoke result** — the command run, sampled area, and whether the
+   raster/anchor/pair output and nodata handling behaved as expected.
+3. **Adapter completion** — commit SHA and the adapters, tests, and layers
+   added (or the reason restrictions are unavailable).
+4. **Verification** — commands and results for adapter help, the focused
+   tests, `just test`, and `just check`.
+5. **PR or blocker** — PR link and summary, or the blocker, impact, and the
+   next concrete action needed to unblock it.
+
 ## 1. DTM source (the real work)
 
 Where to look: the country's national mapping agency / geoportal (the IGN/CNIG

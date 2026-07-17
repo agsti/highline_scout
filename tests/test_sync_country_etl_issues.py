@@ -15,7 +15,7 @@ _SPEC.loader.exec_module(sync)
 
 
 def test_unfinished_countries_excludes_only_done_entries() -> None:
-    markdown = "- [ ] Albania\n- [X] Spain\n- [P] France\n"
+    markdown = "- [ ] Albania\n- [X] Spain\n- [IN PROGRESS] France\n"
 
     assert sync.unfinished_countries(markdown) == ["Albania", "France"]
 
@@ -67,6 +67,28 @@ def test_apply_skips_existing_titles_and_creates_missing_issue(
     body = calls[1][calls[1].index("--body") + 1]
     assert body.count("- [ ]") == 5
     assert "already exists: https://example/2" in capsys.readouterr().out
+
+
+def test_apply_creates_one_issue_for_duplicate_unfinished_country_entries(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str]) -> None:
+    countries = tmp_path / "COUNTRIES.md"
+    countries.write_text("- [ ] Albania\n- [P] Albania\n")
+    calls: list[list[str]] = []
+
+    def fake_run(
+            command: list[str], **_kwargs: object,
+    ) -> subprocess.CompletedProcess[str]:
+        calls.append(command)
+        if command[2] == "list":
+            return subprocess.CompletedProcess(command, 0, "[]", "")
+        return subprocess.CompletedProcess(command, 0, "https://example/1\n", "")
+
+    monkeypatch.setattr(sync.subprocess, "run", fake_run)
+
+    assert sync.main(["--countries-file", str(countries), "--apply"]) == 0
+    assert [call[2] for call in calls] == ["list", "create"]
+    assert capsys.readouterr().out.count("created: https://example/1") == 1
 
 
 def test_gh_failure_returns_one_and_reports_the_error(

@@ -1,61 +1,76 @@
-# Task 1 report: country-scoped restriction metadata
+# Task 1 report: country ETL issue reconciliation
 
-## Summary
+## Scope
 
-Restriction-layer availability now derives from each country's stored Parquet
-files. `LAYERS` continues to provide display metadata and its insertion order.
-The metadata endpoint receives the configured data directory, and viewport reads
-only select layers available for the requested country.
+- Added `scripts/sync_country_etl_issues.py`.
+- Added `tests/test_sync_country_etl_issues.py`.
+- No existing task files were changed.
 
 ## TDD evidence
 
-### Red
+### RED
 
-Command:
-
-```text
-uv run pytest tests/test_api.py -k restriction -v
-```
-
-Result before the implementation: **1 failed, 4 passed, 21 deselected**. The
-new country metadata test expected Spain to expose only `zepa`, but received
-`zepa`, `zec`, `enp`, `zps`, `zsc`, and `euap` from the global registry.
-
-### Green
-
-Commands:
+Ran:
 
 ```text
-uv run pytest tests/test_api.py -k restriction -v
-uv run pytest tests/test_api.py -v
-uv run ruff check highliner/server/services/restrictions.py highliner/server/router/restrictions.py tests/test_api.py
+uv run pytest tests/test_sync_country_etl_issues.py -q
 ```
 
-Results:
+Before implementation, collection failed with `FileNotFoundError` for
+`scripts/sync_country_etl_issues.py`. This was the expected missing-feature
+failure after adding parser and dry-run tests.
 
-- Restriction selection: **5 passed, 21 deselected**.
-- Full API module: **26 passed**.
-- Ruff: **All checks passed**.
-- Both pytest runs emitted the pre-existing Starlette `httpx` deprecation warning.
+### GREEN
 
-## Files changed
+Ran:
 
-- `highliner/server/services/restrictions.py`
-- `highliner/server/router/restrictions.py`
-- `tests/test_api.py`
+```text
+uv run pytest tests/test_sync_country_etl_issues.py -q
+```
+
+Result: `4 passed in 0.01s`.
+
+Scoped static checks also passed:
+
+```text
+uv run ruff check scripts/sync_country_etl_issues.py tests/test_sync_country_etl_issues.py
+uv run vulture scripts/sync_country_etl_issues.py --min-confidence 60
+```
+
+## Requirements covered
+
+- `unfinished_countries()` accepts every non-`[X]` checklist marker.
+- Dry run lists open `etl-country` issues and performs no create command.
+- Apply mode skips existing exact titles and creates each missing `ETL: <country>`
+  issue with the required label and five checkpoint body.
+- `gh` failures return 1 and emit the command error to stderr.
+- CLI supports `--countries-file` and `--apply`.
 
 ## Self-review
 
-- `available_layer_ids` requires a regular per-country Parquet file and retains
-  the `LAYERS` registry order.
-- `layer_meta` exposes metadata only for those IDs.
-- `features_in_view` filters explicit IDs against the same available set before
-  opening files; the existing limit behavior is unchanged.
-- The API tests cover Spain/Italy-specific metadata, an unknown country, and an
-  unavailable ID in a country with another available layer.
-- `git diff --check` succeeded.
+The implementation only reads the supplied Markdown and uses `gh issue list`
+followed by `gh issue create` when explicitly requested. It never edits the
+source file or changes existing issue state. Existing issue matching is exact by
+title, as specified. One operational limit is the `gh issue list --limit 1000`
+cap; it is ample for the current European backlog but would need pagination if
+the labelled open-issue set grew beyond that.
 
-## Concerns
+## Review follow-up
 
-None. The report itself is intentionally not included in the Task 1 source
-commit; unrelated pre-existing changes remain untouched.
+- Checklist markers now accept any nonempty contents; only the exact uppercase
+  marker `X` denotes a completed entry.
+- Reconciliation preserves first-seen order while de-duplicating unfinished
+  country entries, so apply mode can create a given country issue at most once.
+- Added coverage for a multi-character marker and duplicate unfinished country
+  entries.
+
+Verification:
+
+```text
+uv run pytest tests/test_sync_country_etl_issues.py -q
+.....                                                                    [100%]
+5 passed in 0.01s
+
+uv run ruff check scripts/sync_country_etl_issues.py tests/test_sync_country_etl_issues.py
+All checks passed!
+```

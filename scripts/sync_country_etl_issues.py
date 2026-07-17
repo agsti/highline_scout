@@ -8,7 +8,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-_CHECKLIST = re.compile(r"^\s*[-*]\s+\[([^]])\]\s+(.+?)\s*$", re.MULTILINE)
+_CHECKLIST = re.compile(r"^\s*[-*]\s+\[([^]]+)\]\s+(.+?)\s*$", re.MULTILINE)
 _CHECKPOINTS = """- [ ] DTM source and reuse licence selected
 - [ ] DTM smoke chunk validated
 - [ ] Chunk, density, and applicable restrictions adapters implemented
@@ -48,7 +48,8 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         existing = _open_issues()
-        for country in unfinished_countries(args.countries_file.read_text()):
+        countries = dict.fromkeys(unfinished_countries(args.countries_file.read_text()))
+        for country in countries:
             title = f"ETL: {country}"
             if title in existing:
                 print(f"already exists: {existing[title]}")

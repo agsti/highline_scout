@@ -58,9 +58,9 @@ closes the issue when the PR merges. Agents do not edit `COUNTRIES.md`.
 
 `adding-country-etls` gains the progress contract for a country implementation.
 `dispatching-country-etls` is rewritten to dispatch explicitly named open
-issues, validate ownership, and report issue and PR links. It does not select
-or mutate entries in `COUNTRIES.md`. The new reconciliation script creates the
-initial country issues from that file.
+issues, validate ownership, and report issue and PR links. Both skills operate
+only on issues and labels: neither mentions, reads, or changes a backlog file
+or the reconciliation utility.
 
 ## Validation
 

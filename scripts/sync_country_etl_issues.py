@@ -2,10 +2,14 @@
 from __future__ import annotations
 
 import argparse
+import fcntl
 import json
 import re
 import subprocess
 import sys
+import tempfile
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 
 _CHECKLIST = re.compile(r"^\s*[-*]\s+\[([^]]+)\]\s+(.+?)\s*$", re.MULTILINE)
@@ -30,6 +34,7 @@ query($owner: String!, $name: String!, $endCursor: String) {
   }
 }
 """
+_APPLY_LOCK_PATH = Path(tempfile.gettempdir()) / "highliner-country-etl-issues.lock"
 
 
 def unfinished_countries(markdown: str) -> list[str]:
@@ -61,6 +66,14 @@ def _create_issue(title: str) -> str:
     return result.stdout.strip()
 
 
+@contextmanager
+def _apply_lock() -> Iterator[None]:
+    """Serialize apply-mode reconciliation across local processes."""
+    with _APPLY_LOCK_PATH.open("w") as lock_file:
+        fcntl.flock(lock_file, fcntl.LOCK_EX)
+        yield
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="sync-country-etl-issues")
     parser.add_argument("--countries-file", type=Path, default=Path("COUNTRIES.md"))
@@ -69,20 +82,28 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     try:
-        existing = _open_issues()
-        countries = dict.fromkeys(unfinished_countries(args.countries_file.read_text()))
-        for country in countries:
-            title = f"ETL: {country}"
-            if title in existing:
-                print(f"already exists: {existing[title]}")
-            elif args.apply:
-                print(f"created: {_create_issue(title)}")
-            else:
-                print(f"would create: {title}")
+        if args.apply:
+            with _apply_lock():
+                _reconcile(args.countries_file, apply=True)
+        else:
+            _reconcile(args.countries_file, apply=False)
     except subprocess.CalledProcessError as exc:
         print(exc.stderr or str(exc), file=sys.stderr)
         return 1
     return 0
+
+
+def _reconcile(countries_file: Path, *, apply: bool) -> None:
+    existing = _open_issues()
+    countries = dict.fromkeys(unfinished_countries(countries_file.read_text()))
+    for country in countries:
+        title = f"ETL: {country}"
+        if title in existing:
+            print(f"already exists: {existing[title]}")
+        elif apply:
+            print(f"created: {_create_issue(title)}")
+        else:
+            print(f"would create: {title}")
 
 
 if __name__ == "__main__":

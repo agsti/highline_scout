@@ -1,6 +1,7 @@
 """Tests for reconciling unfinished country ETLs with GitHub issues."""
 import importlib.util
 import subprocess
+from contextlib import contextmanager
 from pathlib import Path
 
 import pytest
@@ -90,6 +91,27 @@ def test_apply_creates_one_issue_for_duplicate_unfinished_country_entries(
     assert sync.main(["--countries-file", str(countries), "--apply"]) == 0
     assert [call[1:3] for call in calls] == [["api", "graphql"], ["issue", "create"]]
     assert capsys.readouterr().out.count("created: https://example/1") == 1
+
+
+def test_apply_holds_the_reconciliation_lock_through_listing_and_creation(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    countries = tmp_path / "COUNTRIES.md"
+    countries.write_text("- [ ] Albania\n")
+    events: list[str] = []
+
+    @contextmanager
+    def fake_lock() -> object:
+        events.append("lock acquired")
+        yield
+        events.append("lock released")
+
+    monkeypatch.setattr(sync, "_apply_lock", fake_lock)
+    monkeypatch.setattr(sync, "_open_issues", lambda: events.append("listed") or {})
+    monkeypatch.setattr(
+        sync, "_create_issue", lambda _title: events.append("created") or "url")
+
+    assert sync.main(["--countries-file", str(countries), "--apply"]) == 0
+    assert events == ["lock acquired", "listed", "created", "lock released"]
 
 
 def test_gh_failure_returns_one_and_reports_the_error(

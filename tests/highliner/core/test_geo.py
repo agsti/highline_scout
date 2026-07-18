@@ -1,7 +1,6 @@
 import math
 
 from highliner.core import geo
-
 from tests.helpers import to_utm
 
 
@@ -56,6 +55,7 @@ def test_roundtrip_explicit_crs() -> None:
 
 def test_reproject_xy_roundtrip() -> None:
     import numpy as np
+
     from highliner.core import geo
 
     # Two points near the Aragon/Catalonia seam, in EPSG:25831.

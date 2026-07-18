@@ -4,7 +4,6 @@ from types import SimpleNamespace
 from typing import Any
 
 from highliner.server.router import deps
-
 from tests.helpers import to_utm
 
 

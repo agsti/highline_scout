@@ -4,6 +4,7 @@ from pathlib import Path
 from highliner.etls.chunk.candidates import save_candidates
 from highliner.models.anchor import Anchor
 from highliner.models.candidate import Candidate, PairFilter
+
 from highliner.server.repositories import partition_cache as pc
 
 

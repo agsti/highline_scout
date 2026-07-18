@@ -12,13 +12,28 @@ survives; `slope_min=40` admits any cliff-like cell in these fixtures.
 import numpy as np
 from affine import Affine
 from highliner.core.geo import bearing_in_sectors
-from highliner.etls.chunk import terrain
 from highliner.models.anchor import Anchor
 from highliner.models.raster import Raster
+
+from highliner.etls.chunk import terrain
 
 RADIUS = 15.0
 N_AZIMUTHS = 24
 MIN_DROP = 15.0
+
+
+def test_flat_is_zero_slope() -> None:
+    dtm = np.full((5, 5), 100.0, dtype="float32")
+    slope = terrain.compute_slope(dtm, res=1.0)
+    assert np.allclose(slope, 0.0)
+
+
+def test_45_degree_ramp() -> None:
+    # rise 1m per 1m horizontally => 45 degrees
+    dtm = np.tile(np.arange(5, dtype="float32"), (5, 1))
+    slope = terrain.compute_slope(dtm, res=1.0)
+    # interior cells should be ~45 degrees
+    assert np.isclose(slope[2, 2], 45.0, atol=1.0)
 
 
 def anchors_of(r: Raster) -> list[Anchor]:
@@ -91,3 +106,51 @@ def test_all_directions_drop_is_full_circle() -> None:
     assert a.sectors == ((0.0, 360.0 - step, 50.0),)
     for az in (0, 90, 180, 270):
         assert bearing_in_sectors(az, a.sectors, tol=0)
+
+
+def two_sided_cliff() -> Raster:
+    # 61x61, plateau 100m in a central band x in [28,32], drops to 40m either side
+    data = np.full((61, 61), 40.0, dtype="float32")
+    data[:, 28:33] = 100.0
+    return Raster(data=data, transform=Affine(1, 0, 0, 0, -1, 61.0), res=1.0)
+
+
+def test_extract_finds_rim_anchors() -> None:
+    r = two_sided_cliff()
+    anchors = terrain.extract_anchors(
+        r, slope_min=40.0, radius=15.0, n_azimuths=24,
+        min_sector_drop=15.0, thin_dist=10.0)
+    assert anchors, "expected anchors along the plateau rim"
+    # every anchor sits on the high band (elev ~100) and has >=1 sector
+    for a in anchors:
+        assert a.elev > 90
+        assert len(a.sectors) >= 1
+
+
+def test_thinning_limits_density() -> None:
+    r = two_sided_cliff()
+    dense = terrain.extract_anchors(r, 40.0, 15.0, 24, 15.0, thin_dist=2.0)
+    sparse = terrain.extract_anchors(r, 40.0, 15.0, 24, 15.0, thin_dist=20.0)
+    assert len(sparse) < len(dense)
+
+
+def test_thinning_keeps_anchors_min_dist_apart() -> None:
+    r = two_sided_cliff()
+    thin_dist = 10.0
+    anchors = terrain.extract_anchors(r, 40.0, 15.0, 24, 15.0, thin_dist=thin_dist)
+    assert len(anchors) >= 2
+    for i, a in enumerate(anchors):
+        for b in anchors[i + 1:]:
+            assert np.hypot(a.x - b.x, a.y - b.y) > thin_dist
+
+
+def test_thinning_prefers_higher_drop() -> None:
+    # two conflicting points 5 m apart (thin_dist 10): the higher-drop one
+    # must win regardless of input order; a distant third point survives.
+    sectors = ((0.0, 90.0, 20.0),)
+    weak = (0.0, 0.0, 100.0, sectors, 20.0)
+    strong = (5.0, 0.0, 100.0, sectors, 80.0)
+    far = (50.0, 0.0, 100.0, sectors, 30.0)
+    for points in ([weak, strong, far], [strong, weak, far]):
+        kept = terrain._thin(list(points), thin_dist=10.0)
+        assert [(a.x, a.y) for a in kept] == [(5.0, 0.0), (50.0, 0.0)]

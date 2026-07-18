@@ -11,6 +11,12 @@ import { RestrictionLegend } from "./components/RestrictionLegend";
 import { SafetyDisclaimerDialog } from "./components/SafetyDisclaimerDialog";
 import { capture } from "./lib/analytics";
 import { fetchCountries, fetchRestrictionLayers } from "./lib/api";
+import {
+  clearSavedCountry,
+  detectCountry,
+  readSavedCountry,
+  saveCountry,
+} from "./lib/countrySelection";
 import { bboxLonLatParam } from "./lib/geo";
 import { useI18n } from "./lib/i18n";
 import type { CountryEntry, RestrictionAreaMode, RestrictionLayerMeta } from "./types/highliner";
@@ -45,6 +51,7 @@ export function App() {
   const [restrictionLayers, setRestrictionLayers] = useState<RestrictionLayerMeta[]>([]);
   const [countries, setCountries] = useState<CountryEntry[]>([]);
   const [country, setCountry] = useState("spain");
+  const manualCountryRef = useRef(false);
   const [enabledRestrictions, setEnabledRestrictions] = useState<string[]>([]);
   const [restrictionAreaMode, setRestrictionAreaMode] = useState<RestrictionAreaMode>(
     pickInitialRestrictionAreaMode,
@@ -77,14 +84,43 @@ export function App() {
   }, [country, handleError]);
 
   useEffect(() => {
-    const controller = new AbortController();
-    fetchCountries(controller.signal).then(setCountries).catch((error) => {
-      if (error.name !== "AbortError") handleError(tRef.current("error", { detail: String(error) }));
-    });
-    return () => controller.abort();
+    const catalogController = new AbortController();
+    let detectionController: AbortController | undefined;
+    let detectionTimeout: number | undefined;
+
+    fetchCountries(catalogController.signal)
+      .then(async (available) => {
+        setCountries(available);
+        const saved = readSavedCountry(available);
+        if (saved) {
+          setCountry(saved);
+          return;
+        }
+        clearSavedCountry();
+        detectionController = new AbortController();
+        detectionTimeout = window.setTimeout(() => detectionController?.abort(), 2_000);
+        const detected = await detectCountry(available, detectionController.signal);
+        if (detected && !manualCountryRef.current) setCountry(detected);
+      })
+      .catch((error) => {
+        if (error.name !== "AbortError") {
+          handleError(tRef.current("error", { detail: String(error) }));
+        }
+      })
+      .finally(() => {
+        if (detectionTimeout !== undefined) window.clearTimeout(detectionTimeout);
+      });
+
+    return () => {
+      catalogController.abort();
+      detectionController?.abort();
+      if (detectionTimeout !== undefined) window.clearTimeout(detectionTimeout);
+    };
   }, [handleError]);
 
   const handleCountryChange = useCallback((next: string) => {
+    manualCountryRef.current = true;
+    saveCountry(next);
     setCountry(next);
     setEnabledRestrictions([]);
     setRestrictionLayers([]);

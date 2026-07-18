@@ -3,6 +3,7 @@
 Holds the bbox-parsing helpers that translate ``bbox`` / ``bbox_lonlat`` query
 params into UTM or lon/lat tuples, plus the app.state accessor.
 """
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -29,6 +30,10 @@ class RegionEntry:
 class CountryEntry:
     id: str
     bounds_lonlat: LonLatBox
+    country_code: str | None
+
+
+_COUNTRY_CODE_RE = re.compile(r"[A-Z]{2}\Z")
 
 
 def region_lonlat_bounds(grid: chunked_store.Grid) -> LonLatBox:
@@ -67,18 +72,30 @@ def get_region_index(request: Request) -> list[RegionEntry]:
     return cached
 
 
+def read_country_code(country_dir: Path) -> str | None:
+    """Return a country's valid ISO alpha-2 code, if its data declares one."""
+    try:
+        code = (country_dir / "country_code").read_text(encoding="utf-8").strip()
+    except (OSError, UnicodeDecodeError):
+        return None
+    return code if _COUNTRY_CODE_RE.fullmatch(code) else None
+
+
 def countries_from_index(index: list[RegionEntry]) -> list[CountryEntry]:
     """Country coverage extents derived from the indexed precomputed regions."""
-    grouped: dict[str, list[LonLatBox]] = {}
+    grouped: dict[str, list[RegionEntry]] = {}
     for entry in index:
-        grouped.setdefault(entry.country, []).append(entry.lonlat_bounds)
+        grouped.setdefault(entry.country, []).append(entry)
     countries: list[CountryEntry] = []
-    for country, bounds in grouped.items():
-        west = min(box[0] for box in bounds)
-        south = min(box[1] for box in bounds)
-        east = max(box[2] for box in bounds)
-        north = max(box[3] for box in bounds)
-        countries.append(CountryEntry(country, (west, south, east, north)))
+    for country, entries in grouped.items():
+        west = min(entry.lonlat_bounds[0] for entry in entries)
+        south = min(entry.lonlat_bounds[1] for entry in entries)
+        east = max(entry.lonlat_bounds[2] for entry in entries)
+        north = max(entry.lonlat_bounds[3] for entry in entries)
+        country_dir = entries[0].region_dir.parent
+        countries.append(CountryEntry(
+            country, (west, south, east, north), read_country_code(country_dir)
+        ))
     return sorted(countries, key=lambda entry: entry.id)
 
 

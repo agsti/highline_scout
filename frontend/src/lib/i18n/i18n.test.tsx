@@ -32,8 +32,13 @@ describe("catalog parity", () => {
 
   it("discloses cookieless analytics in every language", () => {
     expect(STRINGS.ca.aboutPrivacy).toMatch(/sense galetes/i);
+    expect(STRINGS.ca.aboutPrivacy).toContain("IPWho");
     expect(STRINGS.es.aboutPrivacy).toMatch(/sin cookies/i);
+    expect(STRINGS.es.aboutPrivacy).toContain("IPWho");
     expect(STRINGS.en.aboutPrivacy).toMatch(/no cookies/i);
+    expect(STRINGS.en.aboutPrivacy).toContain("IPWho");
+    expect(STRINGS.en.aboutPrivacy).toMatch(/country/i);
+    expect(STRINGS.en.aboutPrivacy).toMatch(/not stored/i);
   });
 
   it("carries the floating-chrome copy in every language", () => {

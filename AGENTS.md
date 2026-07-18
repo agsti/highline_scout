@@ -37,6 +37,9 @@ For an isolated git worktree, create a separate `.venv` and run the same dev
 install there. Do not symlink a worktree's `.venv` to another checkout: virtual
 environment paths are checkout-specific. `uv` shares its download/build cache
 automatically, so separate environments remain quick and isolated.
+Symlink `cache/`, `data/`, and `frontend/node_modules/` from the primary
+checkout into the worktree so the large shared assets and Node dependencies are
+not duplicated.
 
     just test                      # full suite (uv run pytest)
     uv run pytest tests/test_pairing.py::test_name   # single test

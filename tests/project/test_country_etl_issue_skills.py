@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-SKILLS_DIR = Path(__file__).parent.parent / ".claude" / "skills"
+SKILLS_DIR = Path(__file__).parents[2] / ".claude" / "skills"
 
 
 def _skill(name: str) -> str:

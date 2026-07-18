@@ -8,7 +8,7 @@ import pytest
 
 _SPEC = importlib.util.spec_from_file_location(
     "sync_country_etl_issues",
-    Path(__file__).parent.parent / "scripts" / "sync_country_etl_issues.py",
+    Path(__file__).parents[2] / "scripts" / "sync_country_etl_issues.py",
 )
 assert _SPEC is not None and _SPEC.loader is not None
 sync = importlib.util.module_from_spec(_SPEC)

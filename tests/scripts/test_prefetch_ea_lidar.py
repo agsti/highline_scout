@@ -5,11 +5,11 @@ from pathlib import Path
 import pytest
 from highliner.etls.chunk import dtm_ea
 
-from tests.test_dtm_ea import _fake_download
+from tests.highliner.etls.chunk.test_dtm_ea import _fake_download
 
 _SPEC = importlib.util.spec_from_file_location(
     "prefetch_ea_lidar",
-    Path(__file__).parent.parent / "scripts" / "prefetch_ea_lidar.py")
+    Path(__file__).parents[2] / "scripts" / "prefetch_ea_lidar.py")
 assert _SPEC is not None and _SPEC.loader is not None
 prefetch = importlib.util.module_from_spec(_SPEC)
 _SPEC.loader.exec_module(prefetch)

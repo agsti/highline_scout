@@ -26,7 +26,7 @@ import re
 import time
 from collections.abc import Callable
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, TypeVar
 
 import numpy as np
 import rasterio
@@ -64,6 +64,7 @@ NODATA = -9999.0
 # real -8888 m elevation, so every coastal cell looks like an ~8888 m cliff and
 # becomes a spurious anchor/zone. Treat it as nodata.
 SEA_SENTINEL = -8888.0
+_T = TypeVar("_T")
 
 
 def _retry_delay(attempt: int,
@@ -78,7 +79,7 @@ def _retry_delay(attempt: int,
     return max(retry_after, TILE_RETRY_BASE_S * 2.0 ** attempt)
 
 
-def _download_with_retries(download: "Callable[[], Path]") -> Path:
+def _download_with_retries(download: "Callable[[], _T]") -> _T:
     """Run ``download``, retrying transient HTTP failures (429/5xx/timeouts).
     Raises the last error once attempts are exhausted; RuntimeError (an
     out-of-coverage/bad-body response) is not retried."""
@@ -86,7 +87,10 @@ def _download_with_retries(download: "Callable[[], Path]") -> Path:
         try:
             return download()
         except requests.RequestException as exc:
-            if attempt == TILE_RETRY_ATTEMPTS - 1:
+            response = exc.response
+            transient = response is None or response.status_code == 429 \
+                or response.status_code >= 500
+            if not transient or attempt == TILE_RETRY_ATTEMPTS - 1:
                 raise
             time.sleep(_retry_delay(attempt, exc.response))
     raise RuntimeError("unreachable")
@@ -393,7 +397,8 @@ def fetch_tiles(bbox: Bbox, tiles_dir: Path, res: float = NATIVE_RES,  # noqa: P
                   "osni_dtm_10m", "ea_lidar_1m"):
         return _fetch_from_cache(source, bbox, crs, cache_dir)
     if source == "poland_wcs":
-        return dtm_poland.fetch_poland_wcs(bbox, tiles_dir, crs)
+        return _download_with_retries(
+            lambda: dtm_poland.fetch_poland_wcs(bbox, tiles_dir, crs))
     if source not in ("icgc", "idee"):
         raise RuntimeError(f"unknown DTM source '{source}'")
 

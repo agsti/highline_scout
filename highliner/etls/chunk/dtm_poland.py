@@ -6,6 +6,7 @@ grid body and asks the scaling extension for 5 m output, matching the analysis
 resolution used by the rest of the chunk pipeline.
 """
 from pathlib import Path
+from xml.etree import ElementTree
 
 import requests
 
@@ -27,6 +28,21 @@ def _ascii_grid(content: bytes) -> bytes:
     return content[start:end + 1]
 
 
+def _is_extent_error(response: requests.Response) -> bool:
+    """Whether Geoportal rejected a request outside its raster coverage."""
+    if response.status_code != 400:
+        return False
+    try:
+        root = ElementTree.fromstring(response.content)
+    except ElementTree.ParseError:
+        return False
+    return any(
+        element.tag.rsplit("}", 1)[-1] == "Exception"
+        and element.attrib.get("exceptionCode") == "ExtentError"
+        for element in root.iter()
+    )
+
+
 def fetch_poland_wcs(bbox: Bbox, tiles_dir: Path, crs: str) -> list[Path]:
     """Download a 5 m DTM subset as one temporary Arc/Info grid."""
     if crs != CRS:
@@ -42,6 +58,8 @@ def fetch_poland_wcs(bbox: Bbox, tiles_dir: Path, crs: str) -> list[Path]:
         "scaleaxes": SCALE_AXES,
     }
     response = requests.get(WCS_URL, params=params, timeout=300)
+    if _is_extent_error(response):
+        return []
     response.raise_for_status()
     dest = Path(tiles_dir) / f"t_{int(minx)}_{int(miny)}.asc"
     dest.write_bytes(_ascii_grid(response.content))

@@ -89,6 +89,14 @@ describe("restrictionText", () => {
     }
   });
 
+  it("translates every Swiss federal restriction layer", () => {
+    for (const lang of ["ca", "es"] as const) {
+      expect(Object.keys(RESTRICTION_STRINGS[lang] ?? {})).toEqual(
+        expect.arrayContaining(["ch_game_reserves", "ch_bird_reserves", "ch_parks"]),
+      );
+    }
+  });
+
   it("falls back to the server text for the base language (en)", () => {
     expect(restrictionText("zepa", "en", fallback)).toEqual(fallback);
   });

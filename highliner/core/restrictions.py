@@ -130,4 +130,42 @@ LAYERS: dict[str, LayerSpec] = {
                       "events are often regulated and may need authorization "
                       "from the managing body."),
     },
+    # Switzerland. Federal wildlife reserves carry direct disturbance/access
+    # rules; park restrictions depend on the park and its internal zones.
+    "ch_game_reserves": {
+        "label": "Federal Game Reserves",
+        "color": "#e31a1c",
+        "tooltip": ("Federal hunting-ban/game reserve protecting wild mammals, "
+                    "birds and their habitats, with integral or partial "
+                    "protection zones. Access and recreational activity can be "
+                    "restricted; check the reserve object sheet and canton "
+                    "before rigging."),
+        "highlight": ("Access and recreational activity can be restricted; "
+                      "check the reserve object sheet and canton before "
+                      "rigging."),
+    },
+    "ch_bird_reserves": {
+        "label": "Waterbird and Migratory Bird Reserves",
+        "color": "#ff7f00",
+        "tooltip": ("Federal reserve of international or national importance "
+                    "for waterbirds and migratory birds. Access, water sports "
+                    "and wildlife disturbance can be restricted; check the "
+                    "reserve object sheet and canton before rigging."),
+        "highlight": ("Access, water sports and wildlife disturbance can be "
+                      "restricted; check the reserve object sheet and canton "
+                      "before rigging."),
+    },
+    "ch_parks": {
+        "label": "Swiss National and Regional Parks",
+        "color": "#6a3d9a",
+        "tooltip": ("Swiss National Park or park of national importance. "
+                    "Highlining is not automatically prohibited across every "
+                    "park, but protected zones and local rules may regulate "
+                    "access, anchoring and organized activity; check with park "
+                    "management before rigging."),
+        "highlight": ("Highlining is not automatically prohibited across every "
+                      "park, but protected zones and local rules may regulate "
+                      "access, anchoring and organized activity; check with "
+                      "park management before rigging."),
+    },
 }

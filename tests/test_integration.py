@@ -2,8 +2,9 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
-from highliner.etls.chunk import shared
 from highliner.server.app import create_app
+
+from highliner.etls.chunk import shared
 
 
 def _patch_gap_download(monkeypatch: pytest.MonkeyPatch) -> None:

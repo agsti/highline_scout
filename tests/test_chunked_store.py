@@ -3,11 +3,12 @@ from pathlib import Path
 
 import pytest
 from fastapi import HTTPException
-from highliner.core import config
 from highliner.etls.chunk.anchors import save_anchors
 from highliner.etls.chunk.candidates import save_candidates
 from highliner.models.anchor import Anchor
 from highliner.models.candidate import Candidate, PairFilter
+
+from highliner.core import config
 from highliner.server.repositories import chunked_store as store
 
 

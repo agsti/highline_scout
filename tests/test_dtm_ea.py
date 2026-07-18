@@ -5,8 +5,9 @@ from pathlib import Path
 import numpy as np
 import pytest
 import rasterio
-from highliner.etls.chunk import dtm_ea
 from rasterio.transform import from_origin
+
+from highliner.etls.chunk import dtm_ea
 
 EA_NODATA = -3.4028234663852886e+38   # float32 min, as shipped in EA tiles
 

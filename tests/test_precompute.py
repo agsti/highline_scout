@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import cast
 
 import pytest
+
 from highliner.core import config
 from highliner.etls.chunk import shared
 
@@ -121,6 +122,7 @@ def test_process_chunk_stays_retriable_after_persistent_rate_limit(
     """A rate-limited chunk must fail loudly (no partitions, no leftover
     tiles) so a later run retries it, instead of writing terrain holes."""
     import requests
+
     from highliner.etls.chunk import dtm as _dtm
 
     monkeypatch.setattr("highliner.etls.chunk.dtm.time.sleep", lambda s: None)

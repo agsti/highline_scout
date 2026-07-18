@@ -3,8 +3,8 @@ import importlib.util
 from pathlib import Path
 
 import pytest
-from highliner.etls.chunk import dtm_ea
 
+from highliner.etls.chunk import dtm_ea
 from tests.test_dtm_ea import _fake_download
 
 _SPEC = importlib.util.spec_from_file_location(

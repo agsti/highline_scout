@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import pytest
+
 from highliner.etls.density import shared, spain
 from highliner.etls.restriction import spain as restrictions_main
 from highliner.server import main as server_main

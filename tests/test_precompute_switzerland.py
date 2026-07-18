@@ -68,4 +68,3 @@ def test_switzerland_uses_projected_national_boundary_extent() -> None:
     assert region.crs == "EPSG:2056"
     assert region.dtm_source == "swissalti3d"
     assert region.bbox == (2485000, 1075000, 2834000, 1296000)
-

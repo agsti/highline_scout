@@ -1,4 +1,5 @@
 import pytest
+
 from highliner.core import config
 
 

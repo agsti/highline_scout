@@ -2,9 +2,10 @@ import tracemalloc
 
 import numpy as np
 from affine import Affine
-from highliner.etls.chunk import pairing
 from highliner.models.anchor import Anchor
 from highliner.models.raster import Raster
+
+from highliner.etls.chunk import pairing
 
 
 def gap_raster() -> Raster:

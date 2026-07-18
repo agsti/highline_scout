@@ -3,9 +3,9 @@ from pathlib import Path
 
 import numpy as np
 from fastapi.testclient import TestClient
-from highliner.core import tiles
 from highliner.server.app import create_app
 
+from highliner.core import tiles
 from tests.helpers import to_utm
 
 # A histogram row of (length bucket, exposure bucket, mask, count). Bucket 10 is

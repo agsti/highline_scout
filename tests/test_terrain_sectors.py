@@ -12,9 +12,10 @@ survives; `slope_min=40` admits any cliff-like cell in these fixtures.
 import numpy as np
 from affine import Affine
 from highliner.core.geo import bearing_in_sectors
-from highliner.etls.chunk import terrain
 from highliner.models.anchor import Anchor
 from highliner.models.raster import Raster
+
+from highliner.etls.chunk import terrain
 
 RADIUS = 15.0
 N_AZIMUTHS = 24

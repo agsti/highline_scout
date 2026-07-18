@@ -2,8 +2,9 @@ from pathlib import Path
 
 import geopandas as gpd
 import pytest
-from highliner.etls.restriction import italy, shared
 from shapely.geometry import Polygon
+
+from highliner.etls.restriction import italy, shared
 
 _SQUARE = Polygon([(0, 0), (0, 1), (1, 1), (1, 0)])
 

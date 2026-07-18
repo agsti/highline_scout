@@ -4,6 +4,7 @@ from typing import cast
 import numpy as np
 import pytest
 import requests
+
 from highliner.etls.chunk import dtm as ingest
 
 

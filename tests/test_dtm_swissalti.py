@@ -142,7 +142,9 @@ def test_download_rejects_non_tiff_and_discards_part(
     monkeypatch.setattr(
         "highliner.etls.chunk.dtm_swissalti.requests.get",
         lambda *args, **kwargs: Response())
-    monkeypatch.setattr(dtm_swissalti.time, "sleep", lambda _delay: None)
+    monkeypatch.setattr(
+        "highliner.etls.chunk.dtm_swissalti.time.sleep",
+        lambda _delay: None)
     dest = tmp_path / "tile.tif"
 
     with pytest.raises(RuntimeError, match="did not return valid 2 m GeoTIFF"):
@@ -243,9 +245,12 @@ def test_invalid_download_is_retried_and_discarded(
             calls += 1
             return [b"II*\x00truncated"]
 
-    monkeypatch.setattr(dtm_swissalti.time, "sleep", lambda _delay: None)
-    monkeypatch.setattr(dtm_swissalti.requests, "get",
-                        lambda *args, **kwargs: Response())
+    monkeypatch.setattr(
+        "highliner.etls.chunk.dtm_swissalti.time.sleep",
+        lambda _delay: None)
+    monkeypatch.setattr(
+        "highliner.etls.chunk.dtm_swissalti.requests.get",
+        lambda *args, **kwargs: Response())
 
     with pytest.raises(RuntimeError, match="valid 2 m GeoTIFF"):
         dtm_swissalti._download_tile(

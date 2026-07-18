@@ -1,7 +1,8 @@
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pytest
+import requests
 
 from highliner.etls.chunk import dtm
 
@@ -83,7 +84,8 @@ def test_catalog_query_follows_next_page() -> None:
 
     session = Session()
     assets = dtm_swissalti._query_assets(
-        session, (2485000, 1075000, 2495000, 1085000), "EPSG:2056")
+        cast(requests.Session, session),
+        (2485000, 1075000, 2495000, 1085000), "EPSG:2056")
 
     assert assets[0]["filename"].startswith("swissalti3d_2025_")
     assert session.calls[0][0] == dtm_swissalti.ITEMS_URL
@@ -134,8 +136,9 @@ def test_download_rejects_non_tiff_and_discards_part(
         def iter_content(self, _size: int) -> list[bytes]:
             return [b"<html>not a raster</html>"]
 
-    monkeypatch.setattr(dtm_swissalti.requests, "get",
-                        lambda *args, **kwargs: Response())
+    monkeypatch.setattr(
+        "highliner.etls.chunk.dtm_swissalti.requests.get",
+        lambda *args, **kwargs: Response())
     dest = tmp_path / "tile.tif"
 
     with pytest.raises(RuntimeError, match="did not return GeoTIFF"):

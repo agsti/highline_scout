@@ -81,6 +81,8 @@ ignore_names = [
     "bucket_overlaps", "is_excluded",
     # LayerSpec TypedDict keys: declared for typing, read as dict subscripts.
     "label", "color", "name_field", "tooltip", "highlight",
+    # TileAsset TypedDict key: serialized to JSON and read as a dict subscript.
+    "href",
 ]
 
 [tool.mypy]

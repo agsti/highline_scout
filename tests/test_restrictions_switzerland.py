@@ -1,4 +1,5 @@
 import zipfile
+from collections.abc import Iterable
 from pathlib import Path
 
 import geopandas as gpd
@@ -60,12 +61,15 @@ def test_restriction_main_downloads_then_writes(
 
     downloaded: list[Path] = []
     written: list[tuple[set[str], Path]] = []
+
+    def fake_write(specs: Iterable[shared.LayerBuildSpec], _loader: object,
+                   dest: Path) -> dict[str, Path]:
+        written.append(({spec.id for spec in specs}, dest))
+        return {}
+
     monkeypatch.setattr(switzerland, "download_sources",
                         lambda raw_dir: downloaded.append(raw_dir))
-    monkeypatch.setattr(
-        switzerland.shared, "write_layers",
-        lambda specs, loader, dest: written.append(
-            ({spec.id for spec in specs}, dest)) or {})
+    monkeypatch.setattr(switzerland.shared, "write_layers", fake_write)
 
     switzerland.main(["--data-dir", str(tmp_path)])
 

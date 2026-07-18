@@ -4,8 +4,13 @@ from fastapi.testclient import TestClient
 from highliner.server.app import create_app
 
 from tests.helpers import facing_pair as _facing_pair
-from tests.helpers import write_country_code as _write_country_code
 from tests.helpers import write_region as _write_region
+
+
+def _write_country_code(data_dir: Path, country: str, code: str) -> None:
+    country_dir = data_dir / country
+    country_dir.mkdir(parents=True, exist_ok=True)
+    (country_dir / "country_code").write_text(code, encoding="utf-8")
 
 
 def test_countries_exposes_only_valid_country_codes(tmp_path: Path) -> None:

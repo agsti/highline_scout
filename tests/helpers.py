@@ -44,12 +44,6 @@ def write_region(data_dir: Path, region: str,  # noqa: PLR0913
     save_candidates(candidates, region_dir / "pairs" / "q_0_0.parquet")
 
 
-def write_country_code(data_dir: Path, country: str, code: str) -> None:
-    country_dir = data_dir / country
-    country_dir.mkdir(parents=True, exist_ok=True)
-    (country_dir / "country_code").write_text(code, encoding="utf-8")
-
-
 def gap_region(data_dir: Path, region: str = "test") -> None:
     """Write two facing anchors across an 80 m-deep gap."""
     anchor_a = Anchor(

@@ -374,4 +374,3 @@ def test_cached_query_sheets_caches_empty_result(
     assert ingest._cached_query_sheets(session, bbox, "EPSG:25830", cache_dir) == []
     assert ingest._cached_query_sheets(session, bbox, "EPSG:25830", cache_dir) == []
     assert len(calls) == 1                       # empty result cached too
-

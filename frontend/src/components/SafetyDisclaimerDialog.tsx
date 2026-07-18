@@ -4,14 +4,25 @@ import logo from "@/assets/logo.svg";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { useI18n } from "@/lib/i18n";
+import type { CountryEntry } from "@/types/highliner";
+import { CountrySelect } from "./CountrySelect";
 import { LanguageSwitcher } from "./LanguageSwitcher";
 
 interface SafetyDisclaimerDialogProps {
   open: boolean;
   onAccept: () => void;
+  countries?: CountryEntry[];
+  country?: string;
+  onCountryChange?: (country: string) => void;
 }
 
-export function SafetyDisclaimerDialog({ open, onAccept }: SafetyDisclaimerDialogProps) {
+export function SafetyDisclaimerDialog({
+  open,
+  onAccept,
+  countries = [],
+  country = "spain",
+  onCountryChange = () => {},
+}: SafetyDisclaimerDialogProps) {
   const { t } = useI18n();
 
   useEffect(() => {
@@ -52,6 +63,12 @@ export function SafetyDisclaimerDialog({ open, onAccept }: SafetyDisclaimerDialo
           <li>{t("disclaimerAnchors")}</li>
           <li>{t("disclaimerLimitations")}</li>
         </ul>
+        <CountrySelect
+          controlId="welcome-country"
+          countries={countries}
+          country={country}
+          onCountryChange={onCountryChange}
+        />
         <Button type="button" onClick={onAccept} autoFocus>
           {t("disclaimerAccept")}
         </Button>

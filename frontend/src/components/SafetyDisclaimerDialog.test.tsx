@@ -2,7 +2,13 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { I18nProvider } from "@/lib/i18n";
+import type { CountryEntry } from "@/types/highliner";
 import { SafetyDisclaimerDialog } from "./SafetyDisclaimerDialog";
+
+const countries: CountryEntry[] = [
+  { id: "spain", country_code: "ES", bounds_lonlat: [-9, 36, 4, 44] },
+  { id: "france", country_code: "FR", bounds_lonlat: [-5, 42, 8, 51] },
+];
 
 describe("SafetyDisclaimerDialog", () => {
   // The gate now rebuilds on the ui/dialog.tsx Radix primitive (see finding 2:
@@ -113,5 +119,71 @@ describe("SafetyDisclaimerDialog", () => {
     expect(screen.getByRole("list")).toHaveTextContent(
       "This tool cannot assess vegetation, obstacles, or rock quality, so results are leads—not guaranteed safe or riggable lines.",
     );
+  });
+
+  it("shows the active country and available countries", async () => {
+    const user = userEvent.setup();
+    window.localStorage.setItem("lang", "en");
+
+    render(
+      <I18nProvider>
+        <SafetyDisclaimerDialog
+          open
+          onAccept={vi.fn()}
+          countries={countries}
+          country="spain"
+          onCountryChange={vi.fn()}
+        />
+      </I18nProvider>,
+    );
+
+    const selector = screen.getByRole("combobox", { name: "Country" });
+    expect(selector).toHaveTextContent("spain");
+
+    await user.click(selector);
+    expect(screen.getByRole("option", { name: "spain" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "france" })).toBeInTheDocument();
+  });
+
+  it("reports a country selected from the welcome dialog", async () => {
+    const user = userEvent.setup();
+    const onCountryChange = vi.fn();
+    window.localStorage.setItem("lang", "en");
+
+    render(
+      <I18nProvider>
+        <SafetyDisclaimerDialog
+          open
+          onAccept={vi.fn()}
+          countries={countries}
+          country="spain"
+          onCountryChange={onCountryChange}
+        />
+      </I18nProvider>,
+    );
+
+    await user.click(screen.getByRole("combobox", { name: "Country" }));
+    await user.click(screen.getByRole("option", { name: "france" }));
+
+    expect(onCountryChange).toHaveBeenCalledOnce();
+    expect(onCountryChange).toHaveBeenCalledWith("france");
+  });
+
+  it("disables country selection while the catalog is loading", () => {
+    window.localStorage.setItem("lang", "en");
+
+    render(
+      <I18nProvider>
+        <SafetyDisclaimerDialog
+          open
+          onAccept={vi.fn()}
+          countries={[]}
+          country="spain"
+          onCountryChange={vi.fn()}
+        />
+      </I18nProvider>,
+    );
+
+    expect(screen.getByRole("combobox", { name: "Country" })).toBeDisabled();
   });
 });

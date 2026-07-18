@@ -249,7 +249,13 @@ export function App() {
       />
       <AboutDialog open={aboutOpen} onOpenChange={setAboutOpen} />
       <FeedbackDialog open={feedbackOpen} onOpenChange={setFeedbackOpen} />
-      <SafetyDisclaimerDialog open={disclaimerOpen} onAccept={() => setDisclaimerOpen(false)} />
+      <SafetyDisclaimerDialog
+        open={disclaimerOpen}
+        onAccept={() => setDisclaimerOpen(false)}
+        countries={countries}
+        country={country}
+        onCountryChange={handleCountryChange}
+      />
     </>
   );
 }

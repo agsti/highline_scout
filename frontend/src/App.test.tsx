@@ -82,7 +82,24 @@ vi.mock("./components/RestrictionLayerControls", () => ({
 }));
 
 vi.mock("./components/SafetyDisclaimerDialog", () => ({
-  SafetyDisclaimerDialog: () => null,
+  SafetyDisclaimerDialog: ({
+    countries = [],
+    country = "missing",
+    onCountryChange = () => {},
+  }: {
+    countries?: Array<{ id: string }>;
+    country?: string;
+    onCountryChange?: (country: string) => void;
+  }) => (
+    <div>
+      <span data-testid="welcome-country">
+        {country}:{countries.map((entry) => entry.id).join(",")}
+      </span>
+      <button type="button" onClick={() => onCountryChange("france")}>
+        choose France
+      </button>
+    </div>
+  ),
 }));
 
 vi.mock("./components/StatusLine", () => ({
@@ -172,6 +189,27 @@ describe("App", () => {
 
     await waitFor(() => expect(lastMapProps().country).toBe("france"));
     expect(countryMocks.detectCountry).not.toHaveBeenCalled();
+  });
+
+  it("persists and applies a country chosen in the welcome dialog", async () => {
+    const user = userEvent.setup();
+    apiMocks.fetchCountries.mockResolvedValueOnce([
+      { id: "spain", country_code: "ES", bounds_lonlat: [-9, 36, 4, 44] },
+      { id: "france", country_code: "FR", bounds_lonlat: [-5, 42, 8, 51] },
+    ]);
+
+    renderApp();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("welcome-country")).toHaveTextContent(
+        "spain:spain,france",
+      );
+    });
+    await user.click(screen.getByRole("button", { name: "choose France" }));
+
+    expect(countryMocks.saveCountry).toHaveBeenCalledOnce();
+    expect(countryMocks.saveCountry).toHaveBeenCalledWith("france");
+    await waitFor(() => expect(lastMapProps().country).toBe("france"));
   });
 
   it("shows map errors in a toast and dismisses them automatically", async () => {

@@ -16,6 +16,7 @@ const countries: CountryEntry[] = [
 
 afterEach(() => {
   window.localStorage.clear();
+  vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
 
@@ -33,7 +34,7 @@ describe("saved country preference", () => {
   });
 
   it("writes local storage only when saving a country", () => {
-    const setItem = vi.spyOn(window.localStorage, "setItem");
+    const setItem = vi.spyOn(Storage.prototype, "setItem");
 
     readSavedCountry(countries);
     clearSavedCountry();

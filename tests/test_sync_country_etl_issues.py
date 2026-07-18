@@ -1,6 +1,7 @@
 """Tests for reconciling unfinished country ETLs with GitHub issues."""
 import importlib.util
 import subprocess
+from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -100,15 +101,22 @@ def test_apply_holds_the_reconciliation_lock_through_listing_and_creation(
     events: list[str] = []
 
     @contextmanager
-    def fake_lock() -> object:
+    def fake_lock() -> Iterator[None]:
         events.append("lock acquired")
         yield
         events.append("lock released")
 
+    def list_issues() -> dict[str, str]:
+        events.append("listed")
+        return {}
+
+    def create_issue(_title: str) -> str:
+        events.append("created")
+        return "url"
+
     monkeypatch.setattr(sync, "_apply_lock", fake_lock)
-    monkeypatch.setattr(sync, "_open_issues", lambda: events.append("listed") or {})
-    monkeypatch.setattr(
-        sync, "_create_issue", lambda _title: events.append("created") or "url")
+    monkeypatch.setattr(sync, "_open_issues", list_issues)
+    monkeypatch.setattr(sync, "_create_issue", create_issue)
 
     assert sync.main(["--countries-file", str(countries), "--apply"]) == 0
     assert events == ["lock acquired", "listed", "created", "lock released"]

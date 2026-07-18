@@ -37,7 +37,7 @@ from shapely.geometry import box, mapping
 from shapely.geometry.base import BaseGeometry
 from shapely.ops import transform as shapely_transform
 
-from highliner.etls.chunk import dtm_ea, dtm_hrdtm, dtm_os, dtm_rgealti
+from highliner.etls.chunk import dtm_ea, dtm_hrdtm, dtm_os, dtm_poland, dtm_rgealti
 
 if TYPE_CHECKING:
     from highliner.models.raster import Raster
@@ -392,6 +392,8 @@ def fetch_tiles(bbox: Bbox, tiles_dir: Path, res: float = NATIVE_RES,  # noqa: P
     if source in ("cnig", "hrdtm", "rgealti", "os_terrain_50",
                   "osni_dtm_10m", "ea_lidar_1m"):
         return _fetch_from_cache(source, bbox, crs, cache_dir)
+    if source == "poland_wcs":
+        return dtm_poland.fetch_poland_wcs(bbox, tiles_dir, crs)
     if source not in ("icgc", "idee"):
         raise RuntimeError(f"unknown DTM source '{source}'")
 

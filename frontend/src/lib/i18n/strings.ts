@@ -39,6 +39,7 @@ export const STRINGS = {
     disclaimerTitle: "HighlineScout",
     disclaimerLead: "Muntar una highline és perillós i pot ser mortal.",
     disclaimerIntro: "HighlineScout t'ajuda a trobar el teu proper possible lloc de highline.",
+    disclaimerImageAlt: "Una persona fent highline sobre una vall boscosa.",
     disclaimerBeginner: "Principiants: exploreu amb un highliner experimentat.",
     disclaimerAnchors: "Feu que un expert valori els bolts i els ancoratges en arbres.",
     disclaimerLimitations:
@@ -127,6 +128,7 @@ export const STRINGS = {
     disclaimerTitle: "HighlineScout",
     disclaimerLead: "Montar una highline es peligroso y puede ser mortal.",
     disclaimerIntro: "HighlineScout te ayuda a encontrar tu próximo posible lugar para una highline.",
+    disclaimerImageAlt: "Una persona haciendo highline sobre un valle boscoso.",
     disclaimerBeginner: "Principiantes: explora con un highliner experimentado.",
     disclaimerAnchors: "Haz que un experto evalúe los bolts y los anclajes en árboles.",
     disclaimerLimitations:
@@ -215,6 +217,7 @@ export const STRINGS = {
     disclaimerTitle: "HighlineScout",
     disclaimerLead: "Rigging a highline is dangerous and can be fatal.",
     disclaimerIntro: "HighlineScout helps you find your next potential highline spot.",
+    disclaimerImageAlt: "A person highlining above a forested valley",
     disclaimerBeginner: "Beginners: scout with an experienced highliner.",
     disclaimerAnchors: "Have an expert assess bolts and tree anchors.",
     disclaimerLimitations:

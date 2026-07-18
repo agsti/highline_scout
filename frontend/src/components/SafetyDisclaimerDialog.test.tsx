@@ -89,6 +89,16 @@ describe("SafetyDisclaimerDialog", () => {
     );
 
     const dialog = screen.getByRole("dialog");
+    const photo = screen.getByRole("img", {
+      name: "A person highlining above a forested valley",
+    });
+    expect(photo).toHaveAttribute("src", expect.stringContaining("welcome-highline"));
+
+    const intro = screen.getByText(
+      "HighlineScout helps you find your next potential highline spot.",
+    );
+    expect(intro).toHaveClass("text-lg", "font-semibold", "text-primary-deep");
+
     expect(screen.getByRole("img", { name: "HighlineScout" })).toBeInTheDocument();
     expect(
       screen.queryByRole("heading", { name: "HighlineScout" }),

@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import highlinePhoto from "@/assets/welcome-highline.webp";
 import logo from "@/assets/logo.svg";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
@@ -30,7 +31,7 @@ export function SafetyDisclaimerDialog({ open, onAccept }: SafetyDisclaimerDialo
       <DialogContent
         hideClose
         closeLabel={t("close")}
-        className="z-[1210] max-w-md"
+        className="z-[1210] max-h-[calc(100dvh-2rem)] max-w-xl overflow-y-auto"
         onEscapeKeyDown={(event) => event.preventDefault()}
         onPointerDownOutside={(event) => event.preventDefault()}
       >
@@ -38,14 +39,19 @@ export function SafetyDisclaimerDialog({ open, onAccept }: SafetyDisclaimerDialo
           <img src={logo} alt="HighlineScout" className="h-8 w-auto" />
           <LanguageSwitcher />
         </div>
-        <div className="space-y-3 text-sm text-muted-foreground">
-          <p>{t("disclaimerIntro")}</p>
-          <ul className="list-disc space-y-2 pl-5">
-            <li>{t("disclaimerBeginner")}</li>
-            <li>{t("disclaimerAnchors")}</li>
-            <li>{t("disclaimerLimitations")}</li>
-          </ul>
-        </div>
+        <img
+          src={highlinePhoto}
+          alt={t("disclaimerImageAlt")}
+          className="aspect-[2/1] w-full rounded-md object-cover"
+        />
+        <p className="text-lg font-semibold leading-snug text-primary-deep">
+          {t("disclaimerIntro")}
+        </p>
+        <ul className="list-disc space-y-2 pl-5 text-sm text-muted-foreground">
+          <li>{t("disclaimerBeginner")}</li>
+          <li>{t("disclaimerAnchors")}</li>
+          <li>{t("disclaimerLimitations")}</li>
+        </ul>
         <Button type="button" onClick={onAccept} autoFocus>
           {t("disclaimerAccept")}
         </Button>

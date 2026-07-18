@@ -37,7 +37,7 @@ from shapely.geometry import box, mapping
 from shapely.geometry.base import BaseGeometry
 from shapely.ops import transform as shapely_transform
 
-from highliner.etls.chunk import dtm_ea, dtm_hrdtm, dtm_os, dtm_rgealti
+from highliner.etls.chunk import dtm_cuzk, dtm_ea, dtm_hrdtm, dtm_os, dtm_rgealti
 
 if TYPE_CHECKING:
     from highliner.models.raster import Raster
@@ -372,6 +372,8 @@ def _fetch_from_cache(source: str, bbox: Bbox, crs: str,
         return dtm_os.fetch_os_terrain_50(bbox, cache_dir)
     if source == "ea_lidar_1m":
         return dtm_ea.fetch_ea_lidar(bbox, cache_dir)
+    if source == "cuzk_dmr4g":
+        return dtm_cuzk.fetch_cuzk_dmr4g(bbox, cache_dir, crs)
     return dtm_os.fetch_osni_dtm_10m(bbox, cache_dir)
 
 
@@ -385,12 +387,13 @@ def fetch_tiles(bbox: Bbox, tiles_dir: Path, res: float = NATIVE_RES,  # noqa: P
     backoff and raised once ``TILE_RETRY_ATTEMPTS`` is exhausted, so a
     throttled run fails loudly instead of writing holes into the terrain.
     Returns the paths that exist on disk. The ``cnig``, ``hrdtm``, ``rgealti``,
-    ``os_terrain_50``, ``osni_dtm_10m``, and ``ea_lidar_1m`` sources ignore
+    ``os_terrain_50``, ``osni_dtm_10m``, ``ea_lidar_1m``, and ``cuzk_dmr4g``
+    sources ignore
     ``tiles_dir`` (their sheets persist in ``cache_dir``, required for them)."""
     tiles_dir = Path(tiles_dir)
     tiles_dir.mkdir(parents=True, exist_ok=True)
     if source in ("cnig", "hrdtm", "rgealti", "os_terrain_50",
-                  "osni_dtm_10m", "ea_lidar_1m"):
+                  "osni_dtm_10m", "ea_lidar_1m", "cuzk_dmr4g"):
         return _fetch_from_cache(source, bbox, crs, cache_dir)
     if source not in ("icgc", "idee"):
         raise RuntimeError(f"unknown DTM source '{source}'")

@@ -186,3 +186,14 @@ def test_download_sources_fetches_missing_and_skips_present(
     spain.download_sources(tmp_path)
 
     assert fetched == [spain.SOURCE_URLS["rn2000"]]
+
+
+def test_restrictions_command_builds_layers(
+        monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    calls: list[Path] = []
+    monkeypatch.setattr(spain, "download_sources",
+                        lambda raw_dir: calls.append(raw_dir))
+    monkeypatch.setattr(spain.shared, "write_layers",
+                        lambda *args, **kwargs: {})
+    spain.main(["--data-dir", str(tmp_path)])
+    assert calls == [tmp_path / "spain" / "restrictions" / "raw"]

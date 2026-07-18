@@ -2,6 +2,9 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
+from highliner.server.app import create_app
+
+from highliner.core import config
 from highliner.server import app as app_module
 
 
@@ -109,7 +112,7 @@ def test_unknown_path_remains_not_found(client: TestClient) -> None:
 
 
 def test_static_index_has_english_metadata_for_non_js_crawlers() -> None:
-    index_html = (Path(__file__).parent.parent / "frontend" / "index.html").read_text()
+    index_html = (Path(__file__).parents[3] / "frontend" / "index.html").read_text()
 
     assert '<html lang="en">' in index_html
     assert (
@@ -143,3 +146,51 @@ def test_methodology_route_is_not_found_without_built_shell(
                         raise_server_exceptions=False)
 
     assert client.get("/en/how-it-works").status_code == 404
+
+
+def test_candidates_route_removed(tmp_path: Path) -> None:
+    client = TestClient(create_app(data_dir=tmp_path))
+    r = client.get("/candidates", params={"region": "test", "bbox": "0,0,300,300"})
+    assert r.status_code == 404
+
+
+def test_app_installs_slow_request_middleware() -> None:
+    from typing import cast
+
+    from highliner.core.telemetry import SlowRequestMiddleware
+
+    app = create_app()
+
+    # Starlette types .cls as a middleware factory, so compare through object.
+    installed = [cast(object, m.cls) for m in app.user_middleware]
+    assert SlowRequestMiddleware in installed
+
+
+def test_app_compresses_eligible_responses() -> None:
+    client = TestClient(create_app())
+
+    response = client.get("/openapi.json", headers={"Accept-Encoding": "gzip"})
+
+    assert response.status_code == 200
+    assert response.headers["content-encoding"] == "gzip"
+    assert response.json()["openapi"] == "3.1.0"
+
+
+def test_app_sends_nothing_without_credentials(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The default (unconfigured) app must not attempt any telemetry IO.
+
+    Threshold is forced to 0 so every request crosses it — if the disabled-state
+    guard were missing, this would call into an unarmed PostHog client.
+    """
+    import posthog
+
+    monkeypatch.setattr(config.settings, "slow_request_ms", 0.0)
+    calls: list[object] = []
+    monkeypatch.setattr(posthog, "capture", lambda **kwargs: calls.append(kwargs))
+
+    client = TestClient(create_app(tmp_path))
+    client.get("/regions")
+
+    assert calls == []

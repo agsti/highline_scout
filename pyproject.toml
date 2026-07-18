@@ -49,6 +49,10 @@ select = ["E", "F", "I", "UP", "B", "C90", "PLR0912", "PLR0913", "PLR0915"]
 [tool.ruff.lint.mccabe]
 max-complexity = 10
 
+[tool.ruff.lint.isort]
+# Avoid environment-dependent package discovery in fresh CI worktrees.
+known-first-party = ["highliner", "tests"]
+
 [tool.ruff.lint.pylint]
 # Defaults, pinned so the caps are visible: branches 12, args 5, statements 50.
 max-branches = 12

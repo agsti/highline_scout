@@ -1,4 +1,5 @@
 import pytest
+
 from highliner.core.config import Settings
 from highliner.server.services.feedback import FeedbackSubmission, send_feedback
 

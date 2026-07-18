@@ -5,6 +5,7 @@ import posthog
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+
 from highliner.core.config import Settings
 from highliner.core.telemetry import (
     SERVER_DISTINCT_ID,

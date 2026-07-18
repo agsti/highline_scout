@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from fastapi.testclient import TestClient
+
 from highliner.server.app import create_app
 
 FIXTURE_DATA = Path("tests/fixtures/e2e-data")

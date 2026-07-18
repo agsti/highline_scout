@@ -9,6 +9,7 @@ assertion here lands on the vectorized code path.
 
 import numpy as np
 from affine import Affine
+
 from highliner.models.raster import Raster
 
 

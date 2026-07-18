@@ -10,11 +10,12 @@ intentional.
 import numpy as np
 import pytest
 from affine import Affine
+from scipy.ndimage import gaussian_filter
+
 from highliner.etls.chunk.pairing import find_candidates
 from highliner.etls.chunk.terrain import extract_anchors
 from highliner.models.anchor import Anchor
 from highliner.models.raster import Raster
-from scipy.ndimage import gaussian_filter
 
 
 def terraced_raster() -> Raster:

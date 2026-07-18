@@ -4,9 +4,9 @@ from pathlib import Path
 
 import geopandas as gpd
 import pytest
-from highliner.core.restrictions import LAYERS
 from shapely.geometry import Polygon
 
+from highliner.core.restrictions import LAYERS
 from highliner.etls.restriction import shared
 
 _SQUARE = Polygon([(2600000, 1200000), (2600000, 1201000),

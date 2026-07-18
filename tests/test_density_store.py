@@ -1,10 +1,10 @@
 from pathlib import Path
 
 import numpy as np
-from highliner.server.repositories.density_store import DensityFilter
 
 from highliner.core import tiles
 from highliner.server.repositories import density_store
+from highliner.server.repositories.density_store import DensityFilter
 
 # Montserrat, and a viewport around it.
 VIEW = (1.7, 41.5, 2.0, 41.7)

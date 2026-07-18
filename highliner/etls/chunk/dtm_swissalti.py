@@ -1,9 +1,10 @@
-"""Fetch swisstopo swissALTI3D 2 m terrain tiles for Switzerland.
+"""Fetch and normalize swisstopo swissALTI3D terrain for Switzerland.
 
 swissALTI3D is a bare-earth elevation model published as 1 km square Cloud
 Optimized GeoTIFFs in LV95/LN02 (EPSG:2056).  The STAC catalogue contains
 historical snapshots, so each query keeps the newest 2 m asset for every tile.
-Both catalogue resolutions and COG downloads persist in the country cache.
+Downloads are nodata-aware average-resampled to a persistent 5 m cache, matching
+the extraction resolution and memory profile used by the rest of the pipeline.
 """
 from __future__ import annotations
 
@@ -17,14 +18,22 @@ import time
 from pathlib import Path
 from typing import Any, TypedDict, cast
 
+import numpy as np
+import rasterio
 import requests
 from pyproj import Transformer
+from rasterio.enums import Resampling
+from rasterio.errors import RasterioError
+from rasterio.transform import from_origin
+from rasterio.warp import reproject
 
 COLLECTION = "ch.swisstopo.swissalti3d"
 ITEMS_URL = ("https://data.geo.admin.ch/api/stac/v1/collections/"
              f"{COLLECTION}/items")
 CRS = "EPSG:2056"
-RESOLUTION_M = 2.0
+SOURCE_RESOLUTION_M = 2.0
+PROCESSING_RESOLUTION_M = 5.0
+NODATA = -9999.0
 HEADERS = {"User-Agent": "Mozilla/5.0 highliner-finder/0.1"}
 _TIMEOUT_S = 180.0
 _DOWNLOAD_WORKERS = 8
@@ -45,7 +54,7 @@ class TileAsset(TypedDict):
 
 def fetch_swissalti_tiles(bbox: Bbox, cache_root: Path,
                           crs: str) -> list[Path]:
-    """Return cached 2 m COG tiles intersecting ``bbox`` in EPSG:2056."""
+    """Return cached 5 m tiles intersecting ``bbox`` in EPSG:2056."""
     if crs != CRS:
         raise ValueError(f"swissALTI3D is available only in {CRS}")
     root = Path(cache_root)
@@ -150,7 +159,7 @@ def _is_two_metre_cog(filename: str, value: dict[str, Any]) -> bool:
     gsd = value.get("gsd", value.get("eo:gsd"))
     media_type = str(value.get("type", "")).lower()
     return (filename.lower().endswith(".tif")
-            and gsd == RESOLUTION_M
+            and gsd == SOURCE_RESOLUTION_M
             and value.get("proj:epsg") == 2056
             and "tiff" in media_type
             and bool(value.get("href")))
@@ -177,27 +186,70 @@ def _cached_query_assets(session: requests.Session, bbox: Bbox, crs: str,
 
 
 def _ensure_tile(cache_root: Path, asset: TileAsset) -> Path:
-    directory = cache_root / "swissalti3d_2m"
+    directory = cache_root / "swissalti3d_5m"
     directory.mkdir(parents=True, exist_ok=True)
-    dest = directory / asset["filename"]
-    if _valid_tiff(dest):
+    source_name = Path(asset["filename"])
+    dest = directory / f"{source_name.stem}_5m.tif"
+    bounds = _asset_bounds(asset["filename"])
+    if _valid_raster(dest, resolution=PROCESSING_RESOLUTION_M,
+                     nodata=NODATA, bounds=bounds):
         return dest
     lock_path = dest.with_suffix(".tif.lock")
     with lock_path.open("w") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
-        if not _valid_tiff(dest):
-            _download_tile(asset["href"], dest)
+        if not _valid_raster(dest, resolution=PROCESSING_RESOLUTION_M,
+                             nodata=NODATA, bounds=bounds):
+            dest.unlink(missing_ok=True)
+            source = dest.with_suffix(f".{os.getpid()}.source.tif")
+            try:
+                _download_tile(asset["href"], source, bounds=bounds)
+                _resample_to_5m(source, dest)
+            finally:
+                source.unlink(missing_ok=True)
     return dest
 
 
-def _valid_tiff(path: Path) -> bool:
-    if not path.exists() or path.stat().st_size < 4:
+def _asset_bounds(filename: str) -> Bbox:
+    match = re.search(r"_(\d{4})-(\d{4})_2_2056_", filename)
+    if match is None:
+        raise ValueError(f"unrecognized swissALTI3D filename: {filename}")
+    minx = float(int(match.group(1)) * 1000)
+    miny = float(int(match.group(2)) * 1000)
+    return minx, miny, minx + 1000.0, miny + 1000.0
+
+
+def _valid_raster(path: Path, *, resolution: float, nodata: float,
+                  bounds: Bbox | None = None) -> bool:
+    """Confirm cached data is readable and has the expected grid metadata."""
+    if not path.exists():
         return False
-    with path.open("rb") as stream:
-        return stream.read(4) in (b"II*\x00", b"MM\x00*")
+    try:
+        with rasterio.open(path) as dataset:
+            actual_bounds = tuple(dataset.bounds)
+            valid = (
+                dataset.count == 1
+                and dataset.width > 0
+                and dataset.height > 0
+                and dataset.dtypes == ("float32",)
+                and dataset.crs is not None
+                and dataset.crs.to_epsg() == 2056
+                and all(abs(value - resolution) < 1e-6
+                        for value in dataset.res)
+                and dataset.nodata == nodata
+                and (bounds is None or all(
+                    abs(actual - expected) < 1e-6
+                    for actual, expected in zip(actual_bounds, bounds, strict=True)
+                ))
+            )
+            if valid:
+                dataset.read(1)
+            return valid
+    except (OSError, RasterioError, ValueError):
+        return False
 
 
-def _download_tile(url: str, dest: Path) -> None:
+def _download_tile(url: str, dest: Path,
+                   bounds: Bbox | None = None) -> None:
     part = dest.with_suffix(f".tif.{os.getpid()}.part")
     for attempt in range(_RETRY_ATTEMPTS):
         last = attempt == _RETRY_ATTEMPTS - 1
@@ -210,14 +262,56 @@ def _download_tile(url: str, dest: Path) -> None:
                     for block in response.iter_content(1024 * 1024):
                         if block:
                             stream.write(block)
-            if not _valid_tiff(part):
-                raise RuntimeError(f"swissALTI3D did not return GeoTIFF data: {url}")
+            if not _valid_raster(
+                    part, resolution=SOURCE_RESOLUTION_M, nodata=NODATA,
+                    bounds=bounds):
+                raise RuntimeError(
+                    f"swissALTI3D did not return valid 2 m GeoTIFF data: {url}")
             part.replace(dest)
             return
-        except requests.RequestException as exc:
+        except (requests.RequestException, RuntimeError) as exc:
             if last:
                 raise
-            time.sleep(_retry_delay(attempt, exc.response))
+            retry_response = exc.response if isinstance(
+                exc, requests.RequestException) else None
+            time.sleep(_retry_delay(attempt, retry_response))
         finally:
             part.unlink(missing_ok=True)
     raise RuntimeError("unreachable")
+
+
+def _resample_to_5m(source: Path, dest: Path) -> None:
+    """Average-resample one 2 m source tile onto its exact national 5 m grid."""
+    with rasterio.open(source) as src:
+        source_bounds = tuple(src.bounds)
+        width = round((src.bounds.right - src.bounds.left)
+                      / PROCESSING_RESOLUTION_M)
+        height = round((src.bounds.top - src.bounds.bottom)
+                       / PROCESSING_RESOLUTION_M)
+        transform = from_origin(
+            src.bounds.left, src.bounds.top,
+            PROCESSING_RESOLUTION_M, PROCESSING_RESOLUTION_M)
+        output = np.full((height, width), NODATA, dtype="float32")
+        reproject(
+            rasterio.band(src, 1), output,
+            src_nodata=src.nodata, dst_nodata=NODATA,
+            src_transform=src.transform, src_crs=src.crs,
+            dst_transform=transform, dst_crs=src.crs,
+            resampling=Resampling.average,
+        )
+        profile = {
+            "driver": "GTiff", "width": width, "height": height,
+            "count": 1, "dtype": "float32", "crs": src.crs,
+            "nodata": NODATA, "transform": transform, "compress": "lzw",
+        }
+    part = dest.with_suffix(f".{os.getpid()}.part")
+    try:
+        with rasterio.open(part, "w", **profile) as dataset:
+            dataset.write(output, 1)
+        if not _valid_raster(
+                part, resolution=PROCESSING_RESOLUTION_M, nodata=NODATA,
+                bounds=source_bounds):
+            raise RuntimeError(f"invalid derived swissALTI3D raster: {source}")
+        part.replace(dest)
+    finally:
+        part.unlink(missing_ok=True)

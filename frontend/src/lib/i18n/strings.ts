@@ -16,6 +16,7 @@ export const STRINGS = {
     restrictionAreasExclude: "Exclou",
     restrictionInfo: "Sobre {name}",
     restrictionCredit: "Dades d'espais protegits © MITECO",
+    restrictionCreditSwitzerland: "Dades d'espais protegits © FOEN",
     caveat:
       "Zones per explorar — no s'ha confirmat que es puguin equipar. No s'han verificat ancoratges, arbres, roca solta, accessos ni permisos.",
     caveatShort: "Zones sense verificar — valora el terreny tu mateix",
@@ -30,6 +31,8 @@ export const STRINGS = {
     safety: "Seguretat",
     aboutBody: "Highline Scout t'ajuda a trobar spots.",
     aboutData: "Dades d'elevació © ICGC. Dades d'espais protegits © MITECO.",
+    aboutDataSwitzerland:
+      "Dades d'elevació © swisstopo. Dades d'espais protegits © FOEN.",
     aboutPrivacy:
       "Recollim estadístiques d'ús anònimes per millorar l'eina. Sense galetes ni seguiment entre visites.",
     close: "Tanca",
@@ -104,6 +107,7 @@ export const STRINGS = {
     restrictionAreasExclude: "Excluir",
     restrictionInfo: "Sobre {name}",
     restrictionCredit: "Datos de espacios protegidos © MITECO",
+    restrictionCreditSwitzerland: "Datos de espacios protegidos © FOEN",
     caveat:
       "Zonas para explorar — no se ha confirmado que se puedan montar. No se han verificado anclajes, árboles, roca suelta, accesos ni permisos.",
     caveatShort: "Zonas sin verificar — valora el terreno tú mismo",
@@ -118,6 +122,8 @@ export const STRINGS = {
     safety: "Seguridad",
     aboutBody: "Highline Scout te ayuda a encontrar spots.",
     aboutData: "Datos de elevación © ICGC. Datos de espacios protegidos © MITECO.",
+    aboutDataSwitzerland:
+      "Datos de elevación © swisstopo. Datos de espacios protegidos © FOEN.",
     aboutPrivacy:
       "Recogemos estadísticas de uso anónimas para mejorar la herramienta. Sin cookies ni seguimiento entre visitas.",
     close: "Cerrar",
@@ -192,6 +198,7 @@ export const STRINGS = {
     restrictionAreasExclude: "Exclude",
     restrictionInfo: "About {name}",
     restrictionCredit: "Protected-area data © MITECO",
+    restrictionCreditSwitzerland: "Protected-area data © FOEN",
     caveat:
       "Zones to scout — not confirmed-riggable. No bolts, trees, loose rock, access or permissions are verified.",
     caveatShort: "Unverified zones — assess the terrain yourself",
@@ -206,6 +213,8 @@ export const STRINGS = {
     safety: "Safety",
     aboutBody: "Highline Scout helps you find spots.",
     aboutData: "Elevation data © ICGC. Protected-area data © MITECO.",
+    aboutDataSwitzerland:
+      "Elevation data © swisstopo. Protected-area data © FOEN.",
     aboutPrivacy:
       "We collect anonymous usage stats to improve the tool. No cookies, no tracking across visits.",
     close: "Close",

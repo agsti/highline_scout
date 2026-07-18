@@ -9,18 +9,19 @@ from `data/<country>/<region>/grid.json`.
 ## Terrain source and coverage
 
 Use swisstopo swissALTI3D, a bare-earth model published as 1 km square Cloud
-Optimized GeoTIFF tiles in LV95/LN02 (EPSG:2056). Select the 2 m assets: they
-are finer than the project's 5 m baseline, while the 0.5 m variant would make
-national cache and per-chunk memory costs impractical. The swisstopo free
+Optimized GeoTIFF tiles in LV95/LN02 (EPSG:2056). Select the 2 m assets, then
+average-resample them to the project's 5 m processing grid; native 2 m terrain
+would make production chunk memory costs impractical. The swisstopo free
 basic-geodata terms permit reuse for all purposes with source attribution.
 
 A dedicated `dtm_swissalti.py` client will query the official paginated STAC
 API for a chunk's WGS84 bounds, choose the newest 2 m snapshot for each stable
-1 km tile id, cache the query result, and download each COG once under the
+1 km tile id, cache the query result, validate the source CRS, resolution,
+bounds, dtype, and nodata, and keep only the derived 5 m GeoTIFF under the
 country cache. Downloads use bounded parallelism, process-safe file locks,
-transient retry/backoff, `.part` files, and GeoTIFF header validation.
-swissALTI3D encodes nodata as `-9999`, already normalized by the shared raster
-merge path; an empty catalogue result is valid outside national coverage.
+transient retry/backoff, and atomic `.part` files. swissALTI3D encodes nodata
+as `-9999`, which is excluded from averaging; an empty catalogue result is
+valid outside national coverage.
 
 Use one national region named `switzerland` in EPSG:2056. Its bbox,
 `(2485000, 1075000, 2834000, 1296000)`, is the 2026 swissBOUNDARIES3D Swiss
@@ -36,8 +37,9 @@ country, bbox, CRS, cache, workers, and `swissalti3d` source to shared
 precompute. The density CLI is the normal thin country wrapper.
 
 The FOEN restriction adapter downloads three official EPSG:2056 shapefile
-archives from `data.geo.admin.ch`, flattens them into the raw cache, reprojects
-to EPSG:4326, and writes:
+archives from `data.geo.admin.ch`, validates each staged shapefile before
+atomically promoting its complete sidecar set, reprojects to EPSG:4326, and
+writes:
 
 - `ch_game_reserves`: federal hunting-ban/game reserves, including integral
   and partial protection zones for mammals and birds;
@@ -45,6 +47,8 @@ to EPSG:4326, and writes:
 - `ch_parks`: the Swiss National Park and parks of national importance.
 
 All three receive English backend metadata and Catalan/Spanish frontend text.
+Country-aware UI credits display © swisstopo for Swiss terrain and © FOEN for
+Swiss restrictions.
 The copy will tell scouts to check the reserve object provisions, canton, or
 park management before rigging rather than implying a blanket national rule.
 
@@ -54,5 +58,6 @@ Catalogue/network failures are raised so chunks remain retryable; only genuine
 empty catalogue results become no-terrain chunks. Unit tests cover STAC
 pagination/latest-version selection, cached/download dispatch, adapter
 forwarding, restriction source loading, and translation highlight invariants.
-A real Lauterbrunnen-area chunk will validate the 2 m raster, `-9999` nodata,
-and anchor/pair output without starting a national run.
+A real production-size Lauterbrunnen-area chunk validates the 5 m processing
+raster, `-9999` nodata, peak memory, and anchor/pair output without starting a
+national run.

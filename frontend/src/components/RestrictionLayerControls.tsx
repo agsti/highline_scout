@@ -7,6 +7,7 @@ import type { RestrictionLayerMeta } from "@/types/highliner";
 interface RestrictionLayerControlsProps {
   layers: RestrictionLayerMeta[];
   enabled: string[];
+  country?: string;
   onEnabledChange: (enabled: string[]) => void;
 }
 
@@ -26,6 +27,7 @@ function HighlightedText({ text, highlight }: { text: string; highlight: string 
 export function RestrictionLayerControls({
   layers,
   enabled,
+  country = "spain",
   onEnabledChange,
 }: RestrictionLayerControlsProps) {
   const { lang, t } = useI18n();
@@ -99,7 +101,9 @@ export function RestrictionLayerControls({
           </div>
         );
       })}
-      <p className="mt-2 text-xs text-muted-foreground">{t("restrictionCredit")}</p>
+      <p className="mt-2 text-xs text-muted-foreground">
+        {t(country === "switzerland" ? "restrictionCreditSwitzerland" : "restrictionCredit")}
+      </p>
       {activeLayer && activeText ? (
         <div
           id={definitionCardId}

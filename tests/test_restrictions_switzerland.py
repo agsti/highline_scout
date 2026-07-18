@@ -55,6 +55,52 @@ def test_extract_flattened_discards_archive_directories(tmp_path: Path) -> None:
     assert (tmp_path / "raw" / "reserve.dbf").read_bytes() == b"table"
 
 
+def test_source_is_incomplete_when_shapefile_cannot_be_opened(
+        tmp_path: Path) -> None:
+    from highliner.etls.restriction import switzerland
+
+    source_dir = tmp_path / "game_reserves"
+    source_dir.mkdir()
+    (source_dir / "broken_jagdbann.shp").write_bytes(b"not a shapefile")
+
+    assert not switzerland._has_source(
+        source_dir, switzerland.SOURCE_GLOBS["game_reserves"])
+
+
+def test_download_promotes_only_a_valid_complete_source(
+        monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    from highliner.etls.restriction import switzerland
+
+    raw_dir = tmp_path / "raw"
+    source = gpd.GeoDataFrame(
+        {"Name": ["Reserve"]}, geometry=[_SQUARE], crs="EPSG:2056")
+
+    def fake_download(_url: str, dest: Path) -> None:
+        shape_dir = tmp_path / "shape"
+        shape_dir.mkdir(exist_ok=True)
+        path = shape_dir / "N2023_Revision_jagdbann.shp"
+        source.to_file(path)
+        with zipfile.ZipFile(dest, "w") as archive:
+            for sidecar in shape_dir.iterdir():
+                archive.write(sidecar, f"nested/{sidecar.name}")
+
+    monkeypatch.setattr(switzerland, "SOURCE_GLOBS", {
+        "game_reserves": ("*jagdbann*.shp",),
+    })
+    monkeypatch.setattr(switzerland, "SOURCE_URLS", {
+        "game_reserves": "https://example.test/source.zip",
+    })
+    monkeypatch.setattr(switzerland, "_download", fake_download)
+
+    switzerland.download_sources(raw_dir)
+
+    source_dir = raw_dir / "game_reserves"
+    assert switzerland._has_source(
+        source_dir, switzerland.SOURCE_GLOBS["game_reserves"])
+    assert not list(raw_dir.glob("*.tmp"))
+    assert not list(raw_dir.glob("*.zip"))
+
+
 def test_restriction_main_downloads_then_writes(
         monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     from highliner.etls.restriction import switzerland

@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import argparse
 import os
+import shutil
+import tempfile
 import zipfile
 from pathlib import Path
 from typing import Final
@@ -55,7 +57,7 @@ def _load_source(source_key: str,
     base = raw_dir if raw_dir is not None else _default_raw_dir()
     frames: list[gpd.GeoDataFrame] = []
     for pattern in SOURCE_GLOBS[source_key]:
-        for path in sorted(base.glob(pattern)):
+        for path in sorted(base.rglob(pattern)):
             source = gpd.read_file(path)
             if source.crs is None:
                 raise ValueError(f"{path}: source has no CRS")
@@ -73,8 +75,19 @@ def _default_raw_dir() -> Path:
 
 
 def _has_source(raw_dir: Path, patterns: tuple[str, ...]) -> bool:
-    return any(next(iter(raw_dir.glob(pattern)), None) is not None
-               for pattern in patterns)
+    """Return true only when every expected shapefile opens successfully."""
+    for pattern in patterns:
+        paths = sorted(raw_dir.glob(pattern))
+        if not paths:
+            return False
+        for path in paths:
+            try:
+                source = gpd.read_file(path)
+            except Exception:  # pyogrio/fiona expose backend-specific errors
+                return False
+            if source.crs is None:
+                return False
+    return True
 
 
 def _extract_flattened(archive_path: Path, dest_dir: Path) -> None:
@@ -104,15 +117,25 @@ def _download(url: str, dest: Path) -> None:
 
 
 def download_sources(raw_dir: Path) -> None:
-    """Download missing FOEN shapefile archives into the raw directory."""
+    """Atomically install missing, validated FOEN shapefile archives."""
     raw_dir.mkdir(parents=True, exist_ok=True)
     for source, patterns in SOURCE_GLOBS.items():
-        if _has_source(raw_dir, patterns):
+        source_dir = raw_dir / source
+        if _has_source(source_dir, patterns):
             continue
-        archive_path = raw_dir / f"{source}.zip"
-        _download(SOURCE_URLS[source], archive_path)
-        _extract_flattened(archive_path, raw_dir)
-        archive_path.unlink()
+        with tempfile.TemporaryDirectory(
+                prefix=f".{source}.", suffix=".tmp", dir=raw_dir) as temp:
+            staging = Path(temp)
+            archive_path = staging / f"{source}.zip"
+            extracted = staging / "extracted"
+            _download(SOURCE_URLS[source], archive_path)
+            _extract_flattened(archive_path, extracted)
+            if not _has_source(extracted, patterns):
+                raise RuntimeError(
+                    f"downloaded {source} archive has no valid shapefile")
+            if source_dir.exists():
+                shutil.rmtree(source_dir)
+            extracted.replace(source_dir)
 
 
 def main(argv: list[str] | None = None) -> None:

@@ -31,7 +31,7 @@ export const STRINGS = {
     aboutBody: "Highline Scout t'ajuda a trobar spots.",
     aboutData: "Dades d'elevació © ICGC. Dades d'espais protegits © MITECO.",
     aboutPrivacy:
-      "Recollim estadístiques d'ús anònimes per millorar l'eina. Sense galetes ni seguiment entre visites.",
+      "Recollim estadístiques d'ús anònimes per millorar l'eina. Sense galetes ni seguiment entre visites. En la primera visita, IPWho rep la vostra adreça IP una sola vegada per triar un país inicial; només retorna el país, i no emmagatzemem ni analitzem aquest resultat.",
     close: "Tanca",
     zoomIn: "Amplia",
     zoomOut: "Redueix",
@@ -119,7 +119,7 @@ export const STRINGS = {
     aboutBody: "Highline Scout te ayuda a encontrar spots.",
     aboutData: "Datos de elevación © ICGC. Datos de espacios protegidos © MITECO.",
     aboutPrivacy:
-      "Recogemos estadísticas de uso anónimas para mejorar la herramienta. Sin cookies ni seguimiento entre visitas.",
+      "Recogemos estadísticas de uso anónimas para mejorar la herramienta. En la primera visita, IPWho recibe tu dirección IP una sola vez para elegir un país inicial; solo devuelve el país, y no almacenamos ni analizamos ese resultado. Sin cookies ni seguimiento entre visitas.",
     close: "Cerrar",
     zoomIn: "Acercar",
     zoomOut: "Alejar",
@@ -207,7 +207,7 @@ export const STRINGS = {
     aboutBody: "Highline Scout helps you find spots.",
     aboutData: "Elevation data © ICGC. Protected-area data © MITECO.",
     aboutPrivacy:
-      "We collect anonymous usage stats to improve the tool. No cookies, no tracking across visits.",
+      "We collect anonymous usage stats to improve the tool. No cookies, no tracking across visits. On a first visit, IPWho receives your IP address once to choose an initial country; it returns only the country, and the result is not stored or analysed.",
     close: "Close",
     zoomIn: "Zoom in",
     zoomOut: "Zoom out",

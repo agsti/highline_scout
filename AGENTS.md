@@ -273,8 +273,12 @@ region requests use that index, including its on-disk country.
     data/<country>/<region>/tiles/                       transient DTM tile cache, deleted once a chunk finishes
     data/<country>/<region>/density/z{z}.npz             zoomed-out density pyramid (optional, `etl-density <country> <workers>`)
     data/<country>/restrictions/<id>.parquet             protected-area overlays (national per country)
+    data/<country>/country_code                          ISO 3166-1 alpha-2 code for automatic initial-country selection
     cache/<country>/mdt05_tiles/                         persistent CNIG MDT05 sheet cache (national, cross-region)
     cache/<country>/mdt05_sheet_index/                   cached CNIG sheet-index catalog queries
+
+A missing or invalid country code preserves manual availability but excludes the
+country from IP-based automatic selection.
 
 The `cache/` folder is a sibling of `data/` (not under it): it holds only
 re-downloadable CNIG DTM sheets shared across a country's regions, so it can be

@@ -21,7 +21,15 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest", "httpx", "mypy", "types-requests", "ruff", "vulture"]
+dev = [
+    "pytest",
+    "httpx",
+    "mypy",
+    "types-requests",
+    "ruff",
+    "vulture",
+    "pytest-cov",
+]
 
 [project.scripts]
 highliner-server = "highliner.server.main:main"
@@ -35,6 +43,14 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 include = ["highliner*"]
+
+[tool.coverage.run]
+branch = true
+source = ["highliner", "scripts"]
+
+[tool.coverage.report]
+fail_under = 81.10
+precision = 2
 
 [tool.ruff]
 target-version = "py311"

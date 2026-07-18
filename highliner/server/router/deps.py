@@ -76,7 +76,7 @@ def read_country_code(country_dir: Path) -> str | None:
     """Return a country's valid ISO alpha-2 code, if its data declares one."""
     try:
         code = (country_dir / "country_code").read_text(encoding="utf-8").strip()
-    except OSError:
+    except (OSError, UnicodeDecodeError):
         return None
     return code if _COUNTRY_CODE_RE.fullmatch(code) else None
 

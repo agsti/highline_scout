@@ -9,6 +9,7 @@ that subset; repeated chunks reuse the local subset.
 import fcntl
 import hashlib
 import json
+import re
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import TypedDict
@@ -31,6 +32,10 @@ _ATOM = "{http://www.w3.org/2005/Atom}"
 _GEORSS = "{http://www.georss.org/georss}"
 RES = 5.0
 NODATA = -9999.0
+SOURCE_CRS = "EPSG:3035"
+TILE_SIZE_M = 50_000.0
+_TILE_NAME = re.compile(
+    r"CRS3035RES50000mN(?P<northing>\d+)E(?P<easting>\d+)")
 
 
 class Tile(TypedDict):
@@ -43,16 +48,30 @@ def fetch_bev_tiles(bbox: Bbox, crs: str, cache_root: Path) -> list[Path]:
     root = Path(cache_root) / "bev_als_dtm"
     root.mkdir(parents=True, exist_ok=True)
     query = _bbox_lonlat(bbox, crs)
+    native_transformer = Transformer.from_crs(crs, SOURCE_CRS, always_xy=True)
+    native_query = shapely_transform(native_transformer.transform, box(*bbox))
     return [
         _ensure_subset(tile["url"], bbox, root)
         for tile in _catalog(root, query)
-        if box(*tile["bbox_lonlat"]).intersects(query)
+        if (box(*tile["bbox_lonlat"]).intersects(query)
+            and _native_tile_intersects(tile["url"], native_query))
     ]
 
 
 def _bbox_lonlat(bbox: Bbox, crs: str) -> BaseGeometry:
     transformer = Transformer.from_crs(crs, "EPSG:4326", always_xy=True)
     return shapely_transform(transformer.transform, box(*bbox))
+
+
+def _native_tile_intersects(url: str, query: BaseGeometry) -> bool:
+    match = _TILE_NAME.search(Path(urlparse(url).path).stem)
+    if match is None:
+        return True
+    easting = float(match.group("easting"))
+    northing = float(match.group("northing"))
+    footprint = box(easting, northing,
+                    easting + TILE_SIZE_M, northing + TILE_SIZE_M)
+    return bool(footprint.intersection(query).area > 0)
 
 
 def _catalog(root: Path, query: BaseGeometry) -> list[Tile]:

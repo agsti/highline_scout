@@ -5,6 +5,12 @@ import { App } from "./App";
 import { I18nProvider } from "./lib/i18n";
 
 const captureMock = vi.fn();
+const countryMocks = vi.hoisted(() => ({
+  readSavedCountry: vi.fn().mockReturnValue(null),
+  saveCountry: vi.fn(),
+  clearSavedCountry: vi.fn(),
+  detectCountry: vi.fn().mockResolvedValue("france"),
+}));
 vi.mock("./lib/analytics", () => ({
   capture: (event: string, properties?: Record<string, unknown>) =>
     captureMock(event, properties),
@@ -14,11 +20,15 @@ vi.mock("./lib/analytics", () => ({
 }));
 
 vi.mock("./lib/api", () => ({
-  fetchCountries: vi.fn().mockResolvedValue([]),
+  fetchCountries: vi.fn().mockResolvedValue([
+    { id: "france", country_code: "FR", bounds_lonlat: [-5, 42, 8, 51] },
+  ]),
   fetchRestrictionLayers: vi.fn().mockResolvedValue([
     { id: "zepa", label: "ZEPA", tooltip: "", highlight: "", color: "#f00" },
   ]),
 }));
+
+vi.mock("./lib/countrySelection", () => countryMocks);
 
 vi.mock("./components/map/MapView", () => ({
   MapView: () => <div data-testid="map" />,
@@ -30,9 +40,29 @@ vi.mock("./components/SafetyDisclaimerDialog", () => ({
 
 beforeEach(() => {
   captureMock.mockClear();
+  countryMocks.readSavedCountry.mockReset().mockReturnValue(null);
+  countryMocks.saveCountry.mockReset();
+  countryMocks.clearSavedCountry.mockReset();
+  countryMocks.detectCountry.mockReset().mockResolvedValue("france");
 });
 
 describe("App analytics", () => {
+  it("does not emit country or location analytics for automatic selection", async () => {
+    render(
+      <I18nProvider>
+        <App />
+      </I18nProvider>,
+    );
+
+    await vi.waitFor(() => expect(countryMocks.detectCountry).toHaveBeenCalled());
+
+    expect(
+      captureMock.mock.calls.some(([, properties]) =>
+        Object.keys(properties ?? {}).some((key) => /country|location/i.test(key)),
+      ),
+    ).toBe(false);
+  });
+
   it("emits nothing while a filter is only being drafted", async () => {
     const user = userEvent.setup();
     render(

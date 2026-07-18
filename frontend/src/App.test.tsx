@@ -1,5 +1,5 @@
 import { useEffect, type ReactNode } from "react";
-import { act, render, screen } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
@@ -10,14 +10,24 @@ const apiMocks = vi.hoisted(() => ({
   fetchRestrictionLayers: vi.fn(),
 }));
 
+const countryMocks = vi.hoisted(() => ({
+  readSavedCountry: vi.fn(),
+  saveCountry: vi.fn(),
+  clearSavedCountry: vi.fn(),
+  detectCountry: vi.fn(),
+}));
+
 let publishMapStatus: ((status: string) => void) | undefined;
 let publishMapError: ((message: string) => void) | undefined;
 let dismissMapError: ((eventId: number) => void) | undefined;
+let mapProps: Array<{ country?: string }> = [];
 
 vi.mock("./lib/api", () => ({
   fetchCountries: apiMocks.fetchCountries,
   fetchRestrictionLayers: apiMocks.fetchRestrictionLayers,
 }));
+
+vi.mock("./lib/countrySelection", () => countryMocks);
 
 vi.mock("./components/map/MapView", () => ({
   MapView: ({
@@ -25,6 +35,7 @@ vi.mock("./components/map/MapView", () => ({
     enabledRestrictions,
     restrictionLayers,
     restrictionAreaMode,
+    country,
     onMapStatus,
     onError,
   }: {
@@ -32,11 +43,13 @@ vi.mock("./components/map/MapView", () => ({
     enabledRestrictions?: string[];
     restrictionLayers?: Array<{ id: string }>;
     restrictionAreaMode?: string;
+    country?: string;
     onMapStatus?: (status: string) => void;
     onError?: (message: string) => void;
   }) => {
     publishMapStatus = onMapStatus;
     publishMapError = onError;
+    mapProps.push({ country });
     useEffect(() => {
       onMapStatus?.("3 zones");
     }, [onMapStatus]);
@@ -50,6 +63,10 @@ vi.mock("./components/map/MapView", () => ({
     );
   },
 }));
+
+function lastMapProps() {
+  return mapProps.at(-1) ?? {};
+}
 
 vi.mock("./components/AppShell", () => ({
   AppShell: ({ chrome, map }: { chrome: ReactNode; map: ReactNode }) => (
@@ -111,6 +128,11 @@ describe("App", () => {
         color: "#0a0",
       },
     ]);
+    countryMocks.readSavedCountry.mockReset().mockReturnValue(null);
+    countryMocks.saveCountry.mockReset();
+    countryMocks.clearSavedCountry.mockReset();
+    countryMocks.detectCountry.mockReset().mockResolvedValue(null);
+    mapProps = [];
   });
 
   afterEach(() => {
@@ -125,6 +147,31 @@ describe("App", () => {
     await screen.findByText("restrictions");
     await act(async () => {});
     expect(screen.queryByText("3 zones")).not.toBeInTheDocument();
+  });
+
+  it("applies the detected country after the catalog loads", async () => {
+    apiMocks.fetchCountries.mockResolvedValueOnce([
+      { id: "france", country_code: "FR", bounds_lonlat: [-5, 42, 8, 51] },
+    ]);
+    countryMocks.detectCountry.mockResolvedValue("france");
+
+    renderApp();
+
+    await waitFor(() => expect(countryMocks.detectCountry).toHaveBeenCalled());
+    expect(lastMapProps().country).toBe("france");
+    expect(countryMocks.saveCountry).not.toHaveBeenCalled();
+  });
+
+  it("uses an available saved country and skips IPWho", async () => {
+    apiMocks.fetchCountries.mockResolvedValueOnce([
+      { id: "france", country_code: "FR", bounds_lonlat: [-5, 42, 8, 51] },
+    ]);
+    countryMocks.readSavedCountry.mockReturnValue("france");
+
+    renderApp();
+
+    await waitFor(() => expect(lastMapProps().country).toBe("france"));
+    expect(countryMocks.detectCountry).not.toHaveBeenCalled();
   });
 
   it("shows map errors in a toast and dismisses them automatically", async () => {

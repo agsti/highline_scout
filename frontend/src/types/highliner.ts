@@ -52,6 +52,7 @@ export interface RestrictionLayersResponse {
 
 export interface CountryEntry {
   id: string;
+  country_code?: string;
   bounds_lonlat: [number, number, number, number];
 }
 

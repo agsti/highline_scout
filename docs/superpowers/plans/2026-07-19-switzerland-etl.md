@@ -82,5 +82,5 @@
 - [x] Run all three module `--help` commands, focused Switzerland tests, `just test`, and `just check`; fix failures with a failing regression test first.
 - [x] Mark Switzerland `[P]` in `COUNTRIES.md`, commit all implementation, and post the commit SHA/adapters/layers to issue #47.
 - [x] Request read-only code review for the branch diff; fix Critical/Important findings and rerun verification.
-- [ ] Push `etl/switzerland-47`, open a PR to the default branch with source, resolution, method, restrictions, 80,500 km2/805-chunk coverage summary, and `Closes #47`.
-- [ ] Post verification evidence and the PR link to issue #47.
+- [x] Push `etl/switzerland-47`, open a PR to the default branch with source, resolution, method, restrictions, 80,500 km2/805-chunk coverage summary, and `Closes #47`.
+- [x] Post verification evidence and the PR link to issue #47.

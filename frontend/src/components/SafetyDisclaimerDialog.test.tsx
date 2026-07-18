@@ -10,6 +10,11 @@ const countries: CountryEntry[] = [
   { id: "france", country_code: "FR", bounds_lonlat: [-5, 42, 8, 51] },
 ];
 
+function arbitraryZIndex(element: HTMLElement) {
+  const match = element.className.match(/(?:^|\s)z-\[(\d+)\](?:\s|$)/);
+  return match ? Number(match[1]) : 0;
+}
+
 describe("SafetyDisclaimerDialog", () => {
   // The gate now rebuilds on the ui/dialog.tsx Radix primitive (see finding 2:
   // the hand-rolled div had no focus trap, so a keyboard user could tab past it
@@ -143,6 +148,30 @@ describe("SafetyDisclaimerDialog", () => {
     await user.click(selector);
     expect(screen.getByRole("option", { name: "spain" })).toBeInTheDocument();
     expect(screen.getByRole("option", { name: "france" })).toBeInTheDocument();
+  });
+
+  it("renders country options above the blocking welcome dialog", async () => {
+    const user = userEvent.setup();
+    window.localStorage.setItem("lang", "en");
+
+    render(
+      <I18nProvider>
+        <SafetyDisclaimerDialog
+          open
+          onAccept={vi.fn()}
+          countries={countries}
+          country="spain"
+          onCountryChange={vi.fn()}
+        />
+      </I18nProvider>,
+    );
+
+    const dialog = screen.getByRole("dialog");
+    await user.click(screen.getByRole("combobox", { name: "Country" }));
+
+    expect(arbitraryZIndex(screen.getByRole("listbox"))).toBeGreaterThan(
+      arbitraryZIndex(dialog),
+    );
   });
 
   it("reports a country selected from the welcome dialog", async () => {

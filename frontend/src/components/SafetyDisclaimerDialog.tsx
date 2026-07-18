@@ -68,6 +68,7 @@ export function SafetyDisclaimerDialog({
           countries={countries}
           country={country}
           onCountryChange={onCountryChange}
+          contentClassName="z-[1220]"
         />
         <Button type="button" onClick={onAccept} autoFocus>
           {t("disclaimerAccept")}

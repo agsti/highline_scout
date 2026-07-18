@@ -13,6 +13,7 @@ interface CountrySelectProps {
   countries: CountryEntry[];
   country: string;
   onCountryChange: (country: string) => void;
+  contentClassName?: string;
 }
 
 export function CountrySelect({
@@ -20,6 +21,7 @@ export function CountrySelect({
   countries,
   country,
   onCountryChange,
+  contentClassName,
 }: CountrySelectProps) {
   const { t } = useI18n();
 
@@ -43,7 +45,7 @@ export function CountrySelect({
         >
           <SelectValue />
         </SelectTrigger>
-        <SelectContent>
+        <SelectContent className={contentClassName}>
           {countries.map((entry) => (
             <SelectItem key={entry.id} value={entry.id}>
               {entry.id}

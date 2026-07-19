@@ -1,7 +1,10 @@
 import { expect, test } from "@playwright/test";
 
 test.beforeEach(async ({ page }) => {
-  await page.addInitScript(() => window.localStorage.setItem("lang", "en"));
+  await page.addInitScript(() => {
+    window.localStorage.setItem("lang", "en");
+    window.localStorage.setItem("newsletterPrompted", "1");
+  });
 });
 
 test("map interactions", async ({ page }) => {

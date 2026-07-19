@@ -32,6 +32,7 @@ def _download_type(type_name: str) -> list[dict[str, object]]:
             "service": "WFS", "version": "2.0.0", "request": "GetFeature",
             "typeNames": type_name, "outputFormat": "application/json",
             "count": str(_PAGE_SIZE), "startIndex": str(start),
+            "sortBy": "gid",
         }, timeout=300)
         response.raise_for_status()
         page = response.json().get("features", [])

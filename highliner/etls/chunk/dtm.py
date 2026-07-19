@@ -44,6 +44,7 @@ from highliner.etls.chunk import (
     dtm_os,
     dtm_poland,
     dtm_rgealti,
+    dtm_swissalti,
 )
 
 if TYPE_CHECKING:
@@ -387,6 +388,8 @@ def _fetch_from_cache(source: str, bbox: Bbox, crs: str,
         return dtm_cuzk.fetch_cuzk_dmr4g(bbox, cache_dir, crs)
     if source == "bev_als_dtm":
         return dtm_austria.fetch_bev_tiles(bbox, crs, cache_dir)
+    if source == "swissalti3d":
+        return dtm_swissalti.fetch_swissalti_tiles(bbox, cache_dir, crs)
     return dtm_os.fetch_osni_dtm_10m(bbox, cache_dir)
 
 
@@ -401,13 +404,14 @@ def fetch_tiles(bbox: Bbox, tiles_dir: Path, res: float = NATIVE_RES,  # noqa: P
     throttled run fails loudly instead of writing holes into the terrain.
     Returns the paths that exist on disk. The ``cnig``, ``hrdtm``, ``rgealti``,
     ``os_terrain_50``, ``osni_dtm_10m``, ``ea_lidar_1m``, ``cuzk_dmr4g``, and
-    ``bev_als_dtm`` sources ignore ``tiles_dir`` (their sheets persist in
+    ``bev_als_dtm``, and ``swissalti3d`` sources ignore ``tiles_dir`` (their
+    sheets persist in
     ``cache_dir``, required for them)."""
     tiles_dir = Path(tiles_dir)
     tiles_dir.mkdir(parents=True, exist_ok=True)
     if source in ("cnig", "hrdtm", "rgealti", "os_terrain_50",
                   "osni_dtm_10m", "ea_lidar_1m", "cuzk_dmr4g",
-                  "bev_als_dtm"):
+                  "bev_als_dtm", "swissalti3d"):
         return _fetch_from_cache(source, bbox, crs, cache_dir)
     if source == "poland_wcs":
         return _download_with_retries(

@@ -20,4 +20,18 @@ describe("AboutDialog", () => {
     expect(dialog).toHaveTextContent("Elevation data © ICGC.");
     expect(dialog).toHaveTextContent("No cookies, no tracking across visits.");
   });
+
+  it("credits swisstopo and FOEN for Switzerland", () => {
+    render(
+      <I18nProvider>
+        <AboutDialog open onOpenChange={vi.fn()} country="switzerland" />
+      </I18nProvider>,
+    );
+
+    const dialog = screen.getByRole("dialog");
+    expect(dialog).toHaveTextContent("Elevation data © swisstopo.");
+    expect(dialog).toHaveTextContent("Protected-area data © FOEN.");
+    expect(dialog).not.toHaveTextContent("© ICGC");
+    expect(dialog).not.toHaveTextContent("© MITECO");
+  });
 });

@@ -1,7 +1,6 @@
+from highliner.core import geo
 from highliner.models.anchor import Anchor
 from highliner.server.router.serializers import anchors_to_geojson
-
-from highliner.core import geo
 
 
 def test_to_geojson_points_and_sectors() -> None:

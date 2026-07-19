@@ -1,5 +1,6 @@
 import pytest
 from fastapi.testclient import TestClient
+
 from highliner.server.app import create_app
 
 

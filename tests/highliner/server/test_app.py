@@ -2,10 +2,10 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
-from highliner.server.app import create_app
 
 from highliner.core import config
 from highliner.server import app as app_module
+from highliner.server.app import create_app
 
 
 @pytest.fixture

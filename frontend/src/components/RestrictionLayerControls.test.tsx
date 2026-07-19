@@ -22,11 +22,16 @@ const layers: RestrictionLayerMeta[] = [
   },
 ];
 
-function renderControls(enabled: string[] = []) {
+function renderControls(enabled: string[] = [], country = "spain") {
   window.localStorage.setItem("lang", "en");
   render(
     <I18nProvider>
-      <RestrictionLayerControls layers={layers} enabled={enabled} onEnabledChange={vi.fn()} />
+      <RestrictionLayerControls
+        layers={layers}
+        enabled={enabled}
+        country={country}
+        onEnabledChange={vi.fn()}
+      />
     </I18nProvider>,
   );
 }
@@ -36,6 +41,13 @@ describe("RestrictionLayerControls", () => {
     renderControls();
 
     expect(screen.getByText(/© MITECO/)).toBeInTheDocument();
+  });
+
+  it("shows the FOEN attribution for Switzerland", () => {
+    renderControls([], "switzerland");
+
+    expect(screen.getByText(/© FOEN/)).toBeInTheDocument();
+    expect(screen.queryByText(/© MITECO/)).not.toBeInTheDocument();
   });
 
   it("opens one desktop definition at a time and toggles the active definition", async () => {

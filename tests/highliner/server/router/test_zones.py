@@ -1,10 +1,10 @@
 from pathlib import Path
 
 from fastapi.testclient import TestClient
+
 from highliner.models.anchor import Anchor
 from highliner.models.candidate import Candidate
 from highliner.server.app import create_app
-
 from tests.helpers import Pair as _Pair
 from tests.helpers import facing_pair as _facing_pair
 from tests.helpers import gap_region as _gap_region

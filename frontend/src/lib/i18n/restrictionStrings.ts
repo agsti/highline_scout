@@ -71,6 +71,27 @@ export const RESTRICTION_STRINGS: Partial<Record<Lang, Record<string, Restrictio
       highlight:
         "La escalada, el vivac, los drones y los actos organizados suelen estar regulados y pueden necesitar autorización del órgano gestor.",
     },
+    ch_game_reserves: {
+      label: "Reservas federales de fauna",
+      tooltip:
+        "Reserva federal de caza vedada que protege mamíferos silvestres, aves y sus hábitats, con zonas de protección integral o parcial. El acceso y las actividades recreativas pueden estar restringidos; consulta la ficha de la reserva y al cantón antes de instalar.",
+      highlight:
+        "El acceso y las actividades recreativas pueden estar restringidos; consulta la ficha de la reserva y al cantón antes de instalar.",
+    },
+    ch_bird_reserves: {
+      label: "Reservas de aves acuáticas y migratorias",
+      tooltip:
+        "Reserva federal de importancia internacional o nacional para aves acuáticas y migratorias. El acceso, los deportes acuáticos y las molestias a la fauna pueden estar restringidos; consulta la ficha de la reserva y al cantón antes de instalar.",
+      highlight:
+        "El acceso, los deportes acuáticos y las molestias a la fauna pueden estar restringidos; consulta la ficha de la reserva y al cantón antes de instalar.",
+    },
+    ch_parks: {
+      label: "Parques nacionales y regionales suizos",
+      tooltip:
+        "Parque Nacional Suizo o parque de importancia nacional. El highline no está prohibido automáticamente en todo el parque, pero las zonas protegidas y las normas locales pueden regular el acceso, los anclajes y las actividades organizadas; consulta a la dirección del parque antes de instalar.",
+      highlight:
+        "El highline no está prohibido automáticamente en todo el parque, pero las zonas protegidas y las normas locales pueden regular el acceso, los anclajes y las actividades organizadas; consulta a la dirección del parque antes de instalar.",
+    },
   },
   ca: {
     zepa: {
@@ -135,6 +156,27 @@ export const RESTRICTION_STRINGS: Partial<Record<Lang, Record<string, Restrictio
         "Àrea protegida reglamentària francesa — el cor d'un parc nacional, una reserva natural nacional o regional, o un decret de protecció de biòtop (APPB), cadascun amb les seves normes i òrgan gestor. Els APPB en particular sustenten molts tancaments de cingles. L'escalada, el vivac, els drons i els actes organitzats sovint estan regulats i poden necessitar autorització de l'òrgan gestor.",
       highlight:
         "L'escalada, el vivac, els drons i els actes organitzats sovint estan regulats i poden necessitar autorització de l'òrgan gestor.",
+    },
+    ch_game_reserves: {
+      label: "Reserves federals de fauna",
+      tooltip:
+        "Reserva federal de caça vedada que protegeix mamífers salvatges, aus i els seus hàbitats, amb zones de protecció integral o parcial. L'accés i les activitats recreatives poden estar restringits; consulteu la fitxa de la reserva i el cantó abans d'instal·lar.",
+      highlight:
+        "L'accés i les activitats recreatives poden estar restringits; consulteu la fitxa de la reserva i el cantó abans d'instal·lar.",
+    },
+    ch_bird_reserves: {
+      label: "Reserves d'aus aquàtiques i migratòries",
+      tooltip:
+        "Reserva federal d'importància internacional o nacional per a aus aquàtiques i migratòries. L'accés, els esports aquàtics i les molèsties a la fauna poden estar restringits; consulteu la fitxa de la reserva i el cantó abans d'instal·lar.",
+      highlight:
+        "L'accés, els esports aquàtics i les molèsties a la fauna poden estar restringits; consulteu la fitxa de la reserva i el cantó abans d'instal·lar.",
+    },
+    ch_parks: {
+      label: "Parcs nacionals i regionals suïssos",
+      tooltip:
+        "Parc Nacional Suís o parc d'importància nacional. El highline no està prohibit automàticament a tot el parc, però les zones protegides i les normes locals poden regular l'accés, els ancoratges i les activitats organitzades; consulteu la direcció del parc abans d'instal·lar.",
+      highlight:
+        "El highline no està prohibit automàticament a tot el parc, però les zones protegides i les normes locals poden regular l'accés, els ancoratges i les activitats organitzades; consulteu la direcció del parc abans d'instal·lar.",
     },
   },
 };

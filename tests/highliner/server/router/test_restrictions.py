@@ -1,8 +1,8 @@
 from pathlib import Path
 
 from fastapi.testclient import TestClient
-from highliner.server.app import create_app
 
+from highliner.server.app import create_app
 from tests.helpers import write_restriction_layer as _write_restriction_layer
 
 

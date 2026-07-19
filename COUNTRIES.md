@@ -47,7 +47,7 @@ Markers: `[ ]` todo · `[O]` ongoing (agent dispatched) · `[P]` PR open · `[X]
 - [ ] Slovenia
 - [X] Spain
 - [ ] Sweden
-- [ ] Switzerland
+- [P] Switzerland
 - [ ] Ukraine
 - [X] United Kingdom
 - [ ] Vatican City

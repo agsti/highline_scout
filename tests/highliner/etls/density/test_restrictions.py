@@ -1,6 +1,8 @@
 from pathlib import Path
 
 import geopandas as gpd
+from shapely.geometry import box
+
 from highliner.etls.density.restrictions import (
     anchor_mask,
     candidate_mask,
@@ -8,7 +10,6 @@ from highliner.etls.density.restrictions import (
 )
 from highliner.models.anchor import Anchor
 from highliner.models.candidate import Candidate
-from shapely.geometry import box
 
 
 def _candidate(ax: float, ay: float, bx: float, by: float) -> Candidate:

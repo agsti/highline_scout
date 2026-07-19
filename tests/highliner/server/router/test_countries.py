@@ -1,8 +1,8 @@
 from pathlib import Path
 
 from fastapi.testclient import TestClient
-from highliner.server.app import create_app
 
+from highliner.server.app import create_app
 from tests.helpers import facing_pair as _facing_pair
 from tests.helpers import write_region as _write_region
 

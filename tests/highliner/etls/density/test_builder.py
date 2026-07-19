@@ -5,13 +5,13 @@ from pathlib import Path
 import geopandas as gpd
 import numpy as np
 import pytest
-from highliner.etls.chunk.candidates import save_candidates
-from highliner.models.anchor import Anchor
-from highliner.models.candidate import Candidate
 from shapely.geometry import box
 
 from highliner.core import config, tiles
+from highliner.etls.chunk.candidates import save_candidates
 from highliner.etls.density import builder
+from highliner.models.anchor import Anchor
+from highliner.models.candidate import Candidate
 from tests.helpers import to_utm
 
 

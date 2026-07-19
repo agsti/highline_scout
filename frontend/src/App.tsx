@@ -207,6 +207,7 @@ export function App() {
     <RestrictionLayerControls
       layers={restrictionLayers}
       enabled={enabledRestrictions}
+      country={country}
       onEnabledChange={handleEnabledRestrictionsChange}
     />
   );
@@ -268,7 +269,7 @@ export function App() {
           />
         }
       />
-      <AboutDialog open={aboutOpen} onOpenChange={setAboutOpen} />
+      <AboutDialog open={aboutOpen} onOpenChange={setAboutOpen} country={country} />
       <FeedbackDialog open={feedbackOpen} onOpenChange={setFeedbackOpen} />
       <SafetyDisclaimerDialog
         open={disclaimerOpen}

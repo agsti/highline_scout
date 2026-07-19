@@ -7,10 +7,11 @@ import { useI18n } from "@/lib/i18n";
 interface NewsletterDialogProps {
   open: boolean;
   onClose: () => void;
+  onSubscribed: () => void;
   onDismissForever: () => void;
 }
 
-export function NewsletterDialog({ open, onClose, onDismissForever }: NewsletterDialogProps) {
+export function NewsletterDialog({ open, onClose, onSubscribed, onDismissForever }: NewsletterDialogProps) {
   const { t } = useI18n();
   const [email, setEmail] = useState("");
   const [sending, setSending] = useState(false);
@@ -30,7 +31,7 @@ export function NewsletterDialog({ open, onClose, onDismissForever }: Newsletter
       if (!response.ok) throw new Error();
       capture("newsletter_signup");
       setDone(true);
-      onDismissForever();
+      onSubscribed();
     } catch {
       setError(true);
     } finally {
@@ -57,6 +58,7 @@ export function NewsletterDialog({ open, onClose, onDismissForever }: Newsletter
               required
               value={email}
               placeholder={t("newsletterEmailPlaceholder")}
+              aria-label={t("newsletterEmailPlaceholder")}
               onChange={(event) => setEmail(event.target.value)}
               className="h-9 w-full rounded-md border border-input bg-background px-2"
             />

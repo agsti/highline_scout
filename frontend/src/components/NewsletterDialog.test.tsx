@@ -11,6 +11,7 @@ function renderDialog(overrides: Partial<Parameters<typeof NewsletterDialog>[0]>
   const props = {
     open: true,
     onClose: vi.fn(),
+    onSubscribed: vi.fn(),
     onDismissForever: vi.fn(),
     ...overrides,
   };
@@ -27,7 +28,7 @@ afterEach(() => {
 });
 
 describe("NewsletterDialog", () => {
-  it("subscribes, shows the confirm message, dismisses forever, and captures anonymously", async () => {
+  it("subscribes, shows the confirm message, marks the flag without closing, and captures anonymously", async () => {
     const fetchMock = vi
       .spyOn(globalThis, "fetch")
       .mockResolvedValue(new Response(null, { status: 201 }));
@@ -45,7 +46,8 @@ describe("NewsletterDialog", () => {
     }));
     expect(capture).toHaveBeenCalledWith("newsletter_signup");
     expect(capture).not.toHaveBeenCalledWith("newsletter_signup", expect.anything());
-    expect(props.onDismissForever).toHaveBeenCalledTimes(1);
+    expect(props.onSubscribed).toHaveBeenCalledTimes(1);
+    expect(props.onDismissForever).not.toHaveBeenCalled();
     fetchMock.mockRestore();
   });
 

@@ -282,6 +282,7 @@ export function App() {
       <NewsletterDialog
         open={newsletterOpen}
         onClose={() => setNewsletterOpen(false)}
+        onSubscribed={markNewsletterPrompted}
         onDismissForever={() => {
           markNewsletterPrompted();
           setNewsletterOpen(false);

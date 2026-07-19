@@ -1,5 +1,5 @@
 import { useEffect, type ReactNode } from "react";
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
@@ -350,6 +350,37 @@ describe("App", () => {
       expect(
         screen.queryByText(/want to stay in the loop|vols estar al dia|quieres estar al día/i),
       ).not.toBeInTheDocument();
+    });
+
+    it("shows the confirmation and marks the flag after a successful subscribe, without closing the dialog", async () => {
+      window.localStorage.removeItem("newsletterPrompted");
+      const fetchMock = vi
+        .spyOn(globalThis, "fetch")
+        .mockImplementation((input: RequestInfo | URL) => {
+          const url = typeof input === "string" ? input : input.toString();
+          if (url.includes("/subscribe")) {
+            return Promise.resolve(new Response(null, { status: 201 }));
+          }
+          return Promise.resolve(new Response(JSON.stringify({}), { status: 200 }));
+        });
+      const user = userEvent.setup();
+      renderApp();
+
+      await user.click(screen.getByRole("button", { name: /i understand|ho entenc|lo entiendo/i }));
+      const emailInput = await screen.findByRole("textbox", {
+        name: /you@example.com|correu@exemple.com|correo@ejemplo.com/i,
+      });
+      await user.type(emailInput, "rigger@example.com");
+      // The Button component is module-mocked in this file to a plain
+      // <button type="button">, so a click on "Subscribe" would not fire a
+      // native form submit event. Submit the form directly instead.
+      fireEvent.submit(emailInput.closest("form")!);
+
+      expect(
+        await screen.findByText(/almost there|ja gairebé|ya casi/i),
+      ).toBeInTheDocument();
+      expect(window.localStorage.getItem("newsletterPrompted")).toBe("1");
+      fetchMock.mockRestore();
     });
   });
 });

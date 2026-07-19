@@ -34,7 +34,15 @@ describe("saved country preference", () => {
   });
 
   it("writes local storage only when saving a country", () => {
-    const setItem = vi.spyOn(Storage.prototype, "setItem");
+    const setItem = vi.fn();
+    vi.stubGlobal("localStorage", {
+      clear: vi.fn(),
+      getItem: vi.fn(() => null),
+      key: vi.fn(() => null),
+      length: 0,
+      removeItem: vi.fn(),
+      setItem,
+    } satisfies Storage);
 
     readSavedCountry(countries);
     clearSavedCountry();

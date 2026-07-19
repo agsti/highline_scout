@@ -9,6 +9,7 @@ import { NavMenu } from "./NavMenu";
 function renderMenu() {
   const onAbout = vi.fn();
   const onFeedback = vi.fn();
+  const onNewsletter = vi.fn();
 
   function Harness() {
     const [open, setOpen] = useState(false);
@@ -19,6 +20,7 @@ function renderMenu() {
         onOpenChange={setOpen}
         onAbout={onAbout}
         onFeedback={onFeedback}
+        onNewsletter={onNewsletter}
         restrictionAreaMode={mode}
         onRestrictionAreaModeChange={setMode}
       />
@@ -31,7 +33,7 @@ function renderMenu() {
     </I18nProvider>,
   );
 
-  return { onAbout, onFeedback };
+  return { onAbout, onFeedback, onNewsletter };
 }
 
 async function openMenu(user: ReturnType<typeof userEvent.setup>) {
@@ -126,6 +128,17 @@ describe("NavMenu", () => {
     await user.click(screen.getByRole("button", { name: "Send feedback" }));
 
     expect(onFeedback).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("button", { name: "About Highline Scout" })).not.toBeInTheDocument();
+  });
+
+  it("asks for the newsletter dialog and closes", async () => {
+    const user = userEvent.setup();
+    const { onNewsletter } = renderMenu();
+
+    await openMenu(user);
+    await user.click(screen.getByRole("button", { name: /get updates|recibir novedades|rep novetats/i }));
+
+    expect(onNewsletter).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole("button", { name: "About Highline Scout" })).not.toBeInTheDocument();
   });
 

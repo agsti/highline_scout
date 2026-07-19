@@ -26,6 +26,7 @@ interface MapChromeProps {
   country?: string;
   onCountryChange?: (country: string) => void;
   onFeedback: () => void;
+  onNewsletter: () => void;
   restrictionAreaMode: RestrictionAreaMode;
   onRestrictionAreaModeChange: (mode: RestrictionAreaMode) => void;
   onErrorDismiss: (eventId: number) => void;
@@ -40,6 +41,7 @@ export function MapChrome(props: MapChromeProps) {
         country={props.country ?? "spain"}
         onCountryChange={props.onCountryChange ?? (() => {})}
         onFeedback={props.onFeedback}
+        onNewsletter={props.onNewsletter}
         restrictionAreaMode={props.restrictionAreaMode}
         onRestrictionAreaModeChange={props.onRestrictionAreaModeChange}
       />

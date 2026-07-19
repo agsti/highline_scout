@@ -259,6 +259,7 @@ export function App() {
             country={country}
             onCountryChange={handleCountryChange}
             onFeedback={() => setFeedbackOpen(true)}
+            onNewsletter={() => setNewsletterOpen(true)}
             restrictionAreaMode={restrictionAreaMode}
             onRestrictionAreaModeChange={handleRestrictionAreaModeChange}
             onErrorDismiss={(eventId) =>

@@ -3,8 +3,9 @@ import zipfile
 from pathlib import Path
 
 import pytest
-from highliner.etls.chunk import dtm, dtm_cuzk
 from shapely.geometry import box
+
+from highliner.etls.chunk import dtm, dtm_cuzk
 
 
 def test_parse_catalog_keeps_both_parts_of_cuzk_sheet_id() -> None:

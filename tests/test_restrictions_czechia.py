@@ -1,6 +1,7 @@
 import geopandas as gpd
-from highliner.etls.restriction import czechia, shared
 from shapely.geometry import Polygon
+
+from highliner.etls.restriction import czechia, shared
 
 
 def test_czechia_restriction_specs_normalize_official_names() -> None:

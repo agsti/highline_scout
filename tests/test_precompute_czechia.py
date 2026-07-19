@@ -1,6 +1,7 @@
 from typing import Any
 
 import pytest
+
 from highliner.etls.chunk import czechia
 
 

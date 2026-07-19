@@ -29,3 +29,14 @@ def test_austria_regions_cover_the_nine_federal_states_in_national_crs() -> None
     for region in austria.REGIONS:
         assert region.crs == "EPSG:3035"
         assert region.dtm_source == "bev_als_dtm"
+
+
+def test_austria_region_selection_supports_resume_and_explicit_subset() -> None:
+    resumed = austria._select_regions("tyrol", None)
+    selected = austria._select_regions(None, ["vienna", "vorarlberg"])
+
+    assert resumed[0].name == "tyrol"
+    assert [region.name for region in selected] == ["vorarlberg", "vienna"]
+    assert austria._fmt_hms(3_661.9) == "1:01:01"
+    with pytest.raises(SystemExit, match="unknown region"):
+        austria._select_regions("missing", None)

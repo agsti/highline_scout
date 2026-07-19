@@ -21,3 +21,11 @@ def test_czechia_chunk_adapter_forwards_dmr4g_configuration(
     assert calls[0]["crs"] == "EPSG:3045"
     assert calls[0]["dtm_source"] == "cuzk_dmr4g"
     assert calls[0]["workers"] == 5
+
+
+def test_czechia_region_selection_validates_resume_and_only_values() -> None:
+    assert czechia._select_regions("czechia", None) == czechia.REGIONS
+    assert czechia._select_regions(None, ["elsewhere"]) == ()
+    assert czechia._fmt_hms(3_661.9) == "1:01:01"
+    with pytest.raises(SystemExit, match="unknown region"):
+        czechia._select_regions("missing", None)

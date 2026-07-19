@@ -73,3 +73,46 @@ def test_hrdtm_download_resumes_broken_streams_until_complete(
 
     assert attempts["n"] == 2
     assert dest.read_bytes() == b"0123456789"
+
+
+@pytest.mark.parametrize(
+    ("status", "existing", "expected"),
+    [(206, b"01234", b"0123456789"), (200, b"stale", b"56789")],
+)
+def test_hrdtm_stream_appends_only_when_server_honors_range(
+        status: int, existing: bytes, expected: bytes, tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch) -> None:
+    part = tmp_path / "terrain.tif.part"
+    part.write_bytes(existing)
+    monkeypatch.setattr(dtm_hrdtm, "HRDTM_SIZE", 10)
+    response = requests.Response()
+    response.status_code = status
+    response._content = b"56789"
+    response._content_consumed = True  # type: ignore[attr-defined]
+    seen_headers: list[dict[str, str]] = []
+
+    def fake_get(url: str, headers: dict[str, str], stream: bool,
+                 timeout: int) -> requests.Response:
+        seen_headers.append(headers)
+        return response
+
+    monkeypatch.setattr(requests, "get", fake_get)
+
+    dtm_hrdtm._resume_stream(part)
+
+    assert seen_headers == [{"Range": f"bytes={len(existing)}-"}]
+    assert part.read_bytes() == expected
+
+
+def test_hrdtm_complete_partial_file_does_not_request_again(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    part = tmp_path / "terrain.tif.part"
+    part.write_bytes(b"complete")
+    monkeypatch.setattr(dtm_hrdtm, "HRDTM_SIZE", len(part.read_bytes()))
+
+    def fail(*args: object, **kwargs: object) -> requests.Response:
+        raise AssertionError("a complete partial file must not be downloaded again")
+
+    monkeypatch.setattr(requests, "get", fail)
+
+    dtm_hrdtm._resume_stream(part)

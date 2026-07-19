@@ -55,3 +55,14 @@ def test_italy_chunk_adapter_covers_all_twenty_regions_in_national_crs() -> None
         # Projected meters inside the HR-DTM-5m national grid, not lon/lat.
         assert 6_500_000 <= minx < maxx <= 7_600_000
         assert 3_900_000 <= miny < maxy <= 5_250_000
+
+
+def test_italy_region_selection_supports_resume_and_explicit_subset() -> None:
+    resumed = italy._select_regions("liguria", None)
+    selected = italy._select_regions(None, ["sicilia", "valle_d_aosta"])
+
+    assert resumed[0].name == "liguria"
+    assert [region.name for region in selected] == ["valle_d_aosta", "sicilia"]
+    assert italy._fmt_hms(3_661.9) == "1:01:01"
+    with pytest.raises(SystemExit, match="unknown region"):
+        italy._select_regions("missing", None)

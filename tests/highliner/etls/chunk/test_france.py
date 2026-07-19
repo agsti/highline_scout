@@ -55,3 +55,14 @@ def test_france_chunk_adapter_covers_thirteen_regions_in_lambert93() -> None:
         # Projected Lambert-93 meters over metropolitan France, not lon/lat.
         assert 0 <= minx < maxx <= 1_300_000
         assert 6_000_000 <= miny < maxy <= 7_200_000
+
+
+def test_france_region_selection_supports_resume_and_explicit_subset() -> None:
+    resumed = france._select_regions("bretagne", None)
+    selected = france._select_regions(None, ["corse", "occitanie"])
+
+    assert resumed[0].name == "bretagne"
+    assert [region.name for region in selected] == ["corse", "occitanie"]
+    assert france._fmt_hms(3_661.9) == "1:01:01"
+    with pytest.raises(SystemExit, match="unknown region"):
+        france._select_regions("missing", None)

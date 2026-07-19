@@ -3,6 +3,7 @@ import zipfile
 from pathlib import Path
 
 import pytest
+from pyproj import Transformer
 from shapely.geometry import box
 
 from highliner.etls.chunk import dtm, dtm_cuzk
@@ -18,6 +19,41 @@ def test_parse_catalog_keeps_both_parts_of_cuzk_sheet_id() -> None:
     assert dtm_cuzk._parse_catalog(catalog) == [{
         "id": "302_5550", "bbox": [12.0, 50.0, 12.1, 50.1],
     }]
+
+
+def test_parse_catalog_ignores_incomplete_entries_and_rejects_empty_catalog() -> None:
+    catalog = b'''<feed xmlns="http://www.w3.org/2005/Atom"
+        xmlns:georss="http://www.georss.org/georss">
+        <entry><id>missing-polygon.xml</id></entry>
+        <entry><georss:polygon>50 12 50 13 51 13</georss:polygon></entry>
+        </feed>'''
+
+    with pytest.raises(RuntimeError, match="contained no DMR 4G tiles"):
+        dtm_cuzk._parse_catalog(catalog)
+
+
+def test_cuzk_client_rejects_non_native_crs_without_touching_cache(
+        tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="only in EPSG:3045"):
+        dtm_cuzk.fetch_cuzk_dmr4g((1, 2, 3, 4), tmp_path, "EPSG:4326")
+    assert not (tmp_path / "dmr4g").exists()
+
+
+def test_cuzk_cached_catalog_and_sheet_are_reused_without_network(
+        tmp_path: Path) -> None:
+    root = tmp_path / "dmr4g"
+    root.mkdir()
+    (root / "atom_index.json").write_text(
+        '[{"id": "302_5550", "bbox": [12.0, 50.0, 12.1, 50.1]}]')
+    sheet = root / "302_5550.tif"
+    sheet.write_bytes(b"cached terrain")
+    x, y = Transformer.from_crs(
+        "EPSG:4326", "EPSG:3045", always_xy=True).transform(12.05, 50.05)
+
+    paths = dtm_cuzk.fetch_cuzk_dmr4g(
+        (x - 100, y - 100, x + 100, y + 100), tmp_path, "EPSG:3045")
+
+    assert paths == [sheet]
 
 
 def test_fetch_tiles_dispatches_cuzk_dmr4g_to_cached_client(

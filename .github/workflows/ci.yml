@@ -5,7 +5,8 @@ on:
   pull_request:
 
 jobs:
-  check:
+  python_quality:
+    name: Python quality
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -31,11 +32,32 @@ jobs:
       - name: Dead code (vulture)
         run: uv run vulture
 
+  python_tests:
+    name: Python tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Set up Python 3.12
+        run: uv python install 3.12
+
+      - name: Install dependencies
+        run: uv sync --extra dev
+
       - name: Run tests with coverage
         run: uv run pytest --cov --cov-report= --cov-fail-under=0
 
       - name: Check Python coverage
         run: uv run coverage report
+
+  frontend_tests:
+    name: Frontend tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
 
       # Node 20 to match the Dockerfile's frontend build stage.
       - name: Set up Node 20
@@ -51,6 +73,33 @@ jobs:
 
       - name: Frontend tests (vitest)
         run: npm test
+        working-directory: frontend
+
+  browser_e2e:
+    name: Browser E2E tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Set up Python 3.12
+        run: uv python install 3.12
+
+      - name: Install Python dependencies
+        run: uv sync --extra dev
+
+      # Node 20 to match the Dockerfile's frontend build stage.
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm ci
         working-directory: frontend
 
       - name: Install Playwright Chromium
@@ -70,6 +119,31 @@ jobs:
             frontend/playwright-report/
             frontend/test-results/
           if-no-files-found: ignore
+
+  check:
+    if: ${{ always() }}
+    needs:
+      - python_quality
+      - python_tests
+      - frontend_tests
+      - browser_e2e
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify all checks passed
+        env:
+          PYTHON_QUALITY_RESULT: ${{ needs.python_quality.result }}
+          PYTHON_TESTS_RESULT: ${{ needs.python_tests.result }}
+          FRONTEND_TESTS_RESULT: ${{ needs.frontend_tests.result }}
+          BROWSER_E2E_RESULT: ${{ needs.browser_e2e.result }}
+        run: |
+          for check_result in \
+            "$PYTHON_QUALITY_RESULT" \
+            "$PYTHON_TESTS_RESULT" \
+            "$FRONTEND_TESTS_RESULT" \
+            "$BROWSER_E2E_RESULT"
+          do
+            test "$check_result" = "success" || exit 1
+          done
 
   docker:
     name: Build & push image

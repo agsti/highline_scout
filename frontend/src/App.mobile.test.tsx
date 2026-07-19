@@ -1,6 +1,6 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
 import { I18nProvider } from "./lib/i18n";
 
@@ -23,6 +23,12 @@ vi.mock("./components/map/MapView", () => ({
 }));
 
 describe("mobile control sheet", () => {
+  beforeEach(() => {
+    // Pretend the newsletter prompt already ran so it doesn't add a second
+    // dialog after accepting the welcome disclaimer in these unrelated tests.
+    window.localStorage.setItem("newsletterPrompted", "1");
+  });
+
   it("closes itself when the filters are applied", async () => {
     const user = userEvent.setup();
     render(

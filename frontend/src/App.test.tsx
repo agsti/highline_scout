@@ -83,10 +83,12 @@ vi.mock("./components/RestrictionLayerControls", () => ({
 
 vi.mock("./components/SafetyDisclaimerDialog", () => ({
   SafetyDisclaimerDialog: ({
+    onAccept,
     countries = [],
     country = "missing",
     onCountryChange = () => {},
   }: {
+    onAccept: () => void;
     countries?: Array<{ id: string }>;
     country?: string;
     onCountryChange?: (country: string) => void;
@@ -97,6 +99,9 @@ vi.mock("./components/SafetyDisclaimerDialog", () => ({
       </span>
       <button type="button" onClick={() => onCountryChange("france")}>
         choose France
+      </button>
+      <button type="button" onClick={onAccept}>
+        I understand
       </button>
     </div>
   ),
@@ -154,6 +159,7 @@ describe("App", () => {
 
   afterEach(() => {
     window.localStorage.removeItem("restrictionAreaMode");
+    window.localStorage.removeItem("newsletterPrompted");
     vi.useRealTimers();
     vi.restoreAllMocks();
   });
@@ -319,5 +325,31 @@ describe("App", () => {
 
     expect(screen.getByTestId("restriction-area-mode")).toHaveTextContent("informative");
     expect(window.localStorage.getItem("restrictionAreaMode")).toBe("informative");
+  });
+
+  describe("newsletter prompt", () => {
+    it("opens after accepting the welcome dialog when not previously prompted", async () => {
+      window.localStorage.removeItem("newsletterPrompted");
+      const user = userEvent.setup();
+      renderApp();
+
+      await user.click(screen.getByRole("button", { name: /i understand|ho entenc|lo entiendo/i }));
+
+      expect(
+        await screen.findByText(/want to stay in the loop|vols estar al dia|quieres estar al día/i),
+      ).toBeInTheDocument();
+    });
+
+    it("does not open the newsletter when already prompted", async () => {
+      window.localStorage.setItem("newsletterPrompted", "1");
+      const user = userEvent.setup();
+      renderApp();
+
+      await user.click(screen.getByRole("button", { name: /i understand|ho entenc|lo entiendo/i }));
+
+      expect(
+        screen.queryByText(/want to stay in the loop|vols estar al dia|quieres estar al día/i),
+      ).not.toBeInTheDocument();
+    });
   });
 });

@@ -6,6 +6,7 @@ import { AppShell } from "./components/AppShell";
 import { FilterControls, type LengthRange } from "./components/FilterControls";
 import { MapChrome } from "./components/MapChrome";
 import { MapView } from "./components/map/MapView";
+import { NewsletterDialog } from "./components/NewsletterDialog";
 import { RestrictionLayerControls } from "./components/RestrictionLayerControls";
 import { RestrictionLegend } from "./components/RestrictionLegend";
 import { SafetyDisclaimerDialog } from "./components/SafetyDisclaimerDialog";
@@ -38,6 +39,24 @@ function pickInitialRestrictionAreaMode(): RestrictionAreaMode {
   return "exclude";
 }
 
+const NEWSLETTER_FLAG = "newsletterPrompted";
+
+function newsletterAlreadyPrompted(): boolean {
+  try {
+    return window.localStorage.getItem(NEWSLETTER_FLAG) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function markNewsletterPrompted(): void {
+  try {
+    window.localStorage.setItem(NEWSLETTER_FLAG, "1");
+  } catch {
+    // Storage can be unavailable in private mode.
+  }
+}
+
 export function App() {
   const { t } = useI18n();
   const tRef = useRef(t);
@@ -57,6 +76,7 @@ export function App() {
     pickInitialRestrictionAreaMode,
   );
   const [disclaimerOpen, setDisclaimerOpen] = useState(true);
+  const [newsletterOpen, setNewsletterOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -239,6 +259,7 @@ export function App() {
             country={country}
             onCountryChange={handleCountryChange}
             onFeedback={() => setFeedbackOpen(true)}
+            onNewsletter={() => setNewsletterOpen(true)}
             restrictionAreaMode={restrictionAreaMode}
             onRestrictionAreaModeChange={handleRestrictionAreaModeChange}
             onErrorDismiss={(eventId) =>
@@ -251,10 +272,22 @@ export function App() {
       <FeedbackDialog open={feedbackOpen} onOpenChange={setFeedbackOpen} />
       <SafetyDisclaimerDialog
         open={disclaimerOpen}
-        onAccept={() => setDisclaimerOpen(false)}
+        onAccept={() => {
+          setDisclaimerOpen(false);
+          if (!newsletterAlreadyPrompted()) setNewsletterOpen(true);
+        }}
         countries={countries}
         country={country}
         onCountryChange={handleCountryChange}
+      />
+      <NewsletterDialog
+        open={newsletterOpen}
+        onClose={() => setNewsletterOpen(false)}
+        onSubscribed={markNewsletterPrompted}
+        onDismissForever={() => {
+          markNewsletterPrompted();
+          setNewsletterOpen(false);
+        }}
       />
     </>
   );

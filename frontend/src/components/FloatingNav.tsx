@@ -10,12 +10,14 @@ interface FloatingNavProps {
   country?: string;
   onCountryChange?: (country: string) => void;
   onFeedback?: () => void;
+  onNewsletter?: () => void;
   restrictionAreaMode?: RestrictionAreaMode;
   onRestrictionAreaModeChange?: (mode: RestrictionAreaMode) => void;
 }
 
 export function FloatingNav({
   onAbout, onFeedback = () => {},
+  onNewsletter = () => {},
   countries = [], country = "spain", onCountryChange = () => {},
   restrictionAreaMode = "exclude",
   onRestrictionAreaModeChange = () => {},
@@ -44,6 +46,7 @@ export function FloatingNav({
           country={country}
           onCountryChange={onCountryChange}
           onFeedback={onFeedback}
+          onNewsletter={onNewsletter}
           restrictionAreaMode={restrictionAreaMode}
           onRestrictionAreaModeChange={onRestrictionAreaModeChange}
         />

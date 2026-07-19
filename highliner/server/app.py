@@ -26,6 +26,7 @@ from highliner.server.router import (
     health,
     regions,
     restrictions,
+    subscribe,
     zones,
 )
 
@@ -183,7 +184,7 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
     app.state.data_dir = data_dir
 
     for module in (health, countries, regions, zones, anchors, density,
-                   restrictions, feedback):
+                   restrictions, feedback, subscribe):
         app.include_router(module.router)
 
     # For SEO: make crawler rules and the sitemap discoverable at standard paths.

@@ -1,6 +1,6 @@
 import { type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { Info, Map, Menu, MessageSquarePlus, X } from "lucide-react";
+import { Info, Mail, Map, Menu, MessageSquarePlus, X } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Select,
@@ -22,6 +22,7 @@ interface NavMenuProps {
   country?: string;
   onCountryChange?: (country: string) => void;
   onFeedback?: () => void;
+  onNewsletter?: () => void;
   restrictionAreaMode: RestrictionAreaMode;
   onRestrictionAreaModeChange: (mode: RestrictionAreaMode) => void;
 }
@@ -57,6 +58,7 @@ export function NavMenu({
   open,
   onOpenChange,
   onAbout, onFeedback = () => {},
+  onNewsletter = () => {},
   countries = [], country = "spain", onCountryChange = () => {},
   restrictionAreaMode,
   onRestrictionAreaModeChange,
@@ -147,6 +149,11 @@ export function NavMenu({
               </span>
               <span className="flex-1">{t("howItWorksMenu")}</span>
             </a>
+            <MenuItem
+              icon={<Mail className="h-4 w-4" />}
+              label={t("newsletterMenu")}
+              onClick={() => select(onNewsletter)}
+            />
             <MenuItem
               icon={<MessageSquarePlus className="h-4 w-4" />}
               label={t("feedback")}

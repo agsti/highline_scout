@@ -74,6 +74,8 @@ class Settings(BaseSettings):
     resend_api_key: str | None = None
     feedback_to: str | None = None
     feedback_from: str | None = None
+    mailerlite_api_key: str | None = None
+    mailerlite_group_id: str | None = None
 
 
 settings = Settings()

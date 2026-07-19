@@ -6,6 +6,7 @@ core anchors and canonically-owned pairs, write parquet partitions, then delete
 the raw downloads. RAM is bounded to one chunk; no DTM persists.
 """
 import concurrent.futures
+import functools
 import json
 import math
 import os
@@ -127,6 +128,55 @@ def process_chunk(cx: int, cy: int, core_bbox: Bbox, region_dir: Path,  # noqa: 
     return len(owned_pairs)
 
 
+def _run_parallel(
+    chunks: list[tuple[int, int, Bbox]],
+    task: Callable[[int, int, Bbox], int],
+    workers: int,
+    report: Callable[[int, int], None] | None,
+) -> None:
+    """Run a bounded set of chunk futures and stop submitting on failure."""
+    chunk_iter = iter(chunks)
+    pending: dict[concurrent.futures.Future[int], tuple[int, int, Bbox]] = {}
+    done = 0
+    with concurrent.futures.ProcessPoolExecutor(max_workers=workers) as pool:
+        for _ in range(min(workers, len(chunks))):
+            chunk = next(chunk_iter)
+            pending[pool.submit(task, *chunk)] = chunk
+
+        while pending:
+            finished, _ = concurrent.futures.wait(
+                pending, return_when=concurrent.futures.FIRST_COMPLETED)
+            _check_parallel_results(finished, pending)
+
+            for future in finished:
+                pending.pop(future)
+                done += 1
+                if report is not None:
+                    report(done, len(chunks))
+            for _ in finished:
+                try:
+                    chunk = next(chunk_iter)
+                except StopIteration:
+                    break
+                pending[pool.submit(task, *chunk)] = chunk
+
+
+def _check_parallel_results(
+    finished: set[concurrent.futures.Future[int]],
+    pending: dict[concurrent.futures.Future[int], tuple[int, int, Bbox]],
+) -> None:
+    """Raise with chunk context and cancel pending work on worker failure."""
+    for future in finished:
+        try:
+            future.result()
+        except Exception as exc:
+            cx, cy, _core = pending[future]
+            for other in pending:
+                if other not in finished:
+                    other.cancel()
+            raise RuntimeError(f"chunk {cx},{cy} failed") from exc
+
+
 def precompute(  # noqa: PLR0913
         country: str, region: str, bbox: Bbox, data_dir: Path,
         chunk_m: float = config.CHUNK_M,
@@ -160,18 +210,8 @@ def precompute(  # noqa: PLR0913
                 report(i, total)
         return total
 
-    done = 0
-    with concurrent.futures.ProcessPoolExecutor(max_workers=workers) as pool:
-        futures = [
-            pool.submit(process_chunk, cx, cy, core, rdir,
-                        crs=crs, dtm_source=dtm_source,
-                        drop_radius_m=drop_radius_m,
-                        cache_dir=country_cache_dir)
-            for cx, cy, core in chunks
-        ]
-        for future in concurrent.futures.as_completed(futures):
-            future.result()
-            done += 1
-            if report is not None:
-                report(done, total)
+    task = functools.partial(
+        process_chunk, region_dir=rdir, crs=crs, dtm_source=dtm_source,
+        drop_radius_m=drop_radius_m, cache_dir=country_cache_dir)
+    _run_parallel(chunks, task, workers, report)
     return total

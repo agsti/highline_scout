@@ -1588,6 +1588,40 @@ and 6 added well over the four tests removed.
 git rm highliner/etls/chunk/dtm.py tests/highliner/etls/chunk/test_dtm.py
 ```
 
+- [ ] **Step 4b: Drop the now-dead `dtm_source` from `process_chunk`**
+
+> **Plan correction (decided after Task 5's review).** The original plan kept
+> `dtm_source` on `process_chunk` "for minimal diff". After Task 5 it is
+> genuinely unread there — nothing in the body consumes it — yet it is still
+> pickled into every pool worker, and its `"icgc"` default reads as a terrain
+> selector that selects nothing. Both the implementer and the reviewer flagged
+> it independently. The human decided to remove it.
+
+`precompute` **keeps** its `dtm_source` parameter — that is the one that writes
+`grid.json` provenance, which the spec requires. Only `process_chunk` loses it.
+
+In `shared.py`, remove the parameter:
+
+```python
+def process_chunk(cx: int, cy: int, core_bbox: Bbox, region_dir: Path,  # noqa: PLR0913
+                  halo: float = config.CHUNK_HALO_M,
+                  crs: str = config.UTM_CRS,
+                  drop_radius_m: float = config.DROP_RADIUS_M,
+                  cache_dir: Path | None = None,
+                  *, fetch: Fetcher) -> int:
+```
+
+and drop `dtm_source=dtm_source` from both the serial `process_chunk(...)` call
+and the `functools.partial(process_chunk, ...)` in `precompute`.
+
+Then drop `dtm_source=` from every `process_chunk` call in
+`tests/highliner/etls/chunk/test_shared.py`. Leave every `precompute(...)`
+call's `dtm_source=` alone — that parameter is still live and still asserted by
+`test_precompute_writes_dtm_source_as_provenance_not_dispatch`.
+
+Run: `uv run pytest tests/highliner/etls/chunk/test_shared.py -q && uv run mypy`
+Expected: PASS, clean. mypy is what catches a missed call site here.
+
 - [ ] **Step 5: Update `dtm_core.py`'s module docstring**
 
 It currently says country clients "import from here". Extend it to state the

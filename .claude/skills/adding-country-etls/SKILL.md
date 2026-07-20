@@ -33,7 +33,7 @@ country needs no request-time work at all.
 | DTM client module | `highliner/etls/chunk/<country>/dtm_<source>.py` | `czechia/dtm_cuzk.py` |
 | DTM source branch | extend `highliner/etls/chunk/dtm.py` | `_fetch_from_cache` |
 | Run commands | `just etl-chunk <country> <workers>` | — |
-| Tests | `tests/test_precompute_<country>.py` | `tests/test_precompute_spain.py` |
+| Tests | `tests/highliner/etls/<stage>/<country>/test_main.py` | `tests/highliner/etls/chunk/spain/test_main.py` |
 
 Output lands in `data/<country>/<region>/{grid.json,anchors/,pairs/}`; the DTM
 cache in `cache/<country>/`. The server discovers regions from `grid.json` on

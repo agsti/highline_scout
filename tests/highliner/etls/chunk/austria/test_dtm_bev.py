@@ -155,3 +155,26 @@ def test_fetch_bev_tiles_rejects_false_wgs84_bbox_overlap(
     assert len(paths) == 1
     assert "E4600000" in paths[0].name
     assert len(selected) == 1
+
+
+def test_bev_fetch_reorders_arguments_for_the_client(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """BEV's client takes (bbox, crs, cache_root) — the fetcher adapts it."""
+    seen: list[tuple[object, object, object]] = []
+
+    def fake(bbox: object, crs: object, cache_root: object) -> list[Path]:
+        seen.append((bbox, crs, cache_root))
+        return [tmp_path / "sheet.tif"]
+
+    monkeypatch.setattr(dtm_austria, "fetch_bev_tiles", fake)
+    out = dtm_austria.fetch((0.0, 0.0, 1.0, 1.0), tmp_path / "tiles",
+                            tmp_path / "cache", "EPSG:3035")
+
+    assert out == [tmp_path / "sheet.tif"]
+    assert seen == [((0.0, 0.0, 1.0, 1.0), "EPSG:3035", tmp_path / "cache")]
+
+
+def test_bev_fetch_requires_cache_dir(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="bev_als_dtm source requires cache_dir"):
+        dtm_austria.fetch((0.0, 0.0, 1.0, 1.0), tmp_path / "tiles", None,
+                          "EPSG:3035")

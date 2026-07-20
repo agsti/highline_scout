@@ -133,3 +133,11 @@ def _get(url: str) -> requests.Response:
                 raise
             time.sleep(2.0 ** attempt)
     raise RuntimeError("unreachable")
+
+
+def fetch(bbox: Bbox, tiles_dir: Path, cache_dir: Path | None,
+          crs: str) -> list[Path]:
+    """Fetcher-shaped entry point; ČÚZK persists sheets in the country cache."""
+    if cache_dir is None:
+        raise ValueError("cuzk_dmr4g source requires cache_dir")
+    return fetch_cuzk_dmr4g(bbox, cache_dir, crs)

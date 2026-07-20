@@ -167,3 +167,11 @@ def _materialize_subset(url: str, bbox: Bbox, dest: Path) -> None:
     with rasterio.open(part, "w", **profile) as dst:
         dst.write(output, 1)
     part.replace(dest)
+
+
+def fetch(bbox: Bbox, tiles_dir: Path, cache_dir: Path | None,
+          crs: str) -> list[Path]:
+    """Fetcher-shaped entry point; BEV persists sheets in the country cache."""
+    if cache_dir is None:
+        raise ValueError("bev_als_dtm source requires cache_dir")
+    return fetch_bev_tiles(bbox, crs, cache_dir)

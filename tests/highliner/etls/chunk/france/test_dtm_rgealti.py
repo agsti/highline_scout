@@ -336,3 +336,25 @@ def test_rgealti_download_archive_resumes_broken_streams(
 
     assert attempts["n"] == 2
     assert dest.read_bytes() == b"0123456789"
+
+
+def test_rgealti_fetch_delegates_to_cache_client(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    seen: list[tuple[object, object, object]] = []
+
+    def fake(bbox: object, cache_root: object, crs: object) -> list[Path]:
+        seen.append((bbox, cache_root, crs))
+        return [tmp_path / "dalle.tif"]
+
+    monkeypatch.setattr(dtm_rgealti, "fetch_rgealti_tiles", fake)
+    out = dtm_rgealti.fetch((0.0, 0.0, 1.0, 1.0), tmp_path / "tiles",
+                            tmp_path / "cache", "EPSG:2154")
+
+    assert out == [tmp_path / "dalle.tif"]
+    assert seen == [((0.0, 0.0, 1.0, 1.0), tmp_path / "cache", "EPSG:2154")]
+
+
+def test_rgealti_fetch_requires_cache_dir(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="rgealti source requires cache_dir"):
+        dtm_rgealti.fetch((0.0, 0.0, 1.0, 1.0), tmp_path / "tiles", None,
+                          "EPSG:2154")

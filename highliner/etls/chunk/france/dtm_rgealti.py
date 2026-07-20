@@ -364,3 +364,11 @@ def _select_dalles(dep_dir: Path, bbox: Bbox) -> list[Path]:
                 and bounds[1] < maxy and bounds[3] > miny:
             out.append(path)
     return out
+
+
+def fetch(bbox: Bbox, tiles_dir: Path, cache_dir: Path | None,
+          crs: str) -> list[Path]:
+    """Fetcher-shaped entry point; RGE ALTI persists dalles in the cache."""
+    if cache_dir is None:
+        raise ValueError("rgealti source requires cache_dir")
+    return fetch_rgealti_tiles(bbox, cache_dir, crs)

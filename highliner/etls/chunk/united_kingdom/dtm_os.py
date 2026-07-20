@@ -142,3 +142,21 @@ def _ascii_bounds(path: Path) -> Bbox:
 def _intersects(left: Bbox, right: Bbox) -> bool:
     return (left[0] < right[2] and right[0] < left[2]
             and left[1] < right[3] and right[1] < left[3])
+
+
+def fetch_terrain_50(bbox: Bbox, tiles_dir: Path, cache_dir: Path | None,
+                     crs: str) -> list[Path]:
+    """Fetcher-shaped entry point for ``dtm_source="os_terrain_50"``
+    (Wales, Scotland). Sheets persist in the country cache."""
+    if cache_dir is None:
+        raise ValueError("os_terrain_50 source requires cache_dir")
+    return fetch_os_terrain_50(bbox, cache_dir)
+
+
+def fetch_osni(bbox: Bbox, tiles_dir: Path, cache_dir: Path | None,
+               crs: str) -> list[Path]:
+    """Fetcher-shaped entry point for ``dtm_source="osni_dtm_10m"``
+    (Northern Ireland). Sheets persist in the country cache."""
+    if cache_dir is None:
+        raise ValueError("osni_dtm_10m source requires cache_dir")
+    return fetch_osni_dtm_10m(bbox, cache_dir)

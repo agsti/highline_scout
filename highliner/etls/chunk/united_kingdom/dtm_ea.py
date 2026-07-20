@@ -197,3 +197,11 @@ def tile_ids(bbox: Bbox) -> list[str]:
             ids.append(f"{letters}{(x % 100_000) // 1000:02d}"
                        f"{(y % 100_000) // 1000:02d}")
     return sorted(ids)
+
+
+def fetch(bbox: Bbox, tiles_dir: Path, cache_dir: Path | None,
+          crs: str) -> list[Path]:
+    """Fetcher-shaped entry point; EA lidar tiles are cached resampled to 5 m."""
+    if cache_dir is None:
+        raise ValueError("ea_lidar_1m source requires cache_dir")
+    return fetch_ea_lidar(bbox, cache_dir)

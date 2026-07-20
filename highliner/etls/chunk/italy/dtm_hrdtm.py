@@ -16,6 +16,7 @@ from pathlib import Path
 
 import requests
 
+Bbox = tuple[float, float, float, float]
 HRDTM_URL = "https://zenodo.org/api/records/18872933/files/HRDTM5m/content"
 HRDTM_SIZE = 22_091_137_427    # bytes; pinned to the Zenodo record (v1.1)
 HRDTM_FILENAME = "HRDTM5m.tif"
@@ -79,3 +80,12 @@ def _resume_stream(part: Path) -> None:
             for chunk in resp.iter_content(1024 * 1024):
                 if chunk:
                     fh.write(chunk)
+
+
+def fetch(bbox: Bbox, tiles_dir: Path, cache_dir: Path | None,
+          crs: str) -> list[Path]:
+    """Fetcher-shaped entry point; HR-DTM is one national file in the cache,
+    so ``bbox`` and ``crs`` do not narrow the download."""
+    if cache_dir is None:
+        raise ValueError("hrdtm source requires cache_dir")
+    return fetch_hrdtm(cache_dir)

@@ -315,3 +315,11 @@ def _resample_to_5m(source: Path, dest: Path) -> None:
         part.replace(dest)
     finally:
         part.unlink(missing_ok=True)
+
+
+def fetch(bbox: Bbox, tiles_dir: Path, cache_dir: Path | None,
+          crs: str) -> list[Path]:
+    """Fetcher-shaped entry point; swissALTI3D tiles persist in the cache."""
+    if cache_dir is None:
+        raise ValueError("swissalti3d source requires cache_dir")
+    return fetch_swissalti_tiles(bbox, cache_dir, crs)

@@ -293,3 +293,29 @@ def test_corrupted_derived_cache_is_rebuilt_at_5m(
     assert dtm_swissalti._valid_raster(
         dest, resolution=5.0, nodata=-9999.0,
         bounds=(2633000, 1155000, 2634000, 1156000))
+
+
+def test_swissalti_fetch_delegates_to_cache_client(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from highliner.etls.chunk.switzerland import dtm_swissalti
+
+    seen: list[tuple[object, object, object]] = []
+
+    def fake(bbox: object, cache_root: object, crs: object) -> list[Path]:
+        seen.append((bbox, cache_root, crs))
+        return [tmp_path / "tile.tif"]
+
+    monkeypatch.setattr(dtm_swissalti, "fetch_swissalti_tiles", fake)
+    out = dtm_swissalti.fetch((0.0, 0.0, 1.0, 1.0), tmp_path / "tiles",
+                              tmp_path / "cache", "EPSG:2056")
+
+    assert out == [tmp_path / "tile.tif"]
+    assert seen == [((0.0, 0.0, 1.0, 1.0), tmp_path / "cache", "EPSG:2056")]
+
+
+def test_swissalti_fetch_requires_cache_dir(tmp_path: Path) -> None:
+    from highliner.etls.chunk.switzerland import dtm_swissalti
+
+    with pytest.raises(ValueError, match="swissalti3d source requires cache_dir"):
+        dtm_swissalti.fetch((0.0, 0.0, 1.0, 1.0), tmp_path / "tiles", None,
+                            "EPSG:2056")

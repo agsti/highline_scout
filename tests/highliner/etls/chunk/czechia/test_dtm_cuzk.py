@@ -100,3 +100,25 @@ def test_cuzk_client_extracts_world_file_with_geotiff(
 
     assert paths == [tmp_path / "dmr4g" / "302_5550.tif"]
     assert paths[0].with_suffix(".tfw").read_text().startswith("5\n")
+
+
+def test_cuzk_fetch_delegates_to_cache_client(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    seen: list[tuple[object, object, object]] = []
+
+    def fake(bbox: object, cache_root: object, crs: object) -> list[Path]:
+        seen.append((bbox, cache_root, crs))
+        return [tmp_path / "sheet.tif"]
+
+    monkeypatch.setattr(dtm_cuzk, "fetch_cuzk_dmr4g", fake)
+    out = dtm_cuzk.fetch((0.0, 0.0, 1.0, 1.0), tmp_path / "tiles",
+                         tmp_path / "cache", "EPSG:3045")
+
+    assert out == [tmp_path / "sheet.tif"]
+    assert seen == [((0.0, 0.0, 1.0, 1.0), tmp_path / "cache", "EPSG:3045")]
+
+
+def test_cuzk_fetch_requires_cache_dir(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="cuzk_dmr4g source requires cache_dir"):
+        dtm_cuzk.fetch((0.0, 0.0, 1.0, 1.0), tmp_path / "tiles", None,
+                       "EPSG:3045")

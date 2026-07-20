@@ -1,6 +1,7 @@
 import zipfile
 from pathlib import Path
 
+import pytest
 import rasterio
 
 from highliner.etls.chunk.united_kingdom import dtm_os
@@ -64,3 +65,43 @@ def test_osni_legacy_index_is_rebuilt_from_cached_archive(tmp_path: Path) -> Non
 
     assert [path.name for path in paths] == ["Sheet001.tif"]
     assert (root / "index.json").read_text().startswith('{"format": "xyz-v1"')
+
+
+def test_os_fetchers_route_to_their_own_clients(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """One module, two sources: each fetcher must reach its own client.
+
+    This is the regression the old dispatcher's Northern Ireland fallthrough
+    caused — serving another region's terrain silently corrupts anchors.
+    """
+    seen: list[tuple[str, object, object]] = []
+
+    def fake_terrain(bbox: object, cache_root: object) -> list[Path]:
+        seen.append(("terrain_50", bbox, cache_root))
+        return [tmp_path / "gb.asc"]
+
+    def fake_osni(bbox: object, cache_root: object) -> list[Path]:
+        seen.append(("osni", bbox, cache_root))
+        return [tmp_path / "ni.tif"]
+
+    monkeypatch.setattr(dtm_os, "fetch_os_terrain_50", fake_terrain)
+    monkeypatch.setattr(dtm_os, "fetch_osni_dtm_10m", fake_osni)
+
+    assert dtm_os.fetch_terrain_50((0.0, 0.0, 1.0, 1.0), tmp_path / "tiles",
+                                   tmp_path / "cache", "EPSG:27700") == \
+        [tmp_path / "gb.asc"]
+    assert dtm_os.fetch_osni((0.0, 0.0, 1.0, 1.0), tmp_path / "tiles",
+                             tmp_path / "cache", "EPSG:29903") == \
+        [tmp_path / "ni.tif"]
+    assert [name for name, _b, _c in seen] == ["terrain_50", "osni"]
+
+
+def test_os_fetchers_require_cache_dir(tmp_path: Path) -> None:
+    with pytest.raises(ValueError,
+                       match="os_terrain_50 source requires cache_dir"):
+        dtm_os.fetch_terrain_50((0.0, 0.0, 1.0, 1.0), tmp_path / "tiles", None,
+                                "EPSG:27700")
+    with pytest.raises(ValueError,
+                       match="osni_dtm_10m source requires cache_dir"):
+        dtm_os.fetch_osni((0.0, 0.0, 1.0, 1.0), tmp_path / "tiles", None,
+                          "EPSG:29903")

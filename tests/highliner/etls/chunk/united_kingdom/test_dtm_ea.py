@@ -236,3 +236,25 @@ def test_fetch_tiles_dispatches_ea_lidar(
     with pytest.raises(ValueError, match="cache_dir"):
         dtm.fetch_tiles((0, 0, 1, 1), tmp_path / "tiles",
                         source="ea_lidar_1m", crs="EPSG:27700")
+
+
+def test_ea_fetch_delegates_to_cache_client(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    seen: list[tuple[object, object]] = []
+
+    def fake(bbox: object, cache_root: object) -> list[Path]:
+        seen.append((bbox, cache_root))
+        return [tmp_path / "tile.tif"]
+
+    monkeypatch.setattr(dtm_ea, "fetch_ea_lidar", fake)
+    out = dtm_ea.fetch((0.0, 0.0, 1.0, 1.0), tmp_path / "tiles",
+                       tmp_path / "cache", "EPSG:27700")
+
+    assert out == [tmp_path / "tile.tif"]
+    assert seen == [((0.0, 0.0, 1.0, 1.0), tmp_path / "cache")]
+
+
+def test_ea_fetch_requires_cache_dir(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="ea_lidar_1m source requires cache_dir"):
+        dtm_ea.fetch((0.0, 0.0, 1.0, 1.0), tmp_path / "tiles", None,
+                     "EPSG:27700")

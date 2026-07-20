@@ -116,3 +116,26 @@ def test_hrdtm_complete_partial_file_does_not_request_again(
     monkeypatch.setattr(requests, "get", fail)
 
     dtm_hrdtm._resume_stream(part)
+
+
+def test_hrdtm_fetch_passes_only_the_cache_root(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """HR-DTM is one national file: bbox and crs are irrelevant to the client."""
+    seen: list[object] = []
+
+    def fake(cache_root: object) -> list[Path]:
+        seen.append(cache_root)
+        return [tmp_path / "hrdtm.tif"]
+
+    monkeypatch.setattr(dtm_hrdtm, "fetch_hrdtm", fake)
+    out = dtm_hrdtm.fetch((0.0, 0.0, 1.0, 1.0), tmp_path / "tiles",
+                          tmp_path / "cache", "EPSG:32632")
+
+    assert out == [tmp_path / "hrdtm.tif"]
+    assert seen == [tmp_path / "cache"]
+
+
+def test_hrdtm_fetch_requires_cache_dir(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="hrdtm source requires cache_dir"):
+        dtm_hrdtm.fetch((0.0, 0.0, 1.0, 1.0), tmp_path / "tiles", None,
+                        "EPSG:32632")

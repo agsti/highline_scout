@@ -1235,7 +1235,13 @@ This is the check the spec calls out as the one real hazard of Phase 2:
 grep -rn 'monkeypatch.setattr("highliner' tests/highliner/etls/chunk/
 ```
 
-For each hit, confirm the named module actually still defines the attribute being patched. A patch aimed at a module that no longer owns the code fails open — the test passes while exercising nothing.
+For each hit, confirm the named module actually still defines the attribute being patched.
+
+**Correction, established during Task 8:** an earlier draft of this plan claimed such a patch "fails open." That is wrong, and was verified wrong empirically. `monkeypatch.setattr` defaults to `raising=True`, so an unresolvable target raises `ImportError` or `AttributeError` — loudly, never silently.
+
+There is a subtler real issue in the opposite direction. A target like `"highliner.etls.chunk.dtm.time.sleep"` does not patch `dtm`'s namespace at all: it getattr-tunnels through `dtm` to the **global `time` module singleton** and patches `sleep` there, so it takes effect everywhere regardless of which module the retry loop lives in. Such a target can therefore name the wrong module forever and still work. The suite cannot detect that. Re-pointing those targets is intent-expressing hygiene, not a bug fix, and no test failure will tell you when one is stale.
+
+The targets that genuinely break on a move are the ones naming a symbol the module itself defines — `dtm._download_tile`, `dtm._cnig_session`, `dtm.CNIG_BASE`. Those raise `AttributeError` once the symbol moves. Step 4 above relies on exactly that, and is sound.
 
 - [ ] **Step 7: Verify test count is preserved**
 

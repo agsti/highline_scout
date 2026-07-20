@@ -213,7 +213,18 @@ green:
   `highliner-etl-density --help`, `highliner-restrictions --help`.
 - `uv run python scripts/prefetch_ea_lidar.py --help` exits 0.
 
-For phase 2 specifically, confirm no test lost its monkeypatch target: a patch
-aimed at a module that no longer holds the code fails open — the test still
-passes while exercising nothing. Grep the moved tests for string patch targets
-and check each against the new owner.
+For phase 2 specifically, grep the moved tests for string patch targets and
+check each against the new owner.
+
+This spec originally claimed a patch aimed at a module that no longer holds the
+code "fails open." **That was wrong**, and Task 8 disproved it empirically.
+`monkeypatch.setattr` defaults to `raising=True`: an unresolvable target raises
+`ImportError` or `AttributeError`, loudly.
+
+The genuine subtlety runs the other way. A target like
+`"…chunk.dtm.time.sleep"` never patches `dtm`'s namespace — it tunnels through
+`dtm` to the global `time` module singleton and patches `sleep` there, so it
+works no matter which module the retry loop lives in. Such a target can name
+the wrong module indefinitely without any test noticing. Fixing those is
+hygiene, not repair. Only targets naming a symbol the module itself defines
+(`dtm._download_tile`, `dtm.CNIG_BASE`) actually break on a move.

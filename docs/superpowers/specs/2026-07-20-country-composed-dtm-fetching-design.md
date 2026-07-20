@@ -198,6 +198,80 @@ This design is a straight simplification: it deletes a shared module rather
 than adding one, and the end state is easier to explain than the current one.
 That holds regardless of how many more countries arrive.
 
+## Documentation
+
+`.claude/skills/adding-country-etls/SKILL.md` is the instruction set an agent
+follows when adding a country. If it still describes dispatch through `dtm.py`
+after `dtm.py` is deleted, it will actively generate broken code — so it is
+part of this change, not a follow-up.
+
+**Keep the existing structure.** Same sections in the same order, same tables in
+the same format. Only the affected rows and paragraphs change; this is not a
+rewrite of the skill.
+
+**Quick reference table (line 34).** The row
+
+```
+| DTM source branch | extend `highliner/etls/chunk/dtm.py` | `_fetch_from_cache` |
+```
+
+no longer describes anything that exists. Replace it with the fetcher entry
+point, which is what a new country now provides:
+
+```
+| Fetcher entry point | `fetch()` in `highliner/etls/chunk/<country>/dtm_<source>.py` | `czechia/dtm_cuzk.py` |
+```
+
+The `DTM client module` row above it (line 33) stays as-is and remains correct.
+
+**Section 1, "DTM source" (around line 105).** The paragraph opening
+"Implement as a new `source` key dispatched from `fetch_tiles` (`dtm.py`)"
+describes the mechanism being removed. Rewrite it to say: expose a module-level
+`fetch(bbox, tiles_dir, cache_dir, crs) -> list[Path]` matching `Fetcher` from
+`dtm_core`, in the country's own `dtm_<source>.py`. There is no shared file to
+register it in — the country's `main.py` passes it directly.
+
+Everything else in that paragraph survives and should be kept: the
+`dtm_core` helper guidance, `_fetch_cnig_tiles` as the bulk-source pattern
+(now reachable as Spain's fetcher), `_download_idee_tile` as the coverage-API
+pattern, and the EPSG-keyed helper note.
+
+**Section 2, "Chunk adapter" (around line 120).** Two edits. The `Region`
+description gains the fetcher:
+
+```
+`Region(name, bbox, crs, dtm_source, fetch)`
+```
+
+and the `shared.precompute` code block gains the argument:
+
+```python
+shared.precompute(COUNTRY, region.name, region.bbox, data_dir,
+                  crs=region.crs, dtm_source=region.dtm_source,
+                  fetch=region.fetch,
+                  workers=workers, cache_dir=cache_dir, report=report)
+```
+
+Add one bullet to that section's existing bullet list, explaining that
+`dtm_source` is now provenance written to `grid.json` while `fetch` does the
+work, so the two must describe the same source.
+
+**Common mistakes table (around line 205).** Add one row for the trap this
+design introduces:
+
+```
+| lambda or nested function as the fetcher | `PicklingError` once `--workers > 1`; module-level only |
+```
+
+This is worth calling out precisely because it is invisible at `--workers 1`
+and only appears under parallelism.
+
+**`AGENTS.md`.** The layout tree names `dtm.py` as the chunk-stage dispatcher
+and the pipeline section references `etls/chunk/dtm.py`. Both must change:
+`dtm.py` is gone, `dtm_core.py` holds the generic helpers plus
+`raster_from_tiles`, and each country supplies its own fetcher. Keep the tree's
+existing shape and indentation.
+
 ## Non-goals
 
 - Changing `grid.json`'s format, or removing the unread
@@ -223,3 +297,14 @@ That holds regardless of how many more countries arrive.
   cache-backed country and for Spain, confirming fetchers work *inside pool
   workers*. The pickling constraint only bites across the process boundary — do
   not accept unit tests in place of this.
+- No doc names a path that no longer exists:
+
+  ```
+  grep -rn "chunk/dtm\.py\|fetch_tiles\|_fetch_from_cache" \
+    AGENTS.md README.md COUNTRIES.md .claude/skills/
+  ```
+
+  Expected: no output. `tests/project/` asserts on skill and doc content, so
+  run it after the doc edits — a failure there means an assertion is pinned to
+  text that changed, and the assertion should be updated to the new reality
+  rather than the edit reverted.

@@ -113,8 +113,6 @@ def test_poland_fetch_passes_through_wcs_result(
 def test_poland_fetch_retries_transient_failure(
         tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """A 429 is retried; the retry wrapper lives in Poland's fetcher now."""
-    import requests
-
     monkeypatch.setattr("highliner.etls.chunk.dtm_core.time.sleep",
                         lambda s: None)
     resp = requests.Response()

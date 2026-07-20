@@ -44,7 +44,7 @@ def test_precompute_uses_explicit_country_for_outputs_and_cache(
 
 
 def _patch_gap_download(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Make dtm._download_tile synthesize terrain: plateau 100 m everywhere
+    """Make dtm_icgc._download_tile synthesize terrain: plateau 100 m everywhere
     except a deep N-S trench (elev 20) 40 m wide near the chunk's west side, so
     facing anchors exist across the trench (exposure ~80)."""
     from highliner.etls.chunk.spain import dtm_icgc as _dtm_icgc

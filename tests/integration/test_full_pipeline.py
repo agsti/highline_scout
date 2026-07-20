@@ -8,7 +8,7 @@ from highliner.server.app import create_app
 
 
 def _patch_gap_download(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Make dtm._download_tile synthesize terrain: plateau 100 m with a deep
+    """Make dtm_icgc._download_tile synthesize terrain: plateau 100 m with a deep
     N-S trench (elev 20, 40 m wide) through the middle, so facing anchors exist
     across the trench (exposure ~80)."""
     from highliner.etls.chunk.spain import dtm_icgc as _dtm_icgc

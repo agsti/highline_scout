@@ -105,10 +105,13 @@ Requirements for a usable terrain source:
 
 Implement as a new `source` key dispatched from `fetch_tiles` (`dtm.py`), with
 the client itself in its own module (e.g. `etls/chunk/<country>/dtm_<source>.py`) —
-`dtm.py` already sits near the 500-line cap `just lint` enforces, so a new
-client won't fit inline. For a bulk source follow `_fetch_cnig_tiles`: catalog
-query cached to disk (`_cached_query_sheets`), per-sheet download with flock +
-`.part` tmp file + transient-HTTP retries. For a coverage API follow
+that's the layout: each country's DTM client lives in that country's package,
+named for its source, not inlined into the shared `dtm.py` dispatcher. Generic
+tiling/retry/CRS helpers (`Bbox`, `tile_specs`, `_download_with_retries`, and
+friends) live in `dtm_core.py` and are meant to be imported from there — see
+`spain/dtm_cnig.py` for the pattern. For a bulk source follow `_fetch_cnig_tiles`:
+catalog query cached to disk (`_cached_query_sheets`), per-sheet download with
+flock + `.part` tmp file + transient-HTTP retries. For a coverage API follow
 `_download_idee_tile`. If a helper is keyed by EPSG (`IDEE_COLLECTIONS`,
 `_preferred_huso`), extend it for the new CRS.
 

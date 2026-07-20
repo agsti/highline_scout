@@ -161,6 +161,8 @@ the server). Command entry points live beside the stage they drive:
           <country>/         main.py (CLI, regions) + dtm_<source>.py clients
           shared.py          chunk-grid orchestration
           dtm.py             DTM source dispatch (per-country client modules)
+          dtm_core.py        generic tiling/retry/CRS helpers a country
+                             client imports from (no country deps)
           terrain.py         anchor extraction
           pairing.py         candidate pairing
           anchors.py         anchor parquet writer

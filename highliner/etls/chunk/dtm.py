@@ -23,11 +23,7 @@ from highliner.etls.chunk.dtm_core import (  # re-exported for existing callers
     TILE_RETRY_BASE_S,
     TILE_WORKERS,
     Bbox,
-    _bbox_geom_lonlat,
     _download_with_retries,
-    _epsg_code,
-    _retry_delay,
-    _snap,
     tile_specs,
 )
 from highliner.etls.chunk.france import dtm_rgealti
@@ -51,11 +47,6 @@ __all__ = [
     "TILE_RETRY_BASE_S",
     "TILE_WORKERS",
     "Bbox",
-    "_bbox_geom_lonlat",
-    "_download_with_retries",
-    "_epsg_code",
-    "_retry_delay",
-    "_snap",
     "fetch_tiles",
     "raster_from_tiles",
     "tile_specs",

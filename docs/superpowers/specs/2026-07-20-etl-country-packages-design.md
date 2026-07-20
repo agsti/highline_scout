@@ -55,8 +55,13 @@ and does not gain one here.
 - `main.py` — the country's `main()`, `COUNTRY`, `Region`, `REGIONS`, CRS
   constants, and its argument parser. This is the old `<country>.py` verbatim,
   with imports adjusted.
-- `__init__.py` — `from .main import main` and `__all__ = ["main"]`, so
-  `from highliner.etls.chunk import spain; spain.main()` still works.
+- `__init__.py` — docstring only. It deliberately does **not** re-export
+  `main`: the package already has a `main` submodule, so a re-export would
+  shadow it and make `from highliner.etls.chunk.spain import main` ambiguous
+  between the module and the function. Only tests import country modules as
+  modules today, and they adapt with a one-line alias
+  (`from highliner.etls.chunk.spain import main as spain`), which leaves every
+  `spain.REGIONS` / `spain.main()` reference in the body working.
 - `__main__.py` — `from .main import main` / `main()` under the usual
   `if __name__ == "__main__":` guard, so `python -m highliner.etls.chunk.spain`
   keeps working unchanged. The justfile and AGENTS.md invoke it this way and

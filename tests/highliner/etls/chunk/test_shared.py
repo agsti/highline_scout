@@ -36,7 +36,7 @@ def test_precompute_uses_explicit_country_for_outputs_and_cache(
 
     shared.precompute(
         "france", "alps", (0.0, 0.0, 10.0, 10.0), tmp_path,
-        chunk_m=10.0, crs="EPSG:2154", dtm_source="cnig", fetch=dtm_icgc.fetch,
+        chunk_m=10.0, crs="EPSG:2154", dtm_source="icgc", fetch=dtm_icgc.fetch,
         cache_dir=tmp_path / "cache",
     )
 

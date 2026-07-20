@@ -75,3 +75,16 @@ def test_spain_chunk_adapter_does_not_expose_montserrat_as_catalonia_alias() -> 
 
     assert "catalonia" in region_names
     assert {"catalunya", "catalonia2"}.isdisjoint(region_names)
+
+
+def test_spain_regions_carry_their_matching_fetcher() -> None:
+    """Every region but catalonia rides CNIG; catalonia rides ICGC. canarias
+    is hand-written outside the _peninsula()/_catalonia() helpers, so pin it
+    explicitly: dtm_cnig and dtm_icgc are both in Spain's package, so a
+    cross-wire here would still pass the cross-country __module__ check."""
+    from highliner.etls.chunk.spain import dtm_cnig, dtm_icgc
+
+    expected = {region.name: dtm_cnig.fetch for region in spain.REGIONS}
+    expected["catalonia"] = dtm_icgc.fetch
+
+    assert {region.name: region.fetch for region in spain.REGIONS} == expected

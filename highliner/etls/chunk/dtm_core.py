@@ -4,18 +4,31 @@ Country-specific download clients live in `<country>/dtm_<source>.py` and
 import from here. This module must not import any country package — that is
 what keeps the dependency graph acyclic.
 """
+import concurrent.futures
 import math
 import time
 from collections.abc import Callable
-from typing import TypeVar
+from pathlib import Path
+from typing import TYPE_CHECKING, TypeVar
 
+import numpy as np
+import rasterio
 import requests
 from pyproj import Transformer
+from rasterio.merge import merge
 from shapely.geometry import box
 from shapely.geometry.base import BaseGeometry
 from shapely.ops import transform as shapely_transform
 
+if TYPE_CHECKING:
+    from highliner.models.raster import Raster
+
 Bbox = tuple[float, float, float, float]
+
+# A country's DTM entry point: given a bbox and somewhere to put things,
+# return the tile paths on disk. Must be a module-level function — it is
+# pickled into precompute's worker pool (see shared._run_parallel).
+Fetcher = Callable[[Bbox, Path, "Path | None", str], list[Path]]
 
 NATIVE_RES = 5.0       # meters — finest DTM resolution on this WCS
 MAX_TILE_PX = 175      # per side; 175*175 < 35,800 px request cap
@@ -95,3 +108,54 @@ def tile_specs(bbox: Bbox, res: float = NATIVE_RES, tile_px: int = MAX_TILE_PX
             x = tx2
         y = ty2
     return out
+
+
+def fetch_tile_grid(bbox: Bbox, tiles_dir: Path,  # noqa: PLR0913
+                    download: Callable[[Bbox, int, int, Path], Path],
+                    ext: str, res: float = NATIVE_RES,
+                    tile_px: int = MAX_TILE_PX) -> list[Path]:
+    """Split ``bbox`` into tiles and download each into ``tiles_dir``.
+
+    Reuses tiles already on disk; retries transient HTTP failures with backoff
+    and raises once ``TILE_RETRY_ATTEMPTS`` is exhausted, so a throttled run
+    fails loudly instead of writing holes into the terrain. A ``RuntimeError``
+    from ``download`` means a non-raster body (out of coverage) and drops just
+    that tile. Returns the paths that exist on disk.
+    """
+    tiles_dir = Path(tiles_dir)
+    tiles_dir.mkdir(parents=True, exist_ok=True)
+
+    def fetch_one(spec: tuple[Bbox, int, int]) -> Path | None:
+        tb, w, h = spec
+        dest = tiles_dir / f"t_{int(tb[0])}_{int(tb[1])}.{ext}"
+        if not dest.exists():
+            try:
+                _download_with_retries(lambda: download(tb, w, h, dest))
+            except RuntimeError:
+                return None       # out of coverage / non-raster body: expected
+        return dest
+
+    specs = tile_specs(bbox, res, tile_px)
+    if not specs:
+        return []
+    with concurrent.futures.ThreadPoolExecutor(
+            max_workers=min(TILE_WORKERS, len(specs))) as pool:
+        results = list(pool.map(fetch_one, specs))   # map preserves spec order
+    return [p for p in results if p is not None]
+
+
+def raster_from_tiles(paths: list[Path], res: float = NATIVE_RES,
+                      bbox: Bbox | None = None) -> "Raster | None":
+    """Merge tile rasters into one in-memory ``Raster`` (NaN nodata), or None."""
+    from highliner.models.raster import Raster
+    if not paths:
+        return None
+    srcs = [rasterio.open(p) for p in paths]
+    try:
+        arr, transform = merge(srcs, nodata=NODATA, bounds=bbox)
+    finally:
+        for s in srcs:
+            s.close()
+    data = arr[0].astype("float32")
+    data[(data == NODATA) | (data == SEA_SENTINEL)] = np.nan
+    return Raster(data=data, transform=transform, res=abs(transform.a))

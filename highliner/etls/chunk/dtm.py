@@ -7,11 +7,6 @@ from ``fetch_tiles``.
 import concurrent.futures
 from collections.abc import Callable
 from pathlib import Path
-from typing import TYPE_CHECKING
-
-import numpy as np
-import rasterio
-from rasterio.merge import merge
 
 from highliner.etls.chunk.austria import dtm_bev
 from highliner.etls.chunk.czechia import dtm_cuzk
@@ -25,6 +20,7 @@ from highliner.etls.chunk.dtm_core import (  # re-exported for existing callers
     TILE_WORKERS,
     Bbox,
     _download_with_retries,
+    raster_from_tiles,
     tile_specs,
 )
 from highliner.etls.chunk.france import dtm_rgealti
@@ -33,9 +29,6 @@ from highliner.etls.chunk.poland import dtm_wcs
 from highliner.etls.chunk.spain import dtm_cnig, dtm_icgc
 from highliner.etls.chunk.switzerland import dtm_swissalti
 from highliner.etls.chunk.united_kingdom import dtm_ea, dtm_os
-
-if TYPE_CHECKING:
-    from highliner.models.raster import Raster
 
 # Explicit re-export of the generic helpers that moved to dtm_core, so
 # `shared.py` and existing tests can keep reaching for them via this module.
@@ -138,20 +131,3 @@ def fetch_tiles(bbox: Bbox, tiles_dir: Path, res: float = NATIVE_RES,  # noqa: P
             max_workers=min(TILE_WORKERS, len(specs))) as pool:
         results = list(pool.map(fetch_one, specs))   # map preserves spec order
     return [p for p in results if p is not None]
-
-
-def raster_from_tiles(paths: list[Path], res: float = NATIVE_RES,
-                      bbox: Bbox | None = None) -> "Raster | None":
-    """Merge tile rasters into one in-memory ``Raster`` (NaN nodata), or None."""
-    from highliner.models.raster import Raster
-    if not paths:
-        return None
-    srcs = [rasterio.open(p) for p in paths]
-    try:
-        arr, transform = merge(srcs, nodata=NODATA, bounds=bbox)
-    finally:
-        for s in srcs:
-            s.close()
-    data = arr[0].astype("float32")
-    data[(data == NODATA) | (data == SEA_SENTINEL)] = np.nan
-    return Raster(data=data, transform=transform, res=abs(transform.a))

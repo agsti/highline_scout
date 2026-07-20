@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 import requests
 
@@ -97,3 +99,60 @@ def test_bbox_geom_lonlat_reprojects_to_wgs84() -> None:
     assert 2.5 < minx < 3.0 and 2.5 < maxx < 3.0    # Catalonia, UTM 31N -> lon/lat
     assert 41.0 < miny < 42.5 and 41.0 < maxy < 42.5
     assert minx < maxx and miny < maxy
+
+
+def test_fetch_tile_grid_downloads_each_tile_and_returns_paths(
+        tmp_path: Path) -> None:
+    """The grid mode tiles the bbox and returns one path per downloaded tile."""
+    seen: list[tuple[int, int]] = []
+
+    def download(bbox: tuple[float, float, float, float], width: int,
+                 height: int, dest: Path) -> Path:
+        seen.append((width, height))
+        dest.write_text("tile")
+        return dest
+
+    paths = dtm_core.fetch_tile_grid(
+        (484000.0, 4646000.0, 486000.0, 4647500.0), tmp_path / "tiles",
+        download, ext="asc", res=5.0, tile_px=175)
+
+    assert len(paths) == len(seen) > 0
+    assert all(p.exists() and p.suffix == ".asc" for p in paths)
+
+
+def test_fetch_tile_grid_reuses_existing_tiles(tmp_path: Path) -> None:
+    """A tile already on disk is not re-downloaded."""
+    tiles_dir = tmp_path / "tiles"
+    tiles_dir.mkdir()
+    (tiles_dir / "t_484000_4646000.asc").write_text("cached")
+
+    def download(bbox: tuple[float, float, float, float], width: int,
+                 height: int, dest: Path) -> Path:
+        raise AssertionError("re-downloaded a cached tile")
+
+    paths = dtm_core.fetch_tile_grid(
+        (484000.0, 4646000.0, 484500.0, 4646500.0), tiles_dir,
+        download, ext="asc", res=5.0, tile_px=175)
+
+    assert [p.name for p in paths] == ["t_484000_4646000.asc"]
+
+
+def test_fetch_tile_grid_skips_out_of_coverage_tiles(tmp_path: Path) -> None:
+    """A RuntimeError (non-raster body) drops that tile instead of failing."""
+    def download(bbox: tuple[float, float, float, float], width: int,
+                 height: int, dest: Path) -> Path:
+        raise RuntimeError("no coverage")
+
+    assert dtm_core.fetch_tile_grid(
+        (484000.0, 4646000.0, 486000.0, 4647500.0), tmp_path / "tiles",
+        download, ext="asc", res=5.0, tile_px=175) == []
+
+
+def test_fetch_tile_grid_empty_bbox_returns_no_tiles(tmp_path: Path) -> None:
+    def download(bbox: tuple[float, float, float, float], width: int,
+                 height: int, dest: Path) -> Path:
+        raise AssertionError("should not download")
+
+    assert dtm_core.fetch_tile_grid(
+        (0.0, 0.0, 0.0, 0.0), tmp_path / "tiles", download,
+        ext="asc", res=5.0, tile_px=175) == []

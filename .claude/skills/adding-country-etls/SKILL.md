@@ -116,8 +116,8 @@ pattern. For a bulk source follow `_fetch_cnig_tiles` (reachable as Spain's
 `dtm_cnig.fetch`): catalog query cached to disk (`_cached_query_sheets`),
 per-sheet download with flock + `.part` tmp file + transient-HTTP retries. For
 a coverage API follow Poland's `fetch_poland_wcs`
-(`highliner/etls/chunk/poland/dtm_wcs.py`), which issues WCS `GetCoverage`
-requests per tile. If a helper is keyed by EPSG (`_preferred_huso`), extend it
+(`highliner/etls/chunk/poland/dtm_wcs.py`), which issues one WCS `GetCoverage`
+request per chunk, downsampled server-side to 5 m via `scaleaxes`. If a helper is keyed by EPSG (`_preferred_huso`), extend it
 for the new CRS.
 
 ## 2. Chunk adapter

@@ -3,7 +3,8 @@ from pathlib import Path
 import pytest
 import requests
 
-from highliner.etls.chunk import dtm, dtm_poland
+from highliner.etls.chunk import dtm
+from highliner.etls.chunk.poland import dtm_wcs as dtm_poland
 
 
 def _response(status: int, content: bytes) -> requests.Response:

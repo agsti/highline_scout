@@ -3,7 +3,7 @@ from pathlib import Path
 
 import rasterio
 
-from highliner.etls.chunk import dtm_os
+from highliner.etls.chunk.united_kingdom import dtm_os
 
 
 def _ascii_grid(x: int, y: int, elevation: int) -> str:

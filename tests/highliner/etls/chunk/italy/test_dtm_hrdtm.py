@@ -4,7 +4,7 @@ import pytest
 import requests
 
 from highliner.etls.chunk import dtm as ingest
-from highliner.etls.chunk import dtm_hrdtm
+from highliner.etls.chunk.italy import dtm_hrdtm
 
 
 def test_fetch_tiles_hrdtm_requires_cache_dir(tmp_path: Path) -> None:
@@ -25,7 +25,7 @@ def test_fetch_tiles_hrdtm_reuses_complete_cached_file(
     def boom(*args: object, **kwargs: object) -> None:
         raise AssertionError("must not hit the network for a cached file")
 
-    monkeypatch.setattr("highliner.etls.chunk.dtm_hrdtm.requests.get", boom)
+    monkeypatch.setattr("highliner.etls.chunk.italy.dtm_hrdtm.requests.get", boom)
 
     paths = ingest.fetch_tiles(
         (6800000.0, 4900000.0, 6810000.0, 4910000.0),
@@ -54,7 +54,7 @@ def test_hrdtm_download_raises_and_discards_truncated_part(
 def test_hrdtm_download_resumes_broken_streams_until_complete(
         tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(dtm_hrdtm, "HRDTM_SIZE", 10)
-    monkeypatch.setattr("highliner.etls.chunk.dtm_hrdtm.time.sleep",
+    monkeypatch.setattr("highliner.etls.chunk.italy.dtm_hrdtm.time.sleep",
                         lambda s: None)
     dest = tmp_path / dtm_hrdtm.HRDTM_FILENAME
     attempts = {"n": 0}

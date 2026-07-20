@@ -6,7 +6,8 @@ import pytest
 from pyproj import Transformer
 from shapely.geometry import box
 
-from highliner.etls.chunk import dtm, dtm_cuzk
+from highliner.etls.chunk import dtm
+from highliner.etls.chunk.czechia import dtm_cuzk
 
 
 def test_parse_catalog_keeps_both_parts_of_cuzk_sheet_id() -> None:

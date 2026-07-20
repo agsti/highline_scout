@@ -16,7 +16,8 @@ import sys
 from pathlib import Path
 
 from highliner.core import config
-from highliner.etls.chunk import dtm_ea, united_kingdom
+from highliner.etls.chunk.united_kingdom import dtm_ea
+from highliner.etls.chunk.united_kingdom import main as united_kingdom
 
 COUNTRY = "united_kingdom"
 _PROGRESS_EVERY = 100

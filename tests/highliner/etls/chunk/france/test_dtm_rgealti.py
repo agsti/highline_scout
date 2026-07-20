@@ -6,7 +6,7 @@ import pytest
 import requests
 
 from highliner.etls.chunk import dtm as ingest
-from highliner.etls.chunk import dtm_rgealti
+from highliner.etls.chunk.france import dtm_rgealti
 
 
 def _response(status: int, text: str = "", retry_after: str | None = None,
@@ -194,7 +194,7 @@ def test_rgealti_catalog_crawl_maps_departments_to_5m_archives(
 def test_rgealti_catalog_crawl_paces_page_requests(
         monkeypatch: pytest.MonkeyPatch) -> None:
     sleeps: list[float] = []
-    monkeypatch.setattr("highliner.etls.chunk.dtm_rgealti.time.sleep",
+    monkeypatch.setattr("highliner.etls.chunk.france.dtm_rgealti.time.sleep",
                         sleeps.append)
     pages = {
         "1": '<feed pagecount="2"></feed>',
@@ -213,7 +213,7 @@ def test_rgealti_catalog_crawl_paces_page_requests(
 def test_rgealti_catalog_crawl_retries_rate_limited_page(
         monkeypatch: pytest.MonkeyPatch) -> None:
     sleeps: list[float] = []
-    monkeypatch.setattr("highliner.etls.chunk.dtm_rgealti.time.sleep",
+    monkeypatch.setattr("highliner.etls.chunk.france.dtm_rgealti.time.sleep",
                         sleeps.append)
     responses = iter([
         _response(429, retry_after="7"),
@@ -232,7 +232,7 @@ def test_rgealti_catalog_crawl_retries_rate_limited_page(
 def test_rgealti_department_page_retries_rate_limited_wfs(
         monkeypatch: pytest.MonkeyPatch) -> None:
     sleeps: list[float] = []
-    monkeypatch.setattr("highliner.etls.chunk.dtm_rgealti.time.sleep",
+    monkeypatch.setattr("highliner.etls.chunk.france.dtm_rgealti.time.sleep",
                         sleeps.append)
     responses = iter([
         _response(429, retry_after="7"),
@@ -254,7 +254,7 @@ def test_rgealti_department_page_closes_response_on_wfs_exception_retry(
         monkeypatch: pytest.MonkeyPatch) -> None:
     sleeps: list[float] = []
     closed: list[bool] = []
-    monkeypatch.setattr("highliner.etls.chunk.dtm_rgealti.time.sleep",
+    monkeypatch.setattr("highliner.etls.chunk.france.dtm_rgealti.time.sleep",
                         sleeps.append)
     discarded = _response(503, retry_after="7")
     monkeypatch.setattr(discarded, "close", lambda: closed.append(True))
@@ -316,7 +316,7 @@ def test_fetch_rgealti_tiles_serves_cached_department_dalles(
 
 def test_rgealti_download_archive_resumes_broken_streams(
         tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("highliner.etls.chunk.dtm_rgealti.time.sleep",
+    monkeypatch.setattr("highliner.etls.chunk.france.dtm_rgealti.time.sleep",
                         lambda s: None)
     dest = tmp_path / "archive.7z"
     attempts = {"n": 0}

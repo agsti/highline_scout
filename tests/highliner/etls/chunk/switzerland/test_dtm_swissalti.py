@@ -29,7 +29,7 @@ def _feature(tile: str, year: int, *, gsd: float = 2.0) -> dict[str, Any]:
 
 
 def test_latest_assets_selects_newest_two_metre_cog_per_tile() -> None:
-    from highliner.etls.chunk import dtm_swissalti
+    from highliner.etls.chunk.switzerland import dtm_swissalti
 
     features = [
         _feature("2633-1155", 2019),
@@ -55,7 +55,7 @@ def test_latest_assets_selects_newest_two_metre_cog_per_tile() -> None:
 
 
 def test_catalog_query_follows_next_page() -> None:
-    from highliner.etls.chunk import dtm_swissalti
+    from highliner.etls.chunk.switzerland import dtm_swissalti
 
     pages = {
         dtm_swissalti.ITEMS_URL: {
@@ -101,7 +101,7 @@ def test_catalog_query_follows_next_page() -> None:
 
 def test_fetch_tiles_dispatches_swissalti_to_cached_client(
         monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    from highliner.etls.chunk import dtm_swissalti
+    from highliner.etls.chunk.switzerland import dtm_swissalti
 
     seen: dict[str, object] = {}
 
@@ -126,7 +126,7 @@ def test_fetch_tiles_dispatches_swissalti_to_cached_client(
 
 def test_download_rejects_non_tiff_and_discards_part(
         monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    from highliner.etls.chunk import dtm_swissalti
+    from highliner.etls.chunk.switzerland import dtm_swissalti
 
     class Response:
         def __enter__(self) -> "Response":
@@ -142,10 +142,10 @@ def test_download_rejects_non_tiff_and_discards_part(
             return [b"<html>not a raster</html>"]
 
     monkeypatch.setattr(
-        "highliner.etls.chunk.dtm_swissalti.requests.get",
+        "highliner.etls.chunk.switzerland.dtm_swissalti.requests.get",
         lambda *args, **kwargs: Response())
     monkeypatch.setattr(
-        "highliner.etls.chunk.dtm_swissalti.time.sleep",
+        "highliner.etls.chunk.switzerland.dtm_swissalti.time.sleep",
         lambda _delay: None)
     dest = tmp_path / "tile.tif"
 
@@ -170,7 +170,7 @@ def _write_raster(path: Path, *, resolution: float = 2.0,
 
 
 def test_resample_to_5m_preserves_grid_and_nodata(tmp_path: Path) -> None:
-    from highliner.etls.chunk import dtm_swissalti
+    from highliner.etls.chunk.switzerland import dtm_swissalti
 
     source = tmp_path / "source.tif"
     dest = tmp_path / "derived.tif"
@@ -196,7 +196,7 @@ def test_resample_to_5m_preserves_grid_and_nodata(tmp_path: Path) -> None:
 )
 def test_source_validation_rejects_wrong_metadata(
         tmp_path: Path, resolution: float, crs: str, nodata: float) -> None:
-    from highliner.etls.chunk import dtm_swissalti
+    from highliner.etls.chunk.switzerland import dtm_swissalti
 
     path = tmp_path / "source.tif"
     _write_raster(path, resolution=resolution, crs=crs, nodata=nodata)
@@ -206,7 +206,7 @@ def test_source_validation_rejects_wrong_metadata(
 
 
 def test_source_validation_rejects_truncated_tiff(tmp_path: Path) -> None:
-    from highliner.etls.chunk import dtm_swissalti
+    from highliner.etls.chunk.switzerland import dtm_swissalti
 
     path = tmp_path / "source.tif"
     path.write_bytes(b"II*\x00truncated")
@@ -216,7 +216,7 @@ def test_source_validation_rejects_truncated_tiff(tmp_path: Path) -> None:
 
 
 def test_source_validation_rejects_wrong_tile_bounds(tmp_path: Path) -> None:
-    from highliner.etls.chunk import dtm_swissalti
+    from highliner.etls.chunk.switzerland import dtm_swissalti
 
     path = tmp_path / "source.tif"
     _write_raster(path)
@@ -228,7 +228,7 @@ def test_source_validation_rejects_wrong_tile_bounds(tmp_path: Path) -> None:
 
 def test_invalid_download_is_retried_and_discarded(
         monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    from highliner.etls.chunk import dtm_swissalti
+    from highliner.etls.chunk.switzerland import dtm_swissalti
 
     calls = 0
 
@@ -248,10 +248,10 @@ def test_invalid_download_is_retried_and_discarded(
             return [b"II*\x00truncated"]
 
     monkeypatch.setattr(
-        "highliner.etls.chunk.dtm_swissalti.time.sleep",
+        "highliner.etls.chunk.switzerland.dtm_swissalti.time.sleep",
         lambda _delay: None)
     monkeypatch.setattr(
-        "highliner.etls.chunk.dtm_swissalti.requests.get",
+        "highliner.etls.chunk.switzerland.dtm_swissalti.requests.get",
         lambda *args, **kwargs: Response())
 
     with pytest.raises(RuntimeError, match="valid 2 m GeoTIFF"):
@@ -264,7 +264,7 @@ def test_invalid_download_is_retried_and_discarded(
 
 def test_corrupted_derived_cache_is_rebuilt_at_5m(
         monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    from highliner.etls.chunk import dtm_swissalti
+    from highliner.etls.chunk.switzerland import dtm_swissalti
 
     asset: dtm_swissalti.TileAsset = {
         "filename": "swissalti3d_2025_2633-1155_2_2056_5728.tif",

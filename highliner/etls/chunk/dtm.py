@@ -11,8 +11,8 @@ fetches each chunk as a grid of small tiles and merges them in memory.
 IGN/IDEE serves the national MDT05 through OGC API Coverages. The code here
 requests small COG subsets from the EPSG-specific 5 m collections.
 
-Country-specific sources live in sibling ``dtm_*`` modules. All are dispatched
-from ``fetch_tiles``.
+Country-specific sources live in each country's package as
+``<country>/dtm_<source>.py``. All are dispatched from ``fetch_tiles``.
 """
 import concurrent.futures
 import fcntl
@@ -36,16 +36,13 @@ from shapely.geometry import box, mapping
 from shapely.geometry.base import BaseGeometry
 from shapely.ops import transform as shapely_transform
 
-from highliner.etls.chunk import (
-    dtm_austria,
-    dtm_cuzk,
-    dtm_ea,
-    dtm_hrdtm,
-    dtm_os,
-    dtm_poland,
-    dtm_rgealti,
-    dtm_swissalti,
-)
+from highliner.etls.chunk.austria import dtm_bev
+from highliner.etls.chunk.czechia import dtm_cuzk
+from highliner.etls.chunk.france import dtm_rgealti
+from highliner.etls.chunk.italy import dtm_hrdtm
+from highliner.etls.chunk.poland import dtm_wcs
+from highliner.etls.chunk.switzerland import dtm_swissalti
+from highliner.etls.chunk.united_kingdom import dtm_ea, dtm_os
 
 if TYPE_CHECKING:
     from highliner.models.raster import Raster
@@ -387,7 +384,7 @@ def _fetch_from_cache(source: str, bbox: Bbox, crs: str,
     if source == "cuzk_dmr4g":
         return dtm_cuzk.fetch_cuzk_dmr4g(bbox, cache_dir, crs)
     if source == "bev_als_dtm":
-        return dtm_austria.fetch_bev_tiles(bbox, crs, cache_dir)
+        return dtm_bev.fetch_bev_tiles(bbox, crs, cache_dir)
     if source == "swissalti3d":
         return dtm_swissalti.fetch_swissalti_tiles(bbox, cache_dir, crs)
     return dtm_os.fetch_osni_dtm_10m(bbox, cache_dir)
@@ -415,7 +412,7 @@ def fetch_tiles(bbox: Bbox, tiles_dir: Path, res: float = NATIVE_RES,  # noqa: P
         return _fetch_from_cache(source, bbox, crs, cache_dir)
     if source == "poland_wcs":
         return _download_with_retries(
-            lambda: dtm_poland.fetch_poland_wcs(bbox, tiles_dir, crs))
+            lambda: dtm_wcs.fetch_poland_wcs(bbox, tiles_dir, crs))
     if source not in ("icgc", "idee"):
         raise RuntimeError(f"unknown DTM source '{source}'")
 

@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from highliner.etls.chunk import dtm_ea
-from tests.highliner.etls.chunk.test_dtm_ea import _fake_download
+from highliner.etls.chunk.united_kingdom import dtm_ea
+from tests.highliner.etls.chunk.united_kingdom.test_dtm_ea import _fake_download
 
 _SPEC = importlib.util.spec_from_file_location(
     "prefetch_ea_lidar",

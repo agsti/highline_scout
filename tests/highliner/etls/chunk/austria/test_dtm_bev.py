@@ -7,7 +7,7 @@ import requests
 from rasterio.transform import from_origin
 from shapely.geometry import box
 
-from highliner.etls.chunk import dtm_austria
+from highliner.etls.chunk.austria import dtm_bev as dtm_austria
 
 
 def _response(content: bytes) -> requests.Response:

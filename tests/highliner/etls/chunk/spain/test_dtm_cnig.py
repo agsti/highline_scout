@@ -223,3 +223,47 @@ def test_cached_query_sheets_caches_empty_result(
     assert dtm_cnig._cached_query_sheets(session, bbox, "EPSG:25830", cache_dir) == []
     assert dtm_cnig._cached_query_sheets(session, bbox, "EPSG:25830", cache_dir) == []
     assert len(calls) == 1                       # empty result cached too
+
+
+def test_cnig_fetch_delegates_to_cache_client(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """The CNIG fetcher forwards (bbox, cache_dir, crs) and ignores tiles_dir."""
+    seen: list[tuple[object, object, object]] = []
+
+    def fake(bbox: object, cache_root: object, crs: object) -> list[Path]:
+        seen.append((bbox, cache_root, crs))
+        return [tmp_path / "sheet.tif"]
+
+    monkeypatch.setattr(dtm_cnig, "_fetch_cnig_tiles", fake)
+    out = dtm_cnig.fetch((0.0, 0.0, 1.0, 1.0), tmp_path / "tiles",
+                         tmp_path / "cache", "EPSG:25830")
+
+    assert out == [tmp_path / "sheet.tif"]
+    assert seen == [((0.0, 0.0, 1.0, 1.0), tmp_path / "cache", "EPSG:25830")]
+
+
+def test_cnig_fetch_requires_cache_dir(tmp_path: Path) -> None:
+    """Without a cache dir the source fails loudly rather than writing holes."""
+    with pytest.raises(ValueError, match="cnig source requires cache_dir"):
+        dtm_cnig.fetch((0.0, 0.0, 1.0, 1.0), tmp_path / "tiles", None,
+                       "EPSG:25830")
+
+
+def test_idee_fetch_passes_crs_to_each_tile_download(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """IDEE is a coverage API: each tile download gets the region CRS."""
+    seen_crs: list[str] = []
+
+    def fake_download(bbox: tuple[float, float, float, float], width: int,
+                      height: int, dest: Path, crs: str) -> Path:
+        seen_crs.append(crs)
+        dest.write_text("tile")
+        return dest
+
+    monkeypatch.setattr(dtm_cnig, "_download_idee_tile", fake_download)
+    paths = dtm_cnig.fetch_idee((484000.0, 4646000.0, 486000.0, 4647500.0),
+                                tmp_path / "tiles", tmp_path / "cache",
+                                "EPSG:25830")
+
+    assert paths and all(p.suffix == ".tif" for p in paths)
+    assert set(seen_crs) == {"EPSG:25830"}

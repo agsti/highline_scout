@@ -24,6 +24,7 @@ from highliner.etls.chunk.dtm_core import (
     _download_with_retries,
     _epsg_code,
     _retry_delay,
+    fetch_tile_grid,
 )
 
 IDEE_COVERAGE_API = "https://api-coverages.idee.es/collections"
@@ -238,3 +239,29 @@ def _fetch_cnig_tiles(bbox: Bbox, cache_root: Path, crs: str) -> list[Path]:
         out.append(_download_with_retries(
             functools.partial(_download_cnig_sheet, session, sec, filename, dest)))
     return out
+
+
+def fetch(bbox: Bbox, tiles_dir: Path, cache_dir: Path | None,
+          crs: str) -> list[Path]:
+    """Fetcher-shaped entry point for ``dtm_source="cnig"``.
+
+    CNIG is a bulk-sheet source: downloads persist in the country cache, so
+    ``tiles_dir`` is ignored.
+    """
+    if cache_dir is None:
+        raise ValueError("cnig source requires cache_dir")
+    return _fetch_cnig_tiles(bbox, cache_dir, crs)
+
+
+def fetch_idee(bbox: Bbox, tiles_dir: Path, cache_dir: Path | None,
+               crs: str) -> list[Path]:
+    """Fetcher-shaped entry point for ``dtm_source="idee"``.
+
+    IDEE is a coverage API rather than a bulk product, so the bbox is tiled and
+    each tile requested in the region's CRS. Ignores ``cache_dir``.
+    """
+    def download(tile_bbox: Bbox, width: int, height: int,
+                 dest: Path) -> Path:
+        return _download_idee_tile(tile_bbox, width, height, dest, crs)
+
+    return fetch_tile_grid(bbox, tiles_dir, download, ext="tif")

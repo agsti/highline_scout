@@ -116,3 +116,20 @@ def test_fetch_tiles_downloads_concurrently_in_spec_order(
                 for tb, _w, _h in ingest.tile_specs(bbox, res=5.0, tile_px=175)]
     assert paths == expected                  # deterministic spec order
     assert peak >= 2, "tile downloads must overlap"
+
+
+def test_icgc_fetch_downloads_into_tiles_dir(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Spain's ICGC fetcher tiles the bbox and writes .asc into tiles_dir."""
+    def fake_download(bbox: tuple[float, float, float, float], width: int,
+                      height: int, dest: Path) -> Path:
+        dest.write_text("tile")
+        return dest
+
+    monkeypatch.setattr(dtm_icgc, "_download_tile", fake_download)
+    paths = dtm_icgc.fetch((484000.0, 4646000.0, 486000.0, 4647500.0),
+                           tmp_path / "tiles", tmp_path / "cache",
+                           "EPSG:25831")
+
+    assert paths and all(p.suffix == ".asc" for p in paths)
+    assert all(p.parent == tmp_path / "tiles" for p in paths)

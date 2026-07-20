@@ -7,7 +7,7 @@ from pathlib import Path
 
 import requests
 
-from highliner.etls.chunk.dtm_core import Bbox
+from highliner.etls.chunk.dtm_core import Bbox, fetch_tile_grid
 
 ICGC_WCS = "https://geoserveis.icgc.cat/icc_mdt/wcs/service"
 COVERAGE_ID = "icc:met"
@@ -33,3 +33,14 @@ def _download_tile(bbox: Bbox, width: int, height: int, dest: Path) -> Path:
             f"ICGC WCS did not return ArcGrid data: {r.content[:200]!r}")
     dest.write_bytes(r.content)
     return dest
+
+
+def fetch(bbox: Bbox, tiles_dir: Path, cache_dir: Path | None,
+          crs: str) -> list[Path]:
+    """Fetcher-shaped entry point for ``dtm_source="icgc"``.
+
+    ICGC serves ArcGrid over WCS with a ~140 KB per-request cap, so the bbox is
+    tiled and each tile pulled separately into ``tiles_dir``. Ignores
+    ``cache_dir``: these tiles are transient and deleted with the chunk.
+    """
+    return fetch_tile_grid(bbox, tiles_dir, _download_tile, ext="asc")

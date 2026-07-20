@@ -5,7 +5,8 @@ import geopandas as gpd
 import pytest
 from shapely.geometry import Polygon
 
-from highliner.etls.restriction import france, shared
+from highliner.etls.restriction import shared
+from highliner.etls.restriction.france import main as france
 
 _SQUARE = Polygon([(0, 0), (0, 1), (1, 1), (1, 0)])
 

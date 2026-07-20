@@ -6,7 +6,8 @@ import pytest
 import requests
 from shapely.geometry import Polygon
 
-from highliner.etls.restriction import poland, shared
+from highliner.etls.restriction import shared
+from highliner.etls.restriction.poland import main as poland
 
 _SQUARE = Polygon([(0, 0), (0, 1), (1, 1), (1, 0)])
 

@@ -4,7 +4,8 @@ import geopandas as gpd
 import pytest
 from shapely.geometry import Polygon
 
-from highliner.etls.restriction import shared, spain
+from highliner.etls.restriction import shared
+from highliner.etls.restriction.spain import main as spain
 from highliner.server.repositories.restrictions import load_layer
 
 _SQUARE = Polygon([(0, 0), (0, 1), (1, 1), (1, 0)])

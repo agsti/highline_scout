@@ -4,7 +4,8 @@ import geopandas as gpd
 import pytest
 from shapely.geometry import Polygon
 
-from highliner.etls.restriction import czechia, shared
+from highliner.etls.restriction import shared
+from highliner.etls.restriction.czechia import main as czechia
 
 
 def test_czechia_restriction_specs_normalize_official_names() -> None:

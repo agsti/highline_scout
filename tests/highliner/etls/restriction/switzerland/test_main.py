@@ -16,7 +16,7 @@ _SQUARE = Polygon([(2600000, 1200000), (2600000, 1201000),
 
 
 def test_switzerland_specs_build_three_named_layers() -> None:
-    from highliner.etls.restriction import switzerland
+    from highliner.etls.restriction.switzerland import main as switzerland
 
     source = gpd.GeoDataFrame(
         {"Name": ["  Alpine reserve  "]}, geometry=[_SQUARE], crs="EPSG:2056")
@@ -31,7 +31,7 @@ def test_switzerland_specs_build_three_named_layers() -> None:
 
 def test_load_source_reprojects_official_lv95_shape_to_wgs84(
         tmp_path: Path) -> None:
-    from highliner.etls.restriction import switzerland
+    from highliner.etls.restriction.switzerland import main as switzerland
 
     source = gpd.GeoDataFrame(
         {"Name": ["Reserve"]}, geometry=[_SQUARE], crs="EPSG:2056")
@@ -44,7 +44,7 @@ def test_load_source_reprojects_official_lv95_shape_to_wgs84(
 
 
 def test_extract_flattened_discards_archive_directories(tmp_path: Path) -> None:
-    from highliner.etls.restriction import switzerland
+    from highliner.etls.restriction.switzerland import main as switzerland
 
     archive_path = tmp_path / "source.zip"
     with zipfile.ZipFile(archive_path, "w") as archive:
@@ -59,7 +59,7 @@ def test_extract_flattened_discards_archive_directories(tmp_path: Path) -> None:
 
 def test_source_is_incomplete_when_shapefile_cannot_be_opened(
         tmp_path: Path) -> None:
-    from highliner.etls.restriction import switzerland
+    from highliner.etls.restriction.switzerland import main as switzerland
 
     source_dir = tmp_path / "game_reserves"
     source_dir.mkdir()
@@ -71,7 +71,7 @@ def test_source_is_incomplete_when_shapefile_cannot_be_opened(
 
 def test_download_promotes_only_a_valid_complete_source(
         monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    from highliner.etls.restriction import switzerland
+    from highliner.etls.restriction.switzerland import main as switzerland
 
     raw_dir = tmp_path / "raw"
     source = gpd.GeoDataFrame(
@@ -105,7 +105,7 @@ def test_download_promotes_only_a_valid_complete_source(
 
 def test_download_restores_previous_source_when_promotion_fails(
         monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    from highliner.etls.restriction import switzerland
+    from highliner.etls.restriction.switzerland import main as switzerland
 
     raw_dir = tmp_path / "raw"
     source_dir = raw_dir / "game_reserves"
@@ -150,7 +150,7 @@ def test_download_restores_previous_source_when_promotion_fails(
 
 def test_restriction_main_downloads_then_writes(
         monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    from highliner.etls.restriction import switzerland
+    from highliner.etls.restriction.switzerland import main as switzerland
 
     downloaded: list[Path] = []
     written: list[tuple[set[str], Path]] = []

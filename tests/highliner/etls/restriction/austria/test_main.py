@@ -4,7 +4,7 @@ import geopandas as gpd
 import pytest
 from shapely.geometry import Point
 
-from highliner.etls.restriction import austria
+from highliner.etls.restriction.austria import main as austria
 
 
 def test_austria_restriction_source_urls_are_national_open_data_layers() -> None:

@@ -19,6 +19,9 @@ def test_poland_chunk_adapter_forwards_national_crs_and_source(
     assert calls[0]["args"][:2] == ("poland", "poland")
     assert calls[0]["crs"] == "EPSG:2180"
     assert calls[0]["dtm_source"] == "poland_wcs"
+
+    from highliner.etls.chunk.poland import dtm_wcs
+    assert calls[0]["fetch"] is dtm_wcs.fetch
     assert calls[0]["workers"] == 2
 
 

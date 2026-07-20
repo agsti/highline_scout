@@ -20,6 +20,9 @@ def test_czechia_chunk_adapter_forwards_dmr4g_configuration(
     assert calls[0]["args"][:2] == ("czechia", "czechia")
     assert calls[0]["crs"] == "EPSG:3045"
     assert calls[0]["dtm_source"] == "cuzk_dmr4g"
+
+    from highliner.etls.chunk.czechia import dtm_cuzk
+    assert calls[0]["fetch"] is dtm_cuzk.fetch
     assert calls[0]["workers"] == 5
 
 

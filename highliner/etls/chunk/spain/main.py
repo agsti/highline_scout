@@ -10,7 +10,9 @@ from typing import Final
 
 from highliner.core import config
 from highliner.etls.chunk import shared as shared
+from highliner.etls.chunk.dtm_core import Fetcher
 from highliner.etls.chunk.shared import Bbox
+from highliner.etls.chunk.spain import dtm_cnig, dtm_icgc
 
 COUNTRY: Final[str] = "spain"
 _PENINSULA_CRS: Final[str] = "EPSG:25830"
@@ -27,14 +29,15 @@ class Region:
     bbox: Bbox
     crs: str
     dtm_source: str
+    fetch: Fetcher
 
 
 def _peninsula(name: str, bbox: Bbox) -> Region:
-    return Region(name, bbox, _PENINSULA_CRS, "cnig")
+    return Region(name, bbox, _PENINSULA_CRS, "cnig", dtm_cnig.fetch)
 
 
 def _catalonia(name: str, bbox: Bbox) -> Region:
-    return Region(name, bbox, _CATALONIA_CRS, "icgc")
+    return Region(name, bbox, _CATALONIA_CRS, "icgc", dtm_icgc.fetch)
 
 
 REGIONS: tuple[Region, ...] = (
@@ -52,7 +55,8 @@ REGIONS: tuple[Region, ...] = (
     _peninsula("comunitat_valenciana", (626000, 4190000, 816000, 4520000)),
     _peninsula("extremadura", (110000, 4204000, 358000, 4487000)),
     _peninsula("aragon", (569000, 4412000, 811000, 4755000)),
-    Region("canarias", (188000, 3060000, 662000, 3256000), _CANARIES_CRS, "cnig"),
+    Region("canarias", (188000, 3060000, 662000, 3256000), _CANARIES_CRS,
+           "cnig", dtm_cnig.fetch),
     _peninsula("castilla_la_mancha", (294000, 4208000, 682000, 4576000)),
     _peninsula("castilla_y_leon", (165000, 4439000, 602000, 4790000)),
     _peninsula("andalucia", (100000, 3977000, 622000, 4289000)),
@@ -108,7 +112,8 @@ def _precompute_region(region: Region, data_dir: Path, cache_dir: Path,
 
     count = shared.precompute(
         COUNTRY, region.name, region.bbox, data_dir, crs=region.crs,
-        dtm_source=region.dtm_source, workers=workers, cache_dir=cache_dir,
+        dtm_source=region.dtm_source, fetch=region.fetch,
+        workers=workers, cache_dir=cache_dir,
         report=report)
     print()
     print(f"[{region.name}] completed {count} chunks -> "

@@ -9,6 +9,7 @@ import pytest
 
 def test_switzerland_chunk_adapter_forwards_national_configuration(
         monkeypatch: pytest.MonkeyPatch) -> None:
+    from highliner.etls.chunk.switzerland import dtm_swissalti
     from highliner.etls.chunk.switzerland import main as switzerland
 
     calls: list[dict[str, Any]] = []
@@ -31,6 +32,7 @@ def test_switzerland_chunk_adapter_forwards_national_configuration(
         ),
         "crs": "EPSG:2056",
         "dtm_source": "swissalti3d",
+        "fetch": dtm_swissalti.fetch,
         "workers": 5,
         "cache_dir": Path("/tmp/cache"),
         "report": calls[0]["report"],

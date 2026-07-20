@@ -23,6 +23,9 @@ def test_italy_chunk_adapter_forwards_country_and_region(
     assert calls[0]["crs"] == "EPSG:6875"
     assert calls[0]["dtm_source"] == "hrdtm"
 
+    from highliner.etls.chunk.italy import dtm_hrdtm
+    assert calls[0]["fetch"] is dtm_hrdtm.fetch
+
 
 def test_italy_chunk_adapter_reports_region_progress(
         monkeypatch: pytest.MonkeyPatch,

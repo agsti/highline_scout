@@ -4,6 +4,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from highliner.etls.chunk import shared
+from highliner.etls.chunk.spain import dtm_icgc
 from highliner.server.app import create_app
 
 
@@ -36,7 +37,8 @@ def test_full_pipeline(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     _patch_gap_download(monkeypatch)
     bbox = (420000.0, 4600000.0, 420300.0, 4600300.0)
     n = shared.precompute("spain", "demo", bbox, tmp_path, chunk_m=10000.0,
-                          crs="EPSG:25831", dtm_source="icgc")
+                          crs="EPSG:25831", dtm_source="icgc",
+                          fetch=dtm_icgc.fetch)
     assert n == 1
 
     client = TestClient(create_app(data_dir=tmp_path))

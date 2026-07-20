@@ -7,6 +7,7 @@ import pytest
 
 from highliner.core import config
 from highliner.etls.chunk import shared
+from highliner.etls.chunk.spain import dtm_icgc
 
 precompute = shared
 
@@ -35,7 +36,7 @@ def test_precompute_uses_explicit_country_for_outputs_and_cache(
 
     shared.precompute(
         "france", "alps", (0.0, 0.0, 10.0, 10.0), tmp_path,
-        chunk_m=10.0, crs="EPSG:2154", dtm_source="cnig",
+        chunk_m=10.0, crs="EPSG:2154", dtm_source="cnig", fetch=dtm_icgc.fetch,
         cache_dir=tmp_path / "cache",
     )
 
@@ -73,7 +74,7 @@ def test_process_chunk_writes_partitions_and_deletes_tiles(
     _patch_gap_download(monkeypatch)
     region_dir = tmp_path / "catalonia"
     core = (485000.0, 4646000.0, 495000.0, 4656000.0)   # 10 km chunk
-    precompute.process_chunk(0, 0, core, region_dir)
+    precompute.process_chunk(0, 0, core, region_dir, fetch=dtm_icgc.fetch)
 
     apath = region_dir / "anchors" / "p_0_0.parquet"
     qpath = region_dir / "pairs" / "q_0_0.parquet"
@@ -95,12 +96,13 @@ def test_process_chunk_resumes(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
     _patch_gap_download(monkeypatch)
     region_dir = tmp_path / "catalonia"
     core = (485000.0, 4646000.0, 495000.0, 4656000.0)
-    precompute.process_chunk(0, 0, core, region_dir)
+    precompute.process_chunk(0, 0, core, region_dir, fetch=dtm_icgc.fetch)
 
     from highliner.etls.chunk.spain import dtm_icgc as _dtm_icgc
     monkeypatch.setattr(_dtm_icgc, "_download_tile",
                         lambda *a, **k: pytest.fail("re-downloaded a finished chunk"))
-    precompute.process_chunk(0, 0, core, region_dir)           # returns immediately
+    # returns immediately
+    precompute.process_chunk(0, 0, core, region_dir, fetch=dtm_icgc.fetch)
 
 
 def test_process_chunk_empty_marks_done(
@@ -111,7 +113,7 @@ def test_process_chunk_empty_marks_done(
         lambda *a, **k: (_ for _ in ()).throw(RuntimeError("no coverage")))
     region_dir = tmp_path / "catalonia"
     core = (200000.0, 4400000.0, 210000.0, 4410000.0)
-    precompute.process_chunk(0, 0, core, region_dir)
+    precompute.process_chunk(0, 0, core, region_dir, fetch=dtm_icgc.fetch)
     assert (region_dir / "anchors" / "p_0_0.parquet").exists()
     assert (region_dir / "pairs" / "q_0_0.parquet").exists()
     from highliner.etls.density.candidates import load_candidates
@@ -138,40 +140,30 @@ def test_process_chunk_stays_retriable_after_persistent_rate_limit(
     core = (485000.0, 4646000.0, 495000.0, 4656000.0)
 
     with pytest.raises(requests.HTTPError):
-        precompute.process_chunk(0, 0, core, region_dir)
+        precompute.process_chunk(0, 0, core, region_dir, fetch=dtm_icgc.fetch)
 
     assert not (region_dir / "anchors" / "p_0_0.parquet").exists()
     assert not (region_dir / "pairs" / "q_0_0.parquet").exists()
     assert not list((region_dir / "tiles").iterdir())   # partial tiles cleaned
 
     _patch_gap_download(monkeypatch)                    # server recovers
-    assert precompute.process_chunk(0, 0, core, region_dir) > 0
+    assert precompute.process_chunk(0, 0, core, region_dir, fetch=dtm_icgc.fetch) > 0
     assert (region_dir / "pairs" / "q_0_0.parquet").exists()
 
 
 def test_process_chunk_uses_chunk_scoped_transient_tiles(
-        tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    from highliner.etls.chunk import dtm as _dtm
-
+        tmp_path: Path) -> None:
     seen: list[Path] = []
 
-    def fake_fetch(  # noqa: PLR0913
-        bbox: tuple[float, float, float, float],
-        tiles_dir: Path,
-        res: float = _dtm.NATIVE_RES,
-        tile_px: int = _dtm.MAX_TILE_PX,
-        source: str = "icgc",
-        crs: str = config.UTM_CRS,
-        cache_dir: Path | None = None,
-    ) -> list[Path]:
+    def fake_fetch(bbox: tuple[float, float, float, float], tiles_dir: Path,
+                   cache_dir: Path | None, crs: str) -> list[Path]:
         seen.append(tiles_dir)
         return []
 
-    monkeypatch.setattr(_dtm, "fetch_tiles", fake_fetch)
     region_dir = tmp_path / "catalonia"
     core = (485000.0, 4646000.0, 495000.0, 4656000.0)
 
-    precompute.process_chunk(2, 3, core, region_dir)
+    precompute.process_chunk(2, 3, core, region_dir, fetch=fake_fetch)
 
     assert seen
     assert seen[0].parent == region_dir / "tiles"
@@ -180,9 +172,9 @@ def test_process_chunk_uses_chunk_scoped_transient_tiles(
 
 def test_process_chunk_does_not_mark_done_when_candidate_write_fails(
         tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    from highliner.etls.chunk import dtm as _dtm
-
-    monkeypatch.setattr(_dtm, "fetch_tiles", lambda *a, **k: [])
+    def empty_fetch(bbox: tuple[float, float, float, float], tiles_dir: Path,
+                    cache_dir: Path | None, crs: str) -> list[Path]:
+        return []
 
     def fake_save_anchors(anchors: object, path: str | Path) -> None:
         Path(path).write_text("anchors")
@@ -198,7 +190,7 @@ def test_process_chunk_does_not_mark_done_when_candidate_write_fails(
     core = (485000.0, 4646000.0, 495000.0, 4656000.0)
 
     with pytest.raises(RuntimeError, match="write failed"):
-        precompute.process_chunk(0, 0, core, region_dir)
+        precompute.process_chunk(0, 0, core, region_dir, fetch=empty_fetch)
 
     assert not (region_dir / "anchors" / "p_0_0.parquet").exists()
     assert not (region_dir / "pairs" / "q_0_0.parquet").exists()
@@ -213,7 +205,7 @@ def test_precompute_writes_grid_and_all_chunks(
     n = precompute.precompute(
         "spain", "catalonia", bbox, tmp_path, chunk_m=10000.0,
         report=lambda done, total: seen.append((done, total)),
-        crs="EPSG:25831", dtm_source="icgc")
+        crs="EPSG:25831", dtm_source="icgc", fetch=dtm_icgc.fetch)
     region_dir = tmp_path / "spain" / "catalonia"
 
     import json
@@ -230,7 +222,8 @@ def test_precompute_rejects_invalid_worker_count(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="workers"):
         precompute.precompute(
             "spain", "catalonia", (0.0, 0.0, 10000.0, 10000.0), tmp_path,
-            chunk_m=10000.0, crs="EPSG:25831", dtm_source="icgc", workers=0)
+            chunk_m=10000.0, crs="EPSG:25831", dtm_source="icgc",
+            fetch=dtm_icgc.fetch, workers=0)
 
 
 def test_precompute_bounds_submitted_chunks_to_worker_count(
@@ -280,7 +273,8 @@ def test_precompute_bounds_submitted_chunks_to_worker_count(
     seen: list[tuple[int, int]] = []
     n = precompute.precompute(
         "spain", "catalonia", (0.0, 0.0, 50000.0, 10000.0), tmp_path,
-        chunk_m=10000.0, crs="EPSG:25831", dtm_source="icgc", workers=2,
+        chunk_m=10000.0, crs="EPSG:25831", dtm_source="icgc",
+        fetch=dtm_icgc.fetch, workers=2,
         report=lambda done, total: seen.append((done, total)))
 
     assert n == 5
@@ -319,7 +313,8 @@ def test_precompute_uses_process_pool_for_parallel_workers(
 
     precompute.precompute(
         "spain", "catalonia", (0.0, 0.0, 20000.0, 10000.0), tmp_path,
-        chunk_m=10000.0, crs="EPSG:25831", dtm_source="icgc", workers=2)
+        chunk_m=10000.0, crs="EPSG:25831", dtm_source="icgc",
+        fetch=dtm_icgc.fetch, workers=2)
 
     assert seen == {"max_workers": 2, "submitted": 2}
 
@@ -368,42 +363,57 @@ def test_precompute_stops_submitting_after_parallel_chunk_failure(
     with pytest.raises(RuntimeError, match=r"chunk 0,0 failed"):
         precompute.precompute(
             "spain", "catalonia", (0.0, 0.0, 40000.0, 10000.0), tmp_path,
-            chunk_m=10000.0, crs="EPSG:25831", dtm_source="icgc", workers=2)
+            chunk_m=10000.0, crs="EPSG:25831", dtm_source="icgc",
+            fetch=dtm_icgc.fetch, workers=2)
 
     assert submitted == [(0, 0), (1, 0)]
     assert pending is not None and pending.cancelled()
 
 
-def test_precompute_writes_region_crs_and_source_defaults(
-        tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    from highliner.etls.chunk import dtm as _dtm
+def test_precompute_calls_the_region_fetcher_with_halo_bbox_and_cache(
+        tmp_path: Path) -> None:
+    """The fetcher receives the halo bbox, the chunk's tiles_dir, the
+    country-scoped cache dir, and the region CRS."""
+    calls: list[tuple[tuple[float, float, float, float], Path,
+                      Path | None, str]] = []
 
-    seen: list[tuple[tuple[float, float, float, float], str, str,
-                     Path | None]] = []
-
-    def fake_fetch(  # noqa: PLR0913
-        bbox: tuple[float, float, float, float],
-        tiles_dir: Path,
-        res: float = _dtm.NATIVE_RES,
-        tile_px: int = _dtm.MAX_TILE_PX,
-        source: str = "icgc",
-        crs: str = config.UTM_CRS,
-        cache_dir: Path | None = None,
-    ) -> list[Path]:
-        seen.append((bbox, source, crs, cache_dir))
+    def recording_fetch(bbox: tuple[float, float, float, float],
+                        tiles_dir: Path, cache_dir: Path | None,
+                        crs: str) -> list[Path]:
+        calls.append((bbox, tiles_dir, cache_dir, crs))
         return []
 
-    monkeypatch.setattr(_dtm, "fetch_tiles", fake_fetch)
     bbox = (188000.0, 3060000.0, 198000.0, 3070000.0)
-    precompute.precompute("spain", "canarias", bbox, tmp_path, chunk_m=10000.0,
-                          crs="EPSG:4083", dtm_source="cnig",
-                          cache_dir=tmp_path / "cache")
+    shared.precompute("spain", "canarias", bbox, tmp_path, chunk_m=10000.0,
+                      crs="EPSG:4083", dtm_source="cnig",
+                      fetch=recording_fetch, cache_dir=tmp_path / "cache")
 
+    assert len(calls) == 1
+    halo_bbox, tiles_dir, cache_dir, crs = calls[0]
+    assert halo_bbox[0] < bbox[0] and halo_bbox[2] > bbox[2]   # halo applied
+    assert tiles_dir.parent == tmp_path / "spain" / "canarias" / "tiles"
+    assert cache_dir == tmp_path / "cache" / "spain"
+    assert crs == "EPSG:4083"
+
+
+def test_precompute_writes_dtm_source_as_provenance_not_dispatch(
+        tmp_path: Path) -> None:
+    """grid.json still records the source name even though it drives nothing."""
     import json
-    grid = json.loads((tmp_path / "spain" / "canarias" / "grid.json").read_text())
+
+    def empty_fetch(bbox: tuple[float, float, float, float], tiles_dir: Path,
+                    cache_dir: Path | None, crs: str) -> list[Path]:
+        return []
+
+    shared.precompute("spain", "canarias",
+                      (188000.0, 3060000.0, 198000.0, 3070000.0), tmp_path,
+                      chunk_m=10000.0, crs="EPSG:4083", dtm_source="cnig",
+                      fetch=empty_fetch, cache_dir=tmp_path / "cache")
+
+    grid = json.loads(
+        (tmp_path / "spain" / "canarias" / "grid.json").read_text())
     assert grid["crs"] == "EPSG:4083"
     assert grid["dtm_source"] == "cnig"
-    assert seen and seen[0][1:] == ("cnig", "EPSG:4083", tmp_path / "cache" / "spain")
 
 
 def _patch_seam_gap_download(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -435,7 +445,8 @@ def test_cross_chunk_pair_owned_by_exactly_one_partition(
     _patch_seam_gap_download(monkeypatch)
     bbox = (485000.0, 4646000.0, 505000.0, 4656000.0)   # two 10 km chunks side by side
     precompute.precompute("spain", "catalonia", bbox, tmp_path, chunk_m=10000.0,
-                          crs="EPSG:25831", dtm_source="icgc")
+                          crs="EPSG:25831", dtm_source="icgc",
+                          fetch=dtm_icgc.fetch)
     region_dir = tmp_path / "spain" / "catalonia"
 
     from highliner.etls.density.candidates import load_candidates

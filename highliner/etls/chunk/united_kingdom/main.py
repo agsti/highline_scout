@@ -8,7 +8,9 @@ from typing import Final
 
 from highliner.core import config
 from highliner.etls.chunk import shared as shared
+from highliner.etls.chunk.dtm_core import Fetcher
 from highliner.etls.chunk.shared import Bbox
+from highliner.etls.chunk.united_kingdom import dtm_ea, dtm_os
 
 COUNTRY: Final[str] = "united_kingdom"
 
@@ -19,6 +21,7 @@ class Region:
     bbox: Bbox
     crs: str
     dtm_source: str
+    fetch: Fetcher
     drop_radius_m: float = config.DROP_RADIUS_M
 
 
@@ -27,13 +30,14 @@ class Region:
 # Wales and Scotland fall back to OS Terrain 50 and Northern Ireland to
 # OSNI's open 10 m DTM.
 REGIONS: tuple[Region, ...] = (
-    Region("england", (70000, 0, 660000, 660000), "EPSG:27700", "ea_lidar_1m"),
+    Region("england", (70000, 0, 660000, 660000), "EPSG:27700", "ea_lidar_1m",
+           dtm_ea.fetch),
     Region("wales", (140000, 0, 360000, 410000), "EPSG:27700", "os_terrain_50",
-           drop_radius_m=50.0),
+           dtm_os.fetch_terrain_50, drop_radius_m=50.0),
     Region("scotland", (0, 530000, 500000, 1220000), "EPSG:27700", "os_terrain_50",
-           drop_radius_m=50.0),
+           dtm_os.fetch_terrain_50, drop_radius_m=50.0),
     Region("northern_ireland", (200000, 220000, 390000, 460000), "EPSG:29903",
-           "osni_dtm_10m"),
+           "osni_dtm_10m", dtm_os.fetch_osni),
 )
 
 
@@ -62,6 +66,7 @@ def main(argv: list[str] | None = None) -> None:
     for region in regions:
         shared.precompute(COUNTRY, region.name, region.bbox, args.data_dir,
                           crs=region.crs, dtm_source=region.dtm_source,
+                          fetch=region.fetch,
                           drop_radius_m=region.drop_radius_m,
                           workers=args.workers, cache_dir=args.cache_dir)
 

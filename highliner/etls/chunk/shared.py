@@ -15,9 +15,9 @@ from collections.abc import Callable, Iterator
 from pathlib import Path
 
 from highliner.core import config
-from highliner.etls.chunk import dtm
 from highliner.etls.chunk.anchors import save_anchors
 from highliner.etls.chunk.candidates import save_candidates
+from highliner.etls.chunk.dtm_core import Fetcher, raster_from_tiles
 from highliner.etls.chunk.pairing import find_candidates
 from highliner.etls.chunk.terrain import extract_anchors
 from highliner.models.anchor import Anchor
@@ -60,7 +60,8 @@ def process_chunk(cx: int, cy: int, core_bbox: Bbox, region_dir: Path,  # noqa: 
                   crs: str = config.UTM_CRS,
                   dtm_source: str = "icgc",
                   drop_radius_m: float = config.DROP_RADIUS_M,
-                  cache_dir: Path | None = None) -> int:
+                  cache_dir: Path | None = None,
+                  *, fetch: Fetcher) -> int:
     """Process one chunk into anchor + pair partitions. Returns the number of
     pairs kept. Idempotent: a chunk whose pair partition exists is skipped
     (returns -1)."""
@@ -73,9 +74,7 @@ def process_chunk(cx: int, cy: int, core_bbox: Bbox, region_dir: Path,  # noqa: 
     tiles_dir = region_dir / "tiles" / f"chunk_{cx}_{cy}_{os.getpid()}"
     tiles_dir.mkdir(parents=True, exist_ok=True)
     try:
-        tiles = dtm.fetch_tiles(halo_bbox, tiles_dir,
-                                source=dtm_source, crs=crs,
-                                cache_dir=cache_dir)
+        tiles = fetch(halo_bbox, tiles_dir, cache_dir, crs)
     except Exception:
         # Failed download (e.g. exhausted rate-limit retries): drop the
         # partial tiles and re-raise so the chunk stays unfinished/retriable.
@@ -85,7 +84,7 @@ def process_chunk(cx: int, cy: int, core_bbox: Bbox, region_dir: Path,  # noqa: 
     try:
         core_anchors: list[Anchor] = []
         owned_pairs: list[Candidate] = []
-        raster = dtm.raster_from_tiles(tiles, bbox=halo_bbox)
+        raster = raster_from_tiles(tiles, bbox=halo_bbox)
         if raster is not None:
             anchors = extract_anchors(
                 raster, slope_min=config.SLOPE_MIN_DEG, radius=drop_radius_m,
@@ -181,7 +180,7 @@ def precompute(  # noqa: PLR0913
         country: str, region: str, bbox: Bbox, data_dir: Path,
         chunk_m: float = config.CHUNK_M,
         report: Callable[[int, int], None] | None = None,
-        *, crs: str, dtm_source: str, workers: int = 1,
+        *, crs: str, dtm_source: str, fetch: Fetcher, workers: int = 1,
         drop_radius_m: float = config.DROP_RADIUS_M,
         cache_dir: Path | None = None) -> int:
     """Precompute anchors + pairs for ``bbox`` under
@@ -205,13 +204,13 @@ def precompute(  # noqa: PLR0913
         for i, (cx, cy, core) in enumerate(chunks, start=1):
             process_chunk(cx, cy, core, rdir, crs=crs, dtm_source=dtm_source,
                           drop_radius_m=drop_radius_m,
-                          cache_dir=country_cache_dir)
+                          cache_dir=country_cache_dir, fetch=fetch)
             if report is not None:
                 report(i, total)
         return total
 
     task = functools.partial(
         process_chunk, region_dir=rdir, crs=crs, dtm_source=dtm_source,
-        drop_radius_m=drop_radius_m, cache_dir=country_cache_dir)
+        drop_radius_m=drop_radius_m, cache_dir=country_cache_dir, fetch=fetch)
     _run_parallel(chunks, task, workers, report)
     return total

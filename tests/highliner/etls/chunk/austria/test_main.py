@@ -22,6 +22,9 @@ def test_austria_chunk_adapter_forwards_country_region_and_source(
     assert calls[0]["kwargs"]["crs"] == "EPSG:3035"
     assert calls[0]["kwargs"]["dtm_source"] == "bev_als_dtm"
 
+    from highliner.etls.chunk.austria import dtm_bev
+    assert calls[0]["kwargs"]["fetch"] is dtm_bev.fetch
+
 
 def test_austria_regions_cover_the_nine_federal_states_in_national_crs() -> None:
     assert len(austria.REGIONS) == 9

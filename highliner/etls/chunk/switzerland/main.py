@@ -9,7 +9,9 @@ from typing import Final
 
 from highliner.core import config
 from highliner.etls.chunk import shared as shared
+from highliner.etls.chunk.dtm_core import Fetcher
 from highliner.etls.chunk.shared import Bbox
+from highliner.etls.chunk.switzerland import dtm_swissalti
 
 COUNTRY: Final[str] = "switzerland"
 _SWITZERLAND_CRS: Final[str] = "EPSG:2056"
@@ -23,6 +25,7 @@ class Region:
     bbox: Bbox
     crs: str
     dtm_source: str
+    fetch: Fetcher
 
 
 # Swiss national territory extent from swisstopo swissBOUNDARIES3D 2026,
@@ -30,7 +33,7 @@ class Region:
 # duplicate terrain work from overlapping canton bounding boxes.
 REGIONS: tuple[Region, ...] = (
     Region("switzerland", (2485000, 1075000, 2834000, 1296000),
-           _SWITZERLAND_CRS, "swissalti3d"),
+           _SWITZERLAND_CRS, "swissalti3d", dtm_swissalti.fetch),
 )
 
 
@@ -77,7 +80,8 @@ def _precompute(region: Region, data_dir: Path, cache_dir: Path,
 
     count = shared.precompute(
         COUNTRY, region.name, region.bbox, data_dir, crs=region.crs,
-        dtm_source=region.dtm_source, workers=workers, cache_dir=cache_dir,
+        dtm_source=region.dtm_source, fetch=region.fetch,
+        workers=workers, cache_dir=cache_dir,
         report=report)
     print()
     print(f"[{region.name}] completed {count} chunks -> "

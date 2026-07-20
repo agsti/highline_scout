@@ -24,6 +24,9 @@ def test_spain_chunk_adapter_forwards_country_and_region(
     assert calls[0]["crs"] == "EPSG:25830"
     assert calls[0]["dtm_source"] == "cnig"
 
+    from highliner.etls.chunk.spain import dtm_cnig
+    assert calls[0]["fetch"] is dtm_cnig.fetch
+
 
 def test_spain_chunk_adapter_reports_region_progress(
         monkeypatch: pytest.MonkeyPatch,
@@ -62,6 +65,9 @@ def test_spain_chunk_adapter_configures_full_catalonia(
         "spain", "catalonia", (258000, 4485000, 528000, 4750000))
     assert calls[0]["crs"] == "EPSG:25831"
     assert calls[0]["dtm_source"] == "icgc"
+
+    from highliner.etls.chunk.spain import dtm_icgc
+    assert calls[0]["fetch"] is dtm_icgc.fetch
 
 
 def test_spain_chunk_adapter_does_not_expose_montserrat_as_catalonia_alias() -> None:

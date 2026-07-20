@@ -10,6 +10,8 @@ from typing import Final
 
 from highliner.core import config
 from highliner.etls.chunk import shared as shared
+from highliner.etls.chunk.austria import dtm_bev
+from highliner.etls.chunk.dtm_core import Fetcher
 from highliner.etls.chunk.shared import Bbox
 
 COUNTRY: Final[str] = "austria"
@@ -22,10 +24,11 @@ class Region:
     bbox: Bbox
     crs: str
     dtm_source: str
+    fetch: Fetcher
 
 
 def _region(name: str, bbox: Bbox) -> Region:
-    return Region(name, bbox, _CRS, "bev_als_dtm")
+    return Region(name, bbox, _CRS, "bev_als_dtm", dtm_bev.fetch)
 
 
 # Austrian federal-state bounds from Statistik Austria's administrative-boundary
@@ -91,7 +94,8 @@ def _precompute_region(region: Region, data_dir: Path, cache_dir: Path,
 
     count = shared.precompute(
         COUNTRY, region.name, region.bbox, data_dir, crs=region.crs,
-        dtm_source=region.dtm_source, workers=workers, cache_dir=cache_dir,
+        dtm_source=region.dtm_source, fetch=region.fetch,
+        workers=workers, cache_dir=cache_dir,
         report=report)
     print()
     print(f"[{region.name}] completed {count} chunks -> "

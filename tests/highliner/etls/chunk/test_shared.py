@@ -47,7 +47,7 @@ def _patch_gap_download(monkeypatch: pytest.MonkeyPatch) -> None:
     """Make dtm._download_tile synthesize terrain: plateau 100 m everywhere
     except a deep N-S trench (elev 20) 40 m wide near the chunk's west side, so
     facing anchors exist across the trench (exposure ~80)."""
-    from highliner.etls.chunk import dtm as _dtm
+    from highliner.etls.chunk.spain import dtm_icgc as _dtm_icgc
 
     def fake(bbox: tuple[float, float, float, float], width: int, height: int,
              dest: Path) -> Path:
@@ -65,7 +65,7 @@ def _patch_gap_download(monkeypatch: pytest.MonkeyPatch) -> None:
                   f"CELLSIZE {cell}", "NODATA_VALUE -9999"]
         dest.write_text("\n".join(header) + "\n" + "\n".join(rows) + "\n")
         return dest
-    monkeypatch.setattr(_dtm, "_download_tile", fake)
+    monkeypatch.setattr(_dtm_icgc, "_download_tile", fake)
 
 
 def test_process_chunk_writes_partitions_and_deletes_tiles(
@@ -97,17 +97,17 @@ def test_process_chunk_resumes(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
     core = (485000.0, 4646000.0, 495000.0, 4656000.0)
     precompute.process_chunk(0, 0, core, region_dir)
 
-    from highliner.etls.chunk import dtm as _dtm
-    monkeypatch.setattr(_dtm, "_download_tile",
+    from highliner.etls.chunk.spain import dtm_icgc as _dtm_icgc
+    monkeypatch.setattr(_dtm_icgc, "_download_tile",
                         lambda *a, **k: pytest.fail("re-downloaded a finished chunk"))
     precompute.process_chunk(0, 0, core, region_dir)           # returns immediately
 
 
 def test_process_chunk_empty_marks_done(
         tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    from highliner.etls.chunk import dtm as _dtm
+    from highliner.etls.chunk.spain import dtm_icgc as _dtm_icgc
     monkeypatch.setattr(
-        _dtm, "_download_tile",
+        _dtm_icgc, "_download_tile",
         lambda *a, **k: (_ for _ in ()).throw(RuntimeError("no coverage")))
     region_dir = tmp_path / "catalonia"
     core = (200000.0, 4400000.0, 210000.0, 4410000.0)
@@ -124,16 +124,16 @@ def test_process_chunk_stays_retriable_after_persistent_rate_limit(
     tiles) so a later run retries it, instead of writing terrain holes."""
     import requests
 
-    from highliner.etls.chunk import dtm as _dtm
+    from highliner.etls.chunk.spain import dtm_icgc as _dtm_icgc
 
-    monkeypatch.setattr("highliner.etls.chunk.dtm.time.sleep", lambda s: None)
+    monkeypatch.setattr("highliner.etls.chunk.dtm_core.time.sleep", lambda s: None)
     resp = requests.Response()
     resp.status_code = 429
 
     def limited(*a: object, **k: object) -> Path:
         raise requests.HTTPError(response=resp)
 
-    monkeypatch.setattr(_dtm, "_download_tile", limited)
+    monkeypatch.setattr(_dtm_icgc, "_download_tile", limited)
     region_dir = tmp_path / "catalonia"
     core = (485000.0, 4646000.0, 495000.0, 4656000.0)
 
@@ -409,7 +409,7 @@ def test_precompute_writes_region_crs_and_source_defaults(
 def _patch_seam_gap_download(monkeypatch: pytest.MonkeyPatch) -> None:
     """Terrain: plateau 100 m except a 40 m-wide N-S trench (elev 20) centred on
     x=495000 — the seam between chunk (0,0) and chunk (1,0)."""
-    from highliner.etls.chunk import dtm as _dtm
+    from highliner.etls.chunk.spain import dtm_icgc as _dtm_icgc
 
     def fake(bbox: tuple[float, float, float, float], width: int, height: int,
              dest: Path) -> Path:
@@ -427,7 +427,7 @@ def _patch_seam_gap_download(monkeypatch: pytest.MonkeyPatch) -> None:
                   f"CELLSIZE {cell}", "NODATA_VALUE -9999"]
         dest.write_text("\n".join(header) + "\n" + "\n".join(rows) + "\n")
         return dest
-    monkeypatch.setattr(_dtm, "_download_tile", fake)
+    monkeypatch.setattr(_dtm_icgc, "_download_tile", fake)
 
 
 def test_cross_chunk_pair_owned_by_exactly_one_partition(

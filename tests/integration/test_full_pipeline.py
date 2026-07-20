@@ -11,7 +11,7 @@ def _patch_gap_download(monkeypatch: pytest.MonkeyPatch) -> None:
     """Make dtm._download_tile synthesize terrain: plateau 100 m with a deep
     N-S trench (elev 20, 40 m wide) through the middle, so facing anchors exist
     across the trench (exposure ~80)."""
-    from highliner.etls.chunk import dtm as _dtm
+    from highliner.etls.chunk.spain import dtm_icgc as _dtm_icgc
 
     def fake(bbox: tuple[float, float, float, float], width: int, height: int,
              dest: Path) -> Path:
@@ -29,7 +29,7 @@ def _patch_gap_download(monkeypatch: pytest.MonkeyPatch) -> None:
                   f"CELLSIZE {cell}", "NODATA_VALUE -9999"]
         dest.write_text("\n".join(header) + "\n" + "\n".join(rows) + "\n")
         return dest
-    monkeypatch.setattr(_dtm, "_download_tile", fake)
+    monkeypatch.setattr(_dtm_icgc, "_download_tile", fake)
 
 
 def test_full_pipeline(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

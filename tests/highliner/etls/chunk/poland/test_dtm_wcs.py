@@ -90,7 +90,7 @@ def test_fetch_tiles_retries_transient_poland_wcs_failure(
         return _valid_grid_response()
 
     monkeypatch.setattr(requests, "get", fake_get)
-    monkeypatch.setattr("highliner.etls.chunk.dtm.time.sleep", lambda _: None)
+    monkeypatch.setattr("highliner.etls.chunk.dtm_core.time.sleep", lambda _: None)
 
     paths = dtm.fetch_tiles((100, 200, 110, 210), tmp_path,
                             source="poland_wcs", crs="EPSG:2180")

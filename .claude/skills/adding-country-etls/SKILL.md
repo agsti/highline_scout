@@ -31,7 +31,7 @@ country needs no request-time work at all.
 | Density CLI | `highliner/etls/density/<country>/main.py` | `density/spain/main.py` |
 | Restrictions CLI (optional) | `highliner/etls/restriction/<country>/main.py` | `restriction/spain/main.py` |
 | DTM client module | `highliner/etls/chunk/<country>/dtm_<source>.py` | `czechia/dtm_cuzk.py` |
-| DTM source branch | extend `highliner/etls/chunk/dtm.py` | `_fetch_from_cache` |
+| Fetcher entry point | `fetch()` in `highliner/etls/chunk/<country>/dtm_<source>.py` | `czechia/dtm_cuzk.py` |
 | Run commands | `just etl-chunk <country> <workers>` | — |
 | Tests | `tests/highliner/etls/<stage>/<country>/test_main.py` | `tests/highliner/etls/chunk/spain/test_main.py` |
 
@@ -102,32 +102,42 @@ Requirements for a usable terrain source:
   cliff of spurious anchors.
 - we don't want anything lower than 10m resolution.
 
-Implement as a new `source` key dispatched from `fetch_tiles` (`dtm.py`), with
-the client itself in its own module (e.g. `etls/chunk/<country>/dtm_<source>.py`) —
+Expose a module-level
+`fetch(bbox, tiles_dir, cache_dir, crs) -> list[Path]` matching `Fetcher` from
+`dtm_core`, in the country's own `etls/chunk/<country>/dtm_<source>.py` —
 that's the layout: each country's DTM client lives in that country's package,
-named for its source, not inlined into the shared `dtm.py` dispatcher. Generic
-tiling/retry/CRS helpers (`Bbox`, `tile_specs`, `_download_with_retries`, and
-friends) live in `dtm_core.py` and are meant to be imported from there — see
-`spain/dtm_cnig.py` for the pattern. For a bulk source follow `_fetch_cnig_tiles`:
-catalog query cached to disk (`_cached_query_sheets`), per-sheet download with
-flock + `.part` tmp file + transient-HTTP retries. For a coverage API follow
-`_download_idee_tile`. If a helper is keyed by EPSG (`IDEE_COLLECTIONS`,
-`_preferred_huso`), extend it for the new CRS.
+named for its source. There is no shared file to register it in; the country's
+`main.py` passes the function directly. A cache-backed source ignores
+`tiles_dir` and raises `ValueError(f"<source> source requires cache_dir")` when
+`cache_dir` is `None`. Generic tiling/retry/CRS helpers (`Bbox`, `tile_specs`,
+`fetch_tile_grid`, `_download_with_retries`, and friends) live in `dtm_core.py`
+and are meant to be imported from there — see `spain/dtm_cnig.py` for the
+pattern. For a bulk source follow `_fetch_cnig_tiles` (reachable as Spain's
+`dtm_cnig.fetch`): catalog query cached to disk (`_cached_query_sheets`),
+per-sheet download with flock + `.part` tmp file + transient-HTTP retries. For
+a coverage API follow `_download_idee_tile` (Spain's `fetch_idee`). If a helper
+is keyed by EPSG (`IDEE_COLLECTIONS`, `_preferred_huso`), extend it for the new
+CRS.
 
 ## 2. Chunk adapter
 
 Copy `chunk/spain/main.py`: `COUNTRY`, a frozen
-`Region(name, bbox, crs, dtm_source)` catalogue, and `main()` with
+`Region(name, bbox, crs, dtm_source, fetch)` catalogue, and `main()` with
 `--data-dir/--cache-dir/--start-at/--only/--jobs/--workers`, each region
 calling:
 
 ```python
 shared.precompute(COUNTRY, region.name, region.bbox, data_dir,
                   crs=region.crs, dtm_source=region.dtm_source,
+                  fetch=region.fetch,
                   workers=workers, cache_dir=cache_dir, report=report)
 ```
 
 - `bbox` is in the region's **projected CRS (meters)**, not lon/lat.
+- `dtm_source` is now **provenance only** — it is written to `grid.json` and
+  read back by nothing. `fetch` does the actual work. The two must describe the
+  same source, or the run's on-disk record will lie about where its terrain
+  came from.
 - Derive region bboxes from the country's administrative-boundary service
   (Spain used IGN OGC API Features `administrativeunit` items filtered to
   2nd-order units), reprojected to the region CRS and rounded outward to the
@@ -208,3 +218,4 @@ license permitting reuse. Copy `restriction/spain/main.py`:
 | coarser-than-5 m DTM without retuning | cliff faces unresolved, anchors missing |
 | inventing country-specific recipes | use the parameterized `etl-*` recipes instead |
 | layer strings only in English | i18n catalog-parity test fails |
+| lambda or nested function as the fetcher | `PicklingError` once `--workers > 1`; module-level only |

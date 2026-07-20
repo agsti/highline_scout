@@ -157,11 +157,11 @@ the server). Command entry points live beside the stage they drive:
                              overlay registry both stages consume)
       models/                shared pure domain dataclasses: anchor, candidate, zone, raster
       etls/                  offline precompute pipeline
-        chunk/               shared pipeline + dtm.py dispatch
+        chunk/               shared pipeline; each country supplies its fetcher
           <country>/         main.py (CLI, regions) + dtm_<source>.py clients
           shared.py          chunk-grid orchestration
-          dtm.py             DTM source dispatch (per-country client modules)
-          dtm_core.py        generic tiling/retry/CRS helpers a country
+          dtm_core.py        generic tiling/retry/CRS helpers plus
+                             raster_from_tiles and the Fetcher type a country
                              client imports from (no country deps)
           terrain.py         anchor extraction
           pairing.py         candidate pairing
@@ -199,7 +199,8 @@ on every request — no DTM raster is ever touched at serve time.
 1. **Precompute** (`highliner.etls.chunk.<country>`, `etls/chunk/shared.py`) — tiles
    the region's bbox into `chunk_m`-sized squares (`chunk_grid`). For each chunk
    (`process_chunk`): downloads ICGC bare-earth DTM tiles (5 m, EPSG:25831) over
-   a WCS endpoint for the chunk's core plus a halo (`etls/chunk/dtm.py`; each
+   a WCS endpoint for the chunk's core plus a halo (the fetcher the country's
+   `main.py` passed in, from `etls/chunk/<country>/dtm_<source>.py`; each
    WCS request is capped at ~140 KB, so tiles are downloaded individually and
    merged in memory), runs `extract_anchors` (`etls/chunk/terrain.py` — slope
    threshold, directional drop-sector sweep, greedy non-max-suppression spacing)

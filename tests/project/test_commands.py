@@ -13,7 +13,8 @@ def test_project_defines_focused_command_scripts() -> None:
 
 def test_chunk_entry_point_declared() -> None:
     project = Path("pyproject.toml").read_text()
-    assert 'highliner-etl-chunk = "highliner.etls.chunk.spain:main"' in project
+    assert ('highliner-etl-chunk = '
+            '"highliner.etls.chunk.spain.main:main"') in project
 
 
 def test_justfile_runs_one_country_etl_adapter_per_invocation() -> None:

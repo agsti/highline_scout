@@ -33,7 +33,7 @@ dev = [
 
 [project.scripts]
 highliner-server = "highliner.server.main:main"
-highliner-etl-chunk = "highliner.etls.chunk.spain:main"
+highliner-etl-chunk = "highliner.etls.chunk.spain.main:main"
 highliner-etl-density = "highliner.etls.density.spain:main"
 highliner-restrictions = "highliner.etls.restriction.spain:main"
 

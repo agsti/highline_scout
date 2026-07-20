@@ -60,19 +60,17 @@ comment to that issue at least every 30 minutes while work is active; do not
 wait for a phase to finish if it is taking longer. Each comment must say what
 changed or was learned and include concrete evidence: a source URL, command
 and result, commit SHA, PR link, or a concise blocker with the failed command.
+When a country cannot be added because the resolution is lower than 10m,
+or the data is not available, mark the issue as blocked
 
 Post a comment at each of these checkpoints:
 
 1. **Source selection** — chosen DTM product/provider, licence, resolution,
    delivery method, and source URL.
-2. **DTM smoke result** — the command run, sampled area, and whether the
-   raster/anchor/pair output and nodata handling behaved as expected.
-3. **Adapter completion** — commit SHA and the adapters, tests, and layers
-   added (or the reason restrictions are unavailable).
-4. **Verification** — commands and results for adapter help, the focused
-   tests, `just test`, and `just check`.
-5. **PR or blocker** — PR link and summary, or the blocker, impact, and the
+2. **PR or blocker** — PR link and summary, or the blocker, impact, and the
    next concrete action needed to unblock it.
+3. **Restriction layers found** - A summary about the restriction layers found,
+and an overview of the impacts about the highlining sport.
 
 ## 1. DTM source (the real work)
 
@@ -102,6 +100,7 @@ Requirements for a usable terrain source:
   over — a new source may flag nodata differently, or ambiguously (plain
   `0`). An unmasked sea sentinel turns every coastline into a giant fake
   cliff of spurious anchors.
+- we don't want anything lower than 10m resolution.
 
 Implement as a new `source` key dispatched from `fetch_tiles` (`dtm.py`), with
 the client itself in its own module (e.g. `etls/chunk/<country>/dtm_<source>.py`) —

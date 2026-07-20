@@ -3,7 +3,7 @@ from typing import Any
 
 import pytest
 
-from highliner.etls.chunk import italy
+from highliner.etls.chunk.italy import main as italy
 
 
 def test_italy_chunk_adapter_forwards_country_and_region(

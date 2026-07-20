@@ -2,7 +2,7 @@ from typing import Any
 
 import pytest
 
-from highliner.etls.chunk import czechia
+from highliner.etls.chunk.czechia import main as czechia
 
 
 def test_czechia_chunk_adapter_forwards_dmr4g_configuration(

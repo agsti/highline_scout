@@ -9,7 +9,7 @@ import pytest
 
 def test_switzerland_chunk_adapter_forwards_national_configuration(
         monkeypatch: pytest.MonkeyPatch) -> None:
-    from highliner.etls.chunk import switzerland
+    from highliner.etls.chunk.switzerland import main as switzerland
 
     calls: list[dict[str, Any]] = []
 
@@ -41,7 +41,7 @@ def test_switzerland_chunk_adapter_forwards_national_configuration(
 def test_switzerland_chunk_adapter_reports_progress(
         monkeypatch: pytest.MonkeyPatch,
         capsys: pytest.CaptureFixture[str]) -> None:
-    from highliner.etls.chunk import switzerland
+    from highliner.etls.chunk.switzerland import main as switzerland
 
     def fake(*args: object, **kwargs: object) -> int:
         report = kwargs["report"]
@@ -62,7 +62,7 @@ def test_switzerland_chunk_adapter_reports_progress(
 
 
 def test_switzerland_uses_projected_national_boundary_extent() -> None:
-    from highliner.etls.chunk import switzerland
+    from highliner.etls.chunk.switzerland import main as switzerland
 
     assert len(switzerland.REGIONS) == 1
     region = switzerland.REGIONS[0]

@@ -2,7 +2,7 @@ from typing import Any
 
 import pytest
 
-from highliner.etls.chunk import poland
+from highliner.etls.chunk.poland import main as poland
 
 
 def test_poland_chunk_adapter_forwards_national_crs_and_source(

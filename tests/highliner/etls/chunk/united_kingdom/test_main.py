@@ -5,7 +5,7 @@ import pytest
 
 def test_united_kingdom_chunk_adapter_forwards_terrain_source(
         monkeypatch: pytest.MonkeyPatch) -> None:
-    from highliner.etls.chunk import united_kingdom
+    from highliner.etls.chunk.united_kingdom import main as united_kingdom
 
     calls: list[dict[str, Any]] = []
 

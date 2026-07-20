@@ -1475,6 +1475,50 @@ own the behavior.
 - Delete: `highliner/etls/chunk/dtm.py`
 - Delete: `tests/highliner/etls/chunk/test_dtm.py`
 - Modify: `tests/highliner/etls/chunk/test_dtm_core.py`
+- Modify: **eight further test files that still drive `dtm.fetch_tiles`** — see
+  Step 0. `test_dtm.py` is not the only consumer.
+
+> **Plan correction (found during Task 3's review).** An earlier draft of this
+> task listed `test_dtm.py` as the only test file to touch. That is wrong: nine
+> test files reference `dtm`/`fetch_tiles`. Every one must be dealt with before
+> the module can be deleted, or the suite fails at import. Step 0 enumerates
+> them. This is the same class of gap that bit Task 4 and Task 9 of the
+> preceding `etl-country-packages` plan — a moved/deleted shared symbol always
+> has more test consumers than the plan's file list remembers.
+
+- [ ] **Step 0: Enumerate every consumer before touching anything**
+
+```bash
+grep -rln "fetch_tiles\|_fetch_from_cache\|chunk import dtm\b\|chunk\.dtm\b" \
+  tests/ highliner/
+```
+
+Expected, as of Task 3 (hit counts in parentheses):
+
+| File | What it is |
+|---|---|
+| `tests/highliner/etls/chunk/test_dtm.py` (6) | deleted in Step 4 |
+| `tests/highliner/etls/chunk/test_shared.py` (6) | already rewritten in Task 5 |
+| `tests/highliner/etls/chunk/spain/test_dtm_icgc.py` (9) | retarget to `dtm_icgc.fetch` |
+| `tests/highliner/etls/chunk/spain/test_dtm_cnig.py` (9) | retarget to `dtm_cnig.fetch` / `fetch_idee` |
+| `tests/highliner/etls/chunk/poland/test_dtm_wcs.py` (7) | retarget to `dtm_wcs.fetch` |
+| `tests/highliner/etls/chunk/italy/test_dtm_hrdtm.py` (5) | retarget to `dtm_hrdtm.fetch` |
+| `tests/highliner/etls/chunk/france/test_dtm_rgealti.py` (4) | retarget to `dtm_rgealti.fetch` |
+| `tests/highliner/etls/chunk/united_kingdom/test_dtm_ea.py` (4) | retarget to `dtm_ea.fetch` |
+| `tests/highliner/etls/chunk/czechia/test_dtm_cuzk.py` (3) | retarget to `dtm_cuzk.fetch` |
+| `tests/highliner/etls/chunk/switzerland/test_dtm_swissalti.py` (3) | retarget to `dtm_swissalti.fetch` |
+| `highliner/etls/chunk/shared.py` (2) | already rewritten in Task 5 |
+| `highliner/etls/chunk/dtm_core.py` (1) | a docstring mention; reword |
+
+Each country test file has tests that reached its client *through*
+`dtm.fetch_tiles` — the dispatcher was the only entry point when they were
+written. Now that each country owns a `fetch`, those tests call the country's
+own fetcher directly. **Retarget them; do not delete them.** They are the
+behavioral coverage for each source, and the plan's rule is that the test count
+must not drop.
+
+Re-run this grep after Step 4; the only permitted remaining hits are in
+`dtm_core.py`'s prose.
 
 **Interfaces:**
 - Consumes: `dtm_core.raster_from_tiles`, `dtm_core.SEA_SENTINEL`,

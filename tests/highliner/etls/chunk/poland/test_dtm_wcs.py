@@ -4,7 +4,7 @@ import pytest
 import requests
 
 from highliner.etls.chunk import dtm
-from highliner.etls.chunk.poland import dtm_wcs as dtm_poland
+from highliner.etls.chunk.poland import dtm_wcs
 
 
 def _response(status: int, content: bytes) -> requests.Response:
@@ -34,7 +34,7 @@ def test_fetch_poland_wcs_writes_ascii_grid_from_multipart_response(
 
     monkeypatch.setattr(requests, "get", fake_get)
 
-    paths = dtm_poland.fetch_poland_wcs((100, 200, 110, 210), tmp_path, "EPSG:2180")
+    paths = dtm_wcs.fetch_poland_wcs((100, 200, 110, 210), tmp_path, "EPSG:2180")
 
     assert paths == [tmp_path / "t_100_200.asc"]
     assert paths[0].read_text().endswith("cellsize 5\n3\n")
@@ -52,7 +52,7 @@ def test_fetch_poland_wcs_treats_extent_error_as_empty(
     monkeypatch.setattr(requests, "get",
                         lambda *args, **kwargs: _response(400, content))
 
-    assert dtm_poland.fetch_poland_wcs(
+    assert dtm_wcs.fetch_poland_wcs(
         (89_000, 160_000, 89_100, 160_100), tmp_path, "EPSG:2180") == []
 
 
@@ -101,14 +101,52 @@ def test_fetch_tiles_retries_transient_poland_wcs_failure(
 
 def test_fetch_poland_wcs_rejects_a_non_national_crs(tmp_path: Path) -> None:
     with pytest.raises(RuntimeError, match="EPSG:2180"):
-        dtm_poland.fetch_poland_wcs((0, 0, 1, 1), tmp_path, "EPSG:4326")
+        dtm_wcs.fetch_poland_wcs((0, 0, 1, 1), tmp_path, "EPSG:4326")
 
 
 def test_fetch_tiles_dispatches_polish_wcs(
         monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     expected = [tmp_path / "tile.asc"]
-    monkeypatch.setattr(dtm_poland, "fetch_poland_wcs",
+    monkeypatch.setattr(dtm_wcs, "fetch_poland_wcs",
                         lambda bbox, tiles_dir, crs: expected)
 
     assert dtm.fetch_tiles((1, 2, 3, 4), tmp_path, source="poland_wcs",
                            crs="EPSG:2180") == expected
+
+
+def test_poland_fetch_retries_transient_failure(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A 429 is retried; the retry wrapper lives in Poland's fetcher now."""
+    import requests
+
+    monkeypatch.setattr("highliner.etls.chunk.dtm_core.time.sleep",
+                        lambda s: None)
+    resp = requests.Response()
+    resp.status_code = 429
+    calls: list[int] = []
+
+    def flaky(bbox: object, tiles_dir: object, crs: object) -> list[Path]:
+        calls.append(1)
+        if len(calls) == 1:
+            raise requests.HTTPError(response=resp)
+        return [tmp_path / "t.asc"]
+
+    monkeypatch.setattr(dtm_wcs, "fetch_poland_wcs", flaky)
+
+    assert dtm_wcs.fetch((0.0, 0.0, 1.0, 1.0), tmp_path / "tiles", None,
+                         "EPSG:2180") == [tmp_path / "t.asc"]
+    assert len(calls) == 2
+
+
+def test_poland_fetch_forwards_tiles_dir_and_crs(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    seen: list[tuple[object, object, object]] = []
+
+    def fake(bbox: object, tiles_dir: object, crs: object) -> list[Path]:
+        seen.append((bbox, tiles_dir, crs))
+        return []
+
+    monkeypatch.setattr(dtm_wcs, "fetch_poland_wcs", fake)
+    dtm_wcs.fetch((0.0, 0.0, 1.0, 1.0), tmp_path / "tiles", None, "EPSG:2180")
+
+    assert seen == [((0.0, 0.0, 1.0, 1.0), tmp_path / "tiles", "EPSG:2180")]

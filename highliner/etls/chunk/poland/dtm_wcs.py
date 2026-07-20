@@ -10,6 +10,8 @@ from xml.etree import ElementTree
 
 import requests
 
+from highliner.etls.chunk.dtm_core import _download_with_retries
+
 WCS_URL = ("https://mapy.geoportal.gov.pl/wss/service/PZGIK/NMT/GRID1/WCS/"
            "DigitalTerrainModel")
 COVERAGE_ID = "DTM_PL-KRON86-NH"
@@ -64,3 +66,15 @@ def fetch_poland_wcs(bbox: Bbox, tiles_dir: Path, crs: str) -> list[Path]:
     dest = Path(tiles_dir) / f"t_{int(minx)}_{int(miny)}.asc"
     dest.write_bytes(_ascii_grid(response.content))
     return [dest]
+
+
+def fetch(bbox: Bbox, tiles_dir: Path, cache_dir: Path | None,
+          crs: str) -> list[Path]:
+    """Fetcher-shaped entry point for ``dtm_source="poland_wcs"``.
+
+    GUGiK's WCS is requested once per chunk (not per tile), so the whole call
+    is wrapped in the transient-failure retry. Ignores ``cache_dir``: the
+    response is written straight into the chunk's transient ``tiles_dir``.
+    """
+    return _download_with_retries(
+        lambda: fetch_poland_wcs(bbox, tiles_dir, crs))

@@ -41,14 +41,12 @@ export const STRINGS = {
     densityHint: "Amplia per veure zones",
     disclaimerTitle: "HighlineScout",
     disclaimerLead: "Muntar una highline és perillós i pot ser mortal.",
-    disclaimerIntro: "HighlineScout t'ajuda a trobar el teu proper possible lloc de highline.",
+    disclaimerIntro: "HighlineScout t'ajuda a trobar el teu proper spot de highline.",
     disclaimerImageAlt: "Una persona fent highline sobre una vall boscosa.",
     disclaimerBeginner: "Principiants: exploreu amb un highliner experimentat.",
     disclaimerAnchors: "Feu que un expert valori els bolts i els ancoratges en arbres.",
     disclaimerLimitations:
       "Aquesta eina no pot valorar la vegetació, els obstacles ni la qualitat de la roca: els resultats són pistes, no línies garantides ni segures.",
-    disclaimerBody:
-      "Trobar i valorar un lloc és la part més perillosa de l'highlining: aquesta eina només assenyala terreny que podria admetre una línia — mai no confirma ancoratges sòlids, accessos segurs, la qualitat de la roca ni que una línia es pugui equipar.",
     disclaimerResponsibility:
       "Ets l'únic responsable de valorar qualsevol lloc i de la teva pròpia seguretat. Highline Scout no es fa responsable de cap lesió, mort o dany derivat del seu ús.",
     disclaimerAccept: "Ho entenc",
@@ -142,14 +140,12 @@ export const STRINGS = {
     densityHint: "Amplía para ver zonas",
     disclaimerTitle: "HighlineScout",
     disclaimerLead: "Montar una highline es peligroso y puede ser mortal.",
-    disclaimerIntro: "HighlineScout te ayuda a encontrar tu próximo posible lugar para una highline.",
+    disclaimerIntro: "HighlineScout te ayuda a encontrar tu próximo lugar para montar highline.",
     disclaimerImageAlt: "Una persona haciendo highline sobre un valle boscoso.",
     disclaimerBeginner: "Principiantes: explora con un highliner experimentado.",
     disclaimerAnchors: "Haz que un experto evalúe los bolts y los anclajes en árboles.",
     disclaimerLimitations:
       "Esta herramienta no puede evaluar la vegetación, los obstáculos ni la calidad de la roca: los resultados son pistas, no líneas garantizadas ni seguras.",
-    disclaimerBody:
-      "Encontrar y valorar un sitio es la parte más peligrosa del highlining: esta herramienta solo señala terreno que podría admitir una línea — nunca confirma anclajes sólidos, accesos seguros, la calidad de la roca ni que una línea se pueda montar.",
     disclaimerResponsibility:
       "Eres el único responsable de valorar cualquier sitio y de tu propia seguridad. Highline Scout no se hace responsable de ninguna lesión, muerte o daño derivado de su uso.",
     disclaimerAccept: "Lo entiendo",
@@ -243,14 +239,12 @@ export const STRINGS = {
     densityHint: "Zoom in to see zones",
     disclaimerTitle: "HighlineScout",
     disclaimerLead: "Rigging a highline is dangerous and can be fatal.",
-    disclaimerIntro: "HighlineScout helps you find your next potential highline spot.",
+    disclaimerIntro: "HighlineScout helps you find your next highline spot.",
     disclaimerImageAlt: "A person highlining above a forested valley",
     disclaimerBeginner: "Beginners: scout with an experienced highliner.",
     disclaimerAnchors: "Have an expert assess bolts and tree anchors.",
     disclaimerLimitations:
-      "This tool cannot assess vegetation, obstacles, or rock quality, so results are leads—not guaranteed safe or riggable lines.",
-    disclaimerBody:
-      "Finding and assessing a spot is the most dangerous part of highlining: this tool only points to terrain that might hold a line — it never confirms solid anchors, safe access, rock quality, or that a line can be rigged.",
+      "This tool cannot assess vegetation, obstacles, or rock quality, so results are leads, not guaranteed safe or riggable lines.",
     disclaimerResponsibility:
       "You alone are responsible for assessing any spot and for your own safety. Highline Scout accepts no liability for any injury, death, or damage arising from its use.",
     disclaimerAccept: "I understand",

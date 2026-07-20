@@ -106,7 +106,7 @@ describe("SafetyDisclaimerDialog", () => {
     expect(photo).toHaveAttribute("src", expect.stringContaining("welcome-highline"));
 
     const intro = screen.getByText(
-      "HighlineScout helps you find your next potential highline spot.",
+      "HighlineScout helps you find your next highline spot.",
     );
     expect(intro).toHaveClass("text-lg", "font-semibold", "text-primary-deep");
 
@@ -114,7 +114,7 @@ describe("SafetyDisclaimerDialog", () => {
     expect(
       screen.queryByRole("heading", { name: "HighlineScout" }),
     ).not.toBeInTheDocument();
-    expect(dialog).toHaveTextContent("HighlineScout helps you find your next potential highline spot.");
+    expect(dialog).toHaveTextContent("HighlineScout helps you find your next highline spot.");
     expect(screen.getByRole("list")).toHaveTextContent(
       "Beginners: scout with an experienced highliner.",
     );
@@ -122,7 +122,7 @@ describe("SafetyDisclaimerDialog", () => {
       "Have an expert assess bolts and tree anchors.",
     );
     expect(screen.getByRole("list")).toHaveTextContent(
-      "This tool cannot assess vegetation, obstacles, or rock quality, so results are leads—not guaranteed safe or riggable lines.",
+      "This tool cannot assess vegetation, obstacles, or rock quality, so results are leads, not guaranteed safe or riggable lines.",
     );
   });
 

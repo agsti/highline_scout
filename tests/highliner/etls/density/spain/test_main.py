@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from highliner.etls.density import spain
+from highliner.etls.density.spain import main as spain
 
 
 def test_spain_density_adapter_has_no_region_argument(

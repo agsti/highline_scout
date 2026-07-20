@@ -7,7 +7,7 @@ import pytest
 
 def test_switzerland_density_adapter_forwards_country(
         monkeypatch: pytest.MonkeyPatch) -> None:
-    from highliner.etls.density import switzerland
+    from highliner.etls.density.switzerland import main as switzerland
 
     calls: list[dict[str, object]] = []
 

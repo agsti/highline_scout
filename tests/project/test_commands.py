@@ -5,7 +5,8 @@ from pathlib import Path
 def test_project_defines_focused_command_scripts() -> None:
     project = Path("pyproject.toml").read_text()
     assert 'highliner-server = "highliner.server.main:main"' in project
-    assert 'highliner-etl-density = "highliner.etls.density.spain:main"' in project
+    assert ('highliner-etl-density = '
+            '"highliner.etls.density.spain.main:main"') in project
     assert ('highliner-restrictions = '
             '"highliner.etls.restriction.spain:main"') in project
     assert "highliner.cli:main" not in project

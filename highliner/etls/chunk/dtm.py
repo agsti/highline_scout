@@ -4,7 +4,6 @@ Generic helpers live in ``dtm_core``. Country-specific download clients live
 in each country's package as ``<country>/dtm_<source>.py``; all are dispatched
 from ``fetch_tiles``.
 """
-import concurrent.futures
 from collections.abc import Callable
 from pathlib import Path
 
@@ -20,6 +19,7 @@ from highliner.etls.chunk.dtm_core import (  # re-exported for existing callers
     TILE_WORKERS,
     Bbox,
     _download_with_retries,
+    fetch_tile_grid,
     raster_from_tiles,
     tile_specs,
 )
@@ -108,26 +108,12 @@ def fetch_tiles(bbox: Bbox, tiles_dir: Path, res: float = NATIVE_RES,  # noqa: P
     if source not in ("icgc", "idee"):
         raise RuntimeError(f"unknown DTM source '{source}'")
 
-    def fetch_one(spec: tuple[Bbox, int, int]) -> Path | None:
-        tb, w, h = spec
-        ext = "tif" if source == "idee" else "asc"
-        dest = tiles_dir / f"t_{int(tb[0])}_{int(tb[1])}.{ext}"
-        if not dest.exists():
-            try:
-                if source == "icgc":
-                    _download_with_retries(
-                        lambda: dtm_icgc._download_tile(tb, w, h, dest))
-                else:
-                    _download_with_retries(
-                        lambda: dtm_cnig._download_idee_tile(tb, w, h, dest, crs))
-            except RuntimeError:
-                return None       # out of coverage / non-raster body: expected
-        return dest
+    ext = "tif" if source == "idee" else "asc"
 
-    specs = tile_specs(bbox, res, tile_px)
-    if not specs:
-        return []
-    with concurrent.futures.ThreadPoolExecutor(
-            max_workers=min(TILE_WORKERS, len(specs))) as pool:
-        results = list(pool.map(fetch_one, specs))   # map preserves spec order
-    return [p for p in results if p is not None]
+    def download(tb: Bbox, w: int, h: int, dest: Path) -> Path:
+        if source == "icgc":
+            return dtm_icgc._download_tile(tb, w, h, dest)
+        return dtm_cnig._download_idee_tile(tb, w, h, dest, crs)
+
+    return fetch_tile_grid(bbox, tiles_dir, download,
+                           ext=ext, res=res, tile_px=tile_px)

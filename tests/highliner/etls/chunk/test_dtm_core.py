@@ -103,7 +103,8 @@ def test_bbox_geom_lonlat_reprojects_to_wgs84() -> None:
 
 def test_fetch_tile_grid_downloads_each_tile_and_returns_paths(
         tmp_path: Path) -> None:
-    """The grid mode tiles the bbox and returns one path per downloaded tile."""
+    """The grid mode tiles the bbox and returns one path per downloaded tile,
+    in tile_specs' emission order."""
     seen: list[tuple[int, int]] = []
 
     def download(bbox: tuple[float, float, float, float], width: int,
@@ -112,12 +113,42 @@ def test_fetch_tile_grid_downloads_each_tile_and_returns_paths(
         dest.write_text("tile")
         return dest
 
+    bbox = (484000.0, 4646000.0, 486000.0, 4647500.0)
     paths = dtm_core.fetch_tile_grid(
-        (484000.0, 4646000.0, 486000.0, 4647500.0), tmp_path / "tiles",
-        download, ext="asc", res=5.0, tile_px=175)
+        bbox, tmp_path / "tiles", download, ext="asc", res=5.0, tile_px=175)
 
+    specs = dtm_core.tile_specs(bbox, res=5.0, tile_px=175)
+    expected = [tmp_path / "tiles" / f"t_{int(tb[0])}_{int(tb[1])}.asc"
+                for tb, _w, _h in specs]
+    assert paths == expected
     assert len(paths) == len(seen) > 0
     assert all(p.exists() and p.suffix == ".asc" for p in paths)
+
+
+def test_fetch_tile_grid_drops_only_failing_tiles(tmp_path: Path) -> None:
+    """A mixed batch: some tiles succeed, some raise RuntimeError. Only the
+    failing subset is dropped; the surviving paths are correct."""
+    bbox = (484000.0, 4646000.0, 486000.0, 4647500.0)
+    specs = dtm_core.tile_specs(bbox, res=5.0, tile_px=175)
+    assert len(specs) > 1                          # need at least 2 tiles to mix
+
+    fail_origins = {specs[0][0][:2]}                # fail the first tile only
+
+    def download(tb: tuple[float, float, float, float], w: int, h: int,
+                 dest: Path) -> Path:
+        if tb[:2] in fail_origins:
+            raise RuntimeError("no coverage")
+        dest.write_text("tile")
+        return dest
+
+    paths = dtm_core.fetch_tile_grid(
+        bbox, tmp_path / "tiles", download, ext="asc", res=5.0, tile_px=175)
+
+    expected = [tmp_path / "tiles" / f"t_{int(tb[0])}_{int(tb[1])}.asc"
+                for tb, _w, _h in specs if tb[:2] not in fail_origins]
+    assert paths == expected
+    assert len(paths) == len(specs) - 1
+    assert all(p.exists() for p in paths)
 
 
 def test_fetch_tile_grid_reuses_existing_tiles(tmp_path: Path) -> None:

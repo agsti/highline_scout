@@ -19,25 +19,36 @@ import fcntl
 import functools
 import hashlib
 import json
-import math
 import os
 import re
 import time
-from collections.abc import Callable
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, TypeVar
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import rasterio
 import requests
-from pyproj import Transformer
 from rasterio.merge import merge
-from shapely.geometry import box, mapping
-from shapely.geometry.base import BaseGeometry
-from shapely.ops import transform as shapely_transform
+from shapely.geometry import mapping
 
 from highliner.etls.chunk.austria import dtm_bev
 from highliner.etls.chunk.czechia import dtm_cuzk
+from highliner.etls.chunk.dtm_core import (  # re-exported for existing callers
+    MAX_TILE_PX,
+    NATIVE_RES,
+    NODATA,
+    SEA_SENTINEL,
+    TILE_RETRY_ATTEMPTS,
+    TILE_RETRY_BASE_S,
+    TILE_WORKERS,
+    Bbox,
+    _bbox_geom_lonlat,
+    _download_with_retries,
+    _epsg_code,
+    _retry_delay,
+    _snap,
+    tile_specs,
+)
 from highliner.etls.chunk.france import dtm_rgealti
 from highliner.etls.chunk.italy import dtm_hrdtm
 from highliner.etls.chunk.poland import dtm_wcs
@@ -47,7 +58,26 @@ from highliner.etls.chunk.united_kingdom import dtm_ea, dtm_os
 if TYPE_CHECKING:
     from highliner.models.raster import Raster
 
-Bbox = tuple[float, float, float, float]
+# Explicit re-export of the generic helpers that moved to dtm_core, so
+# `shared.py` and existing tests can keep reaching for them via this module.
+__all__ = [
+    "MAX_TILE_PX",
+    "NATIVE_RES",
+    "NODATA",
+    "SEA_SENTINEL",
+    "TILE_RETRY_ATTEMPTS",
+    "TILE_RETRY_BASE_S",
+    "TILE_WORKERS",
+    "Bbox",
+    "_bbox_geom_lonlat",
+    "_download_with_retries",
+    "_epsg_code",
+    "_retry_delay",
+    "_snap",
+    "fetch_tiles",
+    "raster_from_tiles",
+    "tile_specs",
+]
 
 ICGC_WCS = "https://geoserveis.icgc.cat/icc_mdt/wcs/service"
 COVERAGE_ID = "icc:met"
@@ -58,48 +88,6 @@ IDEE_COLLECTIONS = {
 }
 CNIG_BASE = "https://centrodedescargas.cnig.es/CentroDescargas"
 CNIG_HEADERS = {"User-Agent": "Mozilla/5.0 highliner-finder/0.1"}
-NATIVE_RES = 5.0       # meters — finest DTM resolution on this WCS
-MAX_TILE_PX = 175      # per side; 175*175 < 35,800 px request cap
-TILE_WORKERS = 8       # concurrent tile downloads per fetch_tiles call
-TILE_RETRY_ATTEMPTS = 4    # tries per tile before the transient failure is raised
-TILE_RETRY_BASE_S = 2.0    # exponential backoff base; Retry-After wins if larger
-NODATA = -9999.0
-# ICGC encodes the sea surface with its own sentinel, distinct from the ArcGrid
-# NODATA_VALUE (-9999) used for out-of-coverage. If left unmasked it reads as a
-# real -8888 m elevation, so every coastal cell looks like an ~8888 m cliff and
-# becomes a spurious anchor/zone. Treat it as nodata.
-SEA_SENTINEL = -8888.0
-_T = TypeVar("_T")
-
-
-def _retry_delay(attempt: int,
-                 response: "requests.Response | None" = None) -> float:
-    """Exponential backoff, bumped up to the server's Retry-After if larger."""
-    retry_after = 0.0
-    if response is not None:
-        try:
-            retry_after = float(response.headers.get("Retry-After", 0) or 0)
-        except ValueError:                 # HTTP-date form; use the backoff
-            retry_after = 0.0
-    return max(retry_after, TILE_RETRY_BASE_S * 2.0 ** attempt)
-
-
-def _download_with_retries(download: "Callable[[], _T]") -> _T:
-    """Run ``download``, retrying transient HTTP failures (429/5xx/timeouts).
-    Raises the last error once attempts are exhausted; RuntimeError (an
-    out-of-coverage/bad-body response) is not retried."""
-    for attempt in range(TILE_RETRY_ATTEMPTS):
-        try:
-            return download()
-        except requests.RequestException as exc:
-            response = exc.response
-            transient = response is None or response.status_code == 429 \
-                or response.status_code >= 500
-            if not transient or attempt == TILE_RETRY_ATTEMPTS - 1:
-                raise
-            time.sleep(_retry_delay(attempt, exc.response))
-    raise RuntimeError("unreachable")
-
 
 _CNIG_RETRY_STATUS = frozenset({429, 500, 502, 503, 504})
 
@@ -149,10 +137,6 @@ def _download_tile(bbox: Bbox, width: int, height: int, dest: Path) -> Path:
     return dest
 
 
-def _epsg_code(crs: str) -> str:
-    return crs.rsplit(":", 1)[-1]
-
-
 def _download_idee_tile(bbox: Bbox, width: int, height: int, dest: Path,
                         crs: str) -> Path:
     collection = IDEE_COLLECTIONS.get(crs)
@@ -179,12 +163,6 @@ def _cnig_session() -> requests.Session:
     s = requests.Session()
     s.headers.update(CNIG_HEADERS)
     return s
-
-
-def _bbox_geom_lonlat(bbox: Bbox, crs: str) -> BaseGeometry:
-    geom = box(*bbox)
-    transformer = Transformer.from_crs(crs, "EPSG:4326", always_xy=True)
-    return shapely_transform(transformer.transform, geom)
 
 
 def _preferred_huso(crs: str) -> str | None:
@@ -336,33 +314,6 @@ def _fetch_cnig_tiles(bbox: Bbox, cache_root: Path, crs: str) -> list[Path]:
         # skips a completed dest, so re-running it is safe.
         out.append(_download_with_retries(
             functools.partial(_download_cnig_sheet, session, sec, filename, dest)))
-    return out
-
-
-def _snap(bbox: Bbox, res: float) -> Bbox:
-    minx, miny, maxx, maxy = (float(v) for v in bbox)
-    return (math.floor(minx / res) * res, math.floor(miny / res) * res,
-            math.ceil(maxx / res) * res, math.ceil(maxy / res) * res)
-
-
-def tile_specs(bbox: Bbox, res: float = NATIVE_RES, tile_px: int = MAX_TILE_PX
-               ) -> list[tuple[Bbox, int, int]]:
-    """Tile (bbox, width, height) specs tiling ``bbox`` snapped to the res grid."""
-    minx, miny, maxx, maxy = _snap(bbox, res)
-    step = tile_px * res
-    out: list[tuple[Bbox, int, int]] = []
-    y = miny
-    while y < maxy:
-        ty2 = min(y + step, maxy)
-        x = minx
-        while x < maxx:
-            tx2 = min(x + step, maxx)
-            w = int(round((tx2 - x) / res))
-            h = int(round((ty2 - y) / res))
-            if w > 0 and h > 0:
-                out.append(((x, y, tx2, ty2), w, h))
-            x = tx2
-        y = ty2
     return out
 
 

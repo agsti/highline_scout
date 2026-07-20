@@ -98,14 +98,6 @@ def test_cnig_query_sheets_retries_throttled_page(
     assert sleeps == [3.0]
 
 
-def test_tile_specs_covers_grid() -> None:
-    specs = list(ingest.tile_specs((484000, 4646000, 486000, 4647500),
-                                   res=5.0, tile_px=175))
-    assert len(specs) == 6
-    for _tb, w, h in specs:
-        assert w > 0 and h > 0
-
-
 def test_fetch_tiles_skips_failures(
         tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     def fake_download(bbox: tuple[float, float, float, float], width: int,
@@ -184,7 +176,7 @@ def test_fetch_cnig_tiles_retries_broken_stream_then_succeeds(
         tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     # A CNIG download whose body stream drops mid-transfer (IncompleteRead ->
     # ChunkedEncodingError) must be retried, not abort the whole run.
-    monkeypatch.setattr("highliner.etls.chunk.dtm.time.sleep", lambda s: None)
+    monkeypatch.setattr("highliner.etls.chunk.dtm_core.time.sleep", lambda s: None)
     monkeypatch.setattr(ingest, "_cnig_query_sheets",
                         lambda *a, **k: [("sec", "sheet.tif")])
     attempts = {"n": 0}
@@ -214,7 +206,7 @@ def test_fetch_cnig_tiles_retries_broken_stream_then_succeeds(
 
 def test_fetch_cnig_tiles_raises_when_broken_stream_persists(
         tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("highliner.etls.chunk.dtm.time.sleep", lambda s: None)
+    monkeypatch.setattr("highliner.etls.chunk.dtm_core.time.sleep", lambda s: None)
     monkeypatch.setattr(ingest, "_cnig_query_sheets",
                         lambda *a, **k: [("sec", "sheet.tif")])
 
@@ -236,7 +228,7 @@ def test_fetch_cnig_tiles_raises_when_broken_stream_persists(
 def test_fetch_tiles_retries_rate_limited_tiles_honoring_retry_after(
         tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     sleeps: list[float] = []
-    monkeypatch.setattr("highliner.etls.chunk.dtm.time.sleep",
+    monkeypatch.setattr("highliner.etls.chunk.dtm_core.time.sleep",
                         lambda s: sleeps.append(s))
     attempts: dict[tuple[float, float, float, float], int] = {}
 
@@ -260,7 +252,7 @@ def test_fetch_tiles_retries_rate_limited_tiles_honoring_retry_after(
 
 def test_fetch_tiles_raises_when_rate_limit_persists(
         tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("highliner.etls.chunk.dtm.time.sleep", lambda s: None)
+    monkeypatch.setattr("highliner.etls.chunk.dtm_core.time.sleep", lambda s: None)
 
     def fake_download(bbox: tuple[float, float, float, float], width: int,
                       height: int, dest: Path) -> Path:

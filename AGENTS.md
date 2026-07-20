@@ -180,7 +180,6 @@ the server). Command entry points live beside the stage they drive:
                              zones, anchors, density, restrictions) plus
                              deps.py (bbox parsing, region cache, app.state access)
                              and serializers.py (domain → GeoJSON)
-      restrictions/main.py   protected-area build command
 
 Dependencies flow router → services → repositories → models/core, and both
 stages depend only on the shared `core/` + `models/`. The one exception is the

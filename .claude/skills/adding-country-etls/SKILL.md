@@ -84,13 +84,13 @@ Requirements for a usable terrain source:
 - **Bare-earth elevation (DTM, not DSM) covering the target bbox, with a
   license permitting reuse.**
 - **Resolution: match Spain, ~5 m** (Spain uses MDT05 at 5 m;
-  `NATIVE_RES = 5.0` in `dtm.py`). Pick a 5 m-class national product if one
+  `NATIVE_RES = 5.0` in `dtm_core.py`). Pick a 5 m-class national product if one
   exists. If the finest available is coarser than 5 m, proceed with it anyway
   — don't stop to ask — but report the shortfall to the user at the end:
   coarser data leaves cliff faces unresolved, so extraction tuning
   (`SLOPE_MIN_DEG` etc. in `core/config.py`) may need loosening.
 - **Prefer bulk sheet downloads over tiled WCS/coverage APIs** — the CNIG
-  pattern over the ICGC/IDEE pattern. Bulk sheets are cached under
+  pattern over the per-tile ICGC pattern. Bulk sheets are cached under
   `cache/<country>/` and reused across chunks, regions, and re-runs; WCS tiles
   are re-fetched per chunk and rate-limited. Fall back to a WCS/OGC-coverage
   API only when the country has no bulk product. (Within Spain the same rule
@@ -115,9 +115,10 @@ and are meant to be imported from there — see `spain/dtm_cnig.py` for the
 pattern. For a bulk source follow `_fetch_cnig_tiles` (reachable as Spain's
 `dtm_cnig.fetch`): catalog query cached to disk (`_cached_query_sheets`),
 per-sheet download with flock + `.part` tmp file + transient-HTTP retries. For
-a coverage API follow `_download_idee_tile` (Spain's `fetch_idee`). If a helper
-is keyed by EPSG (`IDEE_COLLECTIONS`, `_preferred_huso`), extend it for the new
-CRS.
+a coverage API follow Poland's `fetch_poland_wcs`
+(`highliner/etls/chunk/poland/dtm_wcs.py`), which issues WCS `GetCoverage`
+requests per tile. If a helper is keyed by EPSG (`_preferred_huso`), extend it
+for the new CRS.
 
 ## 2. Chunk adapter
 

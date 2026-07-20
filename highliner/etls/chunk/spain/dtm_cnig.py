@@ -1,8 +1,7 @@
-"""CNIG and IGN/IDEE clients for Spain's national MDT05.
+"""CNIG client for Spain's national MDT05.
 
-CNIG serves 1:25,000 sheets through a download portal; IDEE serves the same
-model as COG subsets through OGC API Coverages. Sheets persist in the country
-cache rather than the per-chunk tiles directory.
+CNIG serves 1:25,000 sheets through a download portal. Sheets persist in the
+country cache rather than the per-chunk tiles directory.
 """
 import fcntl
 import functools
@@ -24,14 +23,8 @@ from highliner.etls.chunk.dtm_core import (
     _download_with_retries,
     _epsg_code,
     _retry_delay,
-    fetch_tile_grid,
 )
 
-IDEE_COVERAGE_API = "https://api-coverages.idee.es/collections"
-IDEE_COLLECTIONS = {
-    "EPSG:25830": "EL.ElevationGridCoverage_25830_5_PB",
-    "EPSG:4083": "EL.ElevationGridCoverage_4083_5_C",
-}
 CNIG_BASE = "https://centrodedescargas.cnig.es/CentroDescargas"
 CNIG_HEADERS = {"User-Agent": "Mozilla/5.0 highliner-finder/0.1"}
 
@@ -59,28 +52,6 @@ def _cnig_request(session: requests.Session, method: str, url: str,
             continue
         return resp
     raise RuntimeError("unreachable")
-
-
-def _download_idee_tile(bbox: Bbox, width: int, height: int, dest: Path,
-                        crs: str) -> Path:
-    collection = IDEE_COLLECTIONS.get(crs)
-    if collection is None:
-        raise RuntimeError(f"no IDEE MDT05 collection configured for {crs}")
-    minx, miny, maxx, maxy = bbox
-    params = {
-        "f": "COG",
-        "bbox": f"{minx},{miny},{maxx},{maxy}",
-        "bbox-crs": f"http://www.opengis.net/def/crs/EPSG/0/{_epsg_code(crs)}",
-    }
-    url = f"{IDEE_COVERAGE_API}/{collection}/coverage"
-    r = requests.get(url, params=params, timeout=180)
-    r.raise_for_status()
-    if not (r.content[:2] in (b"II", b"MM")
-            or "tiff" in r.headers.get("content-type", "").lower()):
-        raise RuntimeError(
-            f"IDEE coverage did not return GeoTIFF data: {r.content[:200]!r}")
-    dest.write_bytes(r.content)
-    return dest
 
 
 def _cnig_session() -> requests.Session:
@@ -251,17 +222,3 @@ def fetch(bbox: Bbox, tiles_dir: Path, cache_dir: Path | None,
     if cache_dir is None:
         raise ValueError("cnig source requires cache_dir")
     return _fetch_cnig_tiles(bbox, cache_dir, crs)
-
-
-def fetch_idee(bbox: Bbox, tiles_dir: Path, cache_dir: Path | None,
-               crs: str) -> list[Path]:
-    """Fetcher-shaped entry point for ``dtm_source="idee"``.
-
-    IDEE is a coverage API rather than a bulk product, so the bbox is tiled and
-    each tile requested in the region's CRS. Ignores ``cache_dir``.
-    """
-    def download(tile_bbox: Bbox, width: int, height: int,
-                 dest: Path) -> Path:
-        return _download_idee_tile(tile_bbox, width, height, dest, crs)
-
-    return fetch_tile_grid(bbox, tiles_dir, download, ext="tif")

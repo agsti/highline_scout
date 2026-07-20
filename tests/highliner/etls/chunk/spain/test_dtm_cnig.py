@@ -71,31 +71,6 @@ def test_cnig_query_sheets_retries_throttled_page(
     assert sleeps == [3.0]
 
 
-def test_idee_fetch_uses_tif_tiles_and_region_crs(
-        tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    calls = []
-
-    def fake_download(
-        bbox: tuple[float, float, float, float],
-        width: int,
-        height: int,
-        dest: Path,
-        crs: str,
-    ) -> Path:
-        calls.append((bbox, width, height, dest.suffix, crs))
-        dest.write_bytes(b"II fake tif")
-        return dest
-
-    monkeypatch.setattr(dtm_cnig, "_download_idee_tile", fake_download)
-
-    paths = dtm_cnig.fetch_idee((188000, 3060000, 188500, 3060500),
-                                tmp_path / "tiles", tmp_path / "cache",
-                                "EPSG:4083")
-    assert paths
-    assert all(p.suffix == ".tif" for p in paths)
-    assert {c[4] for c in calls} == {"EPSG:4083"}
-
-
 def test_cnig_fetch_uses_explicit_cache_dir(
         tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     seen: list[Path] = []
@@ -243,23 +218,3 @@ def test_cnig_fetch_requires_cache_dir(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="cnig source requires cache_dir"):
         dtm_cnig.fetch((0.0, 0.0, 1.0, 1.0), tmp_path / "tiles", None,
                        "EPSG:25830")
-
-
-def test_idee_fetch_passes_crs_to_each_tile_download(
-        tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """IDEE is a coverage API: each tile download gets the region CRS."""
-    seen_crs: list[str] = []
-
-    def fake_download(bbox: tuple[float, float, float, float], width: int,
-                      height: int, dest: Path, crs: str) -> Path:
-        seen_crs.append(crs)
-        dest.write_text("tile")
-        return dest
-
-    monkeypatch.setattr(dtm_cnig, "_download_idee_tile", fake_download)
-    paths = dtm_cnig.fetch_idee((484000.0, 4646000.0, 486000.0, 4647500.0),
-                                tmp_path / "tiles", tmp_path / "cache",
-                                "EPSG:25830")
-
-    assert paths and all(p.suffix == ".tif" for p in paths)
-    assert set(seen_crs) == {"EPSG:25830"}

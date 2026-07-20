@@ -5,6 +5,7 @@ import pytest
 
 from highliner.etls.chunk import dtm as ingest
 from highliner.etls.chunk.spain import dtm_icgc
+from highliner.etls.chunk.united_kingdom import dtm_os
 
 
 def _fake_asc(bbox: tuple[float, float, float, float], width: int, height: int,
@@ -57,3 +58,28 @@ def test_raster_from_tiles_masks_sea_sentinel(tmp_path: Path) -> None:
     assert np.isnan(r.data).any()               # sea half masked
     assert not (r.data == ingest.SEA_SENTINEL).any()
     assert (r.data == 100.0).any()              # land half kept
+
+
+def test_fetch_from_cache_rejects_unregistered_source(tmp_path: Path) -> None:
+    """An unknown cached source raises instead of silently serving another
+    country's terrain, which would corrupt anchors rather than fail the run."""
+    with pytest.raises(RuntimeError, match="unknown cached DTM source"):
+        ingest._fetch_from_cache("slovenia_dtm", (0.0, 0.0, 1.0, 1.0),
+                                 "EPSG:3912", tmp_path)
+
+
+def test_fetch_from_cache_still_routes_osni(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """The Northern Ireland source keeps working now that it is an explicit
+    branch rather than the fallthrough."""
+    seen: list[tuple[object, ...]] = []
+
+    def fake_fetch(bbox: object, cache: object) -> list[Path]:
+        seen.append((bbox, cache))
+        return []
+
+    monkeypatch.setattr(dtm_os, "fetch_osni_dtm_10m", fake_fetch)
+
+    assert ingest._fetch_from_cache("osni_dtm_10m", (0.0, 0.0, 1.0, 1.0),
+                                    "EPSG:29902", tmp_path) == []
+    assert seen == [((0.0, 0.0, 1.0, 1.0), tmp_path)]

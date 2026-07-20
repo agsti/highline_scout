@@ -5,6 +5,7 @@ in each country's package as ``<country>/dtm_<source>.py``; all are dispatched
 from ``fetch_tiles``.
 """
 import concurrent.futures
+from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -52,28 +53,42 @@ __all__ = [
     "tile_specs",
 ]
 
+# Cache-backed sources, keyed by the ``dtm_source`` name persisted in
+# grid.json. Each adapter takes its own argument order, so the table adapts
+# them to one ``(bbox, cache_dir, crs)`` call. The lambdas resolve the module
+# attribute when invoked, not at import, so tests can monkeypatch the adapters.
+_CACHE_FETCHERS: dict[str, Callable[[Bbox, Path, str], list[Path]]] = {
+    "cnig": lambda bbox, cache, crs: dtm_cnig._fetch_cnig_tiles(bbox, cache, crs),
+    "rgealti": lambda bbox, cache, crs: dtm_rgealti.fetch_rgealti_tiles(
+        bbox, cache, crs),
+    "hrdtm": lambda bbox, cache, crs: dtm_hrdtm.fetch_hrdtm(cache),
+    "os_terrain_50": lambda bbox, cache, crs: dtm_os.fetch_os_terrain_50(
+        bbox, cache),
+    "osni_dtm_10m": lambda bbox, cache, crs: dtm_os.fetch_osni_dtm_10m(
+        bbox, cache),
+    "ea_lidar_1m": lambda bbox, cache, crs: dtm_ea.fetch_ea_lidar(bbox, cache),
+    "cuzk_dmr4g": lambda bbox, cache, crs: dtm_cuzk.fetch_cuzk_dmr4g(
+        bbox, cache, crs),
+    "bev_als_dtm": lambda bbox, cache, crs: dtm_bev.fetch_bev_tiles(
+        bbox, crs, cache),
+    "swissalti3d": lambda bbox, cache, crs: dtm_swissalti.fetch_swissalti_tiles(
+        bbox, cache, crs),
+}
+
+
 def _fetch_from_cache(source: str, bbox: Bbox, crs: str,
                       cache_dir: Path | None) -> list[Path]:
     """Dispatch the sources whose downloads persist in the country cache."""
     if cache_dir is None:
         raise ValueError(f"{source} source requires cache_dir")
-    if source == "cnig":
-        return dtm_cnig._fetch_cnig_tiles(bbox, cache_dir, crs)
-    if source == "rgealti":
-        return dtm_rgealti.fetch_rgealti_tiles(bbox, cache_dir, crs)
-    if source == "hrdtm":
-        return dtm_hrdtm.fetch_hrdtm(cache_dir)
-    if source == "os_terrain_50":
-        return dtm_os.fetch_os_terrain_50(bbox, cache_dir)
-    if source == "ea_lidar_1m":
-        return dtm_ea.fetch_ea_lidar(bbox, cache_dir)
-    if source == "cuzk_dmr4g":
-        return dtm_cuzk.fetch_cuzk_dmr4g(bbox, cache_dir, crs)
-    if source == "bev_als_dtm":
-        return dtm_bev.fetch_bev_tiles(bbox, crs, cache_dir)
-    if source == "swissalti3d":
-        return dtm_swissalti.fetch_swissalti_tiles(bbox, cache_dir, crs)
-    return dtm_os.fetch_osni_dtm_10m(bbox, cache_dir)
+    fetch = _CACHE_FETCHERS.get(source)
+    if fetch is None:
+        # Explicit rather than falling through to a default source: an
+        # unregistered name means the caller listed it in fetch_tiles' guard
+        # but never registered it here, and silently serving another country's
+        # terrain would corrupt the anchors instead of failing the run.
+        raise RuntimeError(f"unknown cached DTM source '{source}'")
+    return fetch(bbox, cache_dir, crs)
 
 
 def fetch_tiles(bbox: Bbox, tiles_dir: Path, res: float = NATIVE_RES,  # noqa: PLR0913
@@ -92,9 +107,7 @@ def fetch_tiles(bbox: Bbox, tiles_dir: Path, res: float = NATIVE_RES,  # noqa: P
     ``cache_dir``, required for them)."""
     tiles_dir = Path(tiles_dir)
     tiles_dir.mkdir(parents=True, exist_ok=True)
-    if source in ("cnig", "hrdtm", "rgealti", "os_terrain_50",
-                  "osni_dtm_10m", "ea_lidar_1m", "cuzk_dmr4g",
-                  "bev_als_dtm", "swissalti3d"):
+    if source in _CACHE_FETCHERS:
         return _fetch_from_cache(source, bbox, crs, cache_dir)
     if source == "poland_wcs":
         return _download_with_retries(

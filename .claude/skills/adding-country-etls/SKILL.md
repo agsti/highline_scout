@@ -10,7 +10,8 @@ description: Use when adding a new country (or a new region) to the highliner ET
 Each ETL family is a thin country adapter over shared country-neutral code. An
 adapter exports `COUNTRY: Final[str]` and `main(argv)` and runs as
 `python -m highliner.etls.<family>.<country>`. Spain
-(`highliner/etls/*/spain.py`) is the reference implementation — copy its shape.
+(`highliner/etls/*/spain/main.py`) is the reference implementation — copy its
+shape.
 
 The only supported precompute pattern is chunked
 (`highliner/etls/chunk/shared.py`): the region bbox is tiled into `CHUNK_M`
@@ -26,16 +27,31 @@ country needs no request-time work at all.
 
 | Piece | Create | Copy from |
 |---|---|---|
-| Chunk precompute CLI | `highliner/etls/chunk/<country>.py` | `chunk/spain.py` |
-| Density CLI | `highliner/etls/density/<country>.py` | `density/spain.py` |
-| Restrictions CLI (optional) | `highliner/etls/restriction/<country>.py` | `restriction/spain.py` |
-| DTM source branch | extend `highliner/etls/chunk/dtm.py` | `_fetch_cnig_tiles` |
+| Chunk precompute CLI | `highliner/etls/chunk/<country>/main.py` | `chunk/spain/main.py` |
+| Density CLI | `highliner/etls/density/<country>/main.py` | `density/spain/main.py` |
+| Restrictions CLI (optional) | `highliner/etls/restriction/<country>/main.py` | `restriction/spain/main.py` |
+| DTM client module | `highliner/etls/chunk/<country>/dtm_<source>.py` | `czechia/dtm_cuzk.py` |
+| DTM source branch | extend `highliner/etls/chunk/dtm.py` | `_fetch_from_cache` |
 | Run commands | `just etl-chunk <country> <workers>` | — |
 | Tests | `tests/test_precompute_<country>.py` | `tests/test_precompute_spain.py` |
 
 Output lands in `data/<country>/<region>/{grid.json,anchors/,pairs/}`; the DTM
 cache in `cache/<country>/`. The server discovers regions from `grid.json` on
 disk — **no server code changes are needed for a new country**.
+
+Each country is a package. Alongside `main.py` it needs an `__init__.py`
+(docstring only — do not re-export `main`, it would shadow the `main`
+submodule) and an `__main__.py` so `python -m highliner.etls.<stage>.<country>`
+keeps working:
+
+    """Entry point for `python -m highliner.etls.chunk.<country>`."""
+    from highliner.etls.chunk.<country>.main import main
+
+    if __name__ == "__main__":
+        main()
+
+Name the DTM module for its **source**, not its country — the folder already
+says the country. `austria/dtm_bev.py`, not `austria/dtm_austria.py`.
 
 ## Progress reporting
 
@@ -88,7 +104,7 @@ Requirements for a usable terrain source:
   cliff of spurious anchors.
 
 Implement as a new `source` key dispatched from `fetch_tiles` (`dtm.py`), with
-the client itself in its own module (e.g. `etls/chunk/dtm_<source>.py`) —
+the client itself in its own module (e.g. `etls/chunk/<country>/dtm_<source>.py`) —
 `dtm.py` already sits near the 500-line cap `just lint` enforces, so a new
 client won't fit inline. For a bulk source follow `_fetch_cnig_tiles`: catalog
 query cached to disk (`_cached_query_sheets`), per-sheet download with flock +
@@ -98,7 +114,7 @@ query cached to disk (`_cached_query_sheets`), per-sheet download with flock +
 
 ## 2. Chunk adapter
 
-Copy `chunk/spain.py`: `COUNTRY`, a frozen
+Copy `chunk/spain/main.py`: `COUNTRY`, a frozen
 `Region(name, bbox, crs, dtm_source)` catalogue, and `main()` with
 `--data-dir/--cache-dir/--start-at/--only/--jobs/--workers`, each region
 calling:
@@ -121,7 +137,7 @@ shared.precompute(COUNTRY, region.name, region.bbox, data_dir,
 
 ## 3. Density adapter
 
-Copy `density/spain.py`, change `COUNTRY`. Nothing else: it discovers every
+Copy `density/spain/main.py`, change `COUNTRY`. Nothing else: it discovers every
 region dir containing `grid.json` under `data/<country>/`. No `--region` flag,
 by design.
 
@@ -144,7 +160,7 @@ what the designation means for rigging and who to check with — not just name
 the designation (see Spain's `LAYERS` text for the tone).
 
 Needs a source (WFS, bulk download) serving protected-area polygons with a
-license permitting reuse. Copy `restriction/spain.py`:
+license permitting reuse. Copy `restriction/spain/main.py`:
 
 - `SOURCE_URLS`/`SOURCE_GLOBS` + `download_sources(raw_dir)`: download only
   when a source's glob is absent, extract flattened into

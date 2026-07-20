@@ -156,18 +156,17 @@ the server). Command entry points live beside the stage they drive:
                              regions, tiles, telemetry, restrictions (the LAYERS
                              overlay registry both stages consume)
       models/                shared pure domain dataclasses: anchor, candidate, zone, raster
-      etls/                  country adapters plus offline precompute pipeline
-        chunk/               country-neutral chunk precompute utilities plus adapters,
-                             DTM download, terrain extraction, pairing, and parquet writers
-          spain.py           Spain chunk-precompute command
+      etls/                  offline precompute pipeline
+        chunk/               shared pipeline + dtm.py dispatch
+          <country>/         main.py (CLI, regions) + dtm_<source>.py clients
           shared.py          chunk-grid orchestration
-          dtm.py             ICGC/IGN WCS terrain download
+          dtm.py             DTM source dispatch (per-country client modules)
           terrain.py         anchor extraction
           pairing.py         candidate pairing
           anchors.py         anchor parquet writer
           candidates.py      candidate parquet writer
-        density/             country density adapters and aggregation
-        restriction/         country protected-area adapters
+        density/             shared aggregation + <country>/main.py CLIs
+        restriction/         shared writers + <country>/main.py adapters
       server/                serving
         main.py              server command
         app.py               FastAPI factory: wires routers, CORS, and the
@@ -225,6 +224,10 @@ on every request — no DTM raster is ever touched at serve time.
    time. Partitions are parsed once into NumPy columns and cached process-wide
    (`server/repositories/partition_cache.py`), so panning re-hits warm
    partitions without re-reading or re-parsing.
+
+Each country's CLI, region definitions, and DTM client live together in
+`etls/<stage>/<country>/`; only the country-neutral pipeline sits at the
+stage level.
 
 **Pairing** (`etls/chunk/pairing.py`): for anchor pairs within `max_len`, gates on
 length, height difference, a **directional check** (each anchor's bearing to the

@@ -9,7 +9,7 @@ import rasterio
 import requests
 from rasterio.transform import from_origin
 
-from highliner.etls.chunk import dtm
+from highliner.etls.chunk import dtm_core
 
 
 def _feature(tile: str, year: int, *, gsd: float = 2.0) -> dict[str, Any]:
@@ -99,22 +99,21 @@ def test_catalog_query_follows_next_page() -> None:
     assert session.calls[1] == ("https://example.test/page-2", None)
 
 
-def test_fetch_tiles_dispatches_swissalti_to_cached_client(
+def test_swissalti_fetch_forwards_bbox_cache_and_crs(
         monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     from highliner.etls.chunk.switzerland import dtm_swissalti
 
     seen: dict[str, object] = {}
 
-    def fake_fetch(bbox: dtm.Bbox, cache_dir: Path, crs: str) -> list[Path]:
+    def fake_fetch(bbox: dtm_core.Bbox, cache_dir: Path, crs: str) -> list[Path]:
         seen.update(bbox=bbox, cache_dir=cache_dir, crs=crs)
         return [cache_dir / "swissalti3d_5m" / "tile_5m.tif"]
 
     monkeypatch.setattr(dtm_swissalti, "fetch_swissalti_tiles", fake_fetch)
     bbox = (2633000.0, 1155000.0, 2634000.0, 1156000.0)
 
-    paths = dtm.fetch_tiles(
-        bbox, tmp_path / "tiles", source="swissalti3d", crs="EPSG:2056",
-        cache_dir=tmp_path / "cache")
+    paths = dtm_swissalti.fetch(
+        bbox, tmp_path / "tiles", tmp_path / "cache", "EPSG:2056")
 
     assert paths == [tmp_path / "cache" / "swissalti3d_5m" / "tile_5m.tif"]
     assert seen == {

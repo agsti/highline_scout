@@ -6,7 +6,7 @@ import pytest
 from pyproj import Transformer
 from shapely.geometry import box
 
-from highliner.etls.chunk import dtm
+from highliner.etls.chunk import dtm_core
 from highliner.etls.chunk.czechia import dtm_cuzk
 
 
@@ -57,19 +57,19 @@ def test_cuzk_cached_catalog_and_sheet_are_reused_without_network(
     assert paths == [sheet]
 
 
-def test_fetch_tiles_dispatches_cuzk_dmr4g_to_cached_client(
+def test_cuzk_fetch_forwards_bbox_cache_and_crs(
         monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     seen: dict[str, object] = {}
 
-    def fake_fetch(bbox: dtm.Bbox, cache_dir: Path, crs: str) -> list[Path]:
+    def fake_fetch(bbox: dtm_core.Bbox, cache_dir: Path, crs: str) -> list[Path]:
         seen.update(bbox=bbox, cache_dir=cache_dir, crs=crs)
         return [cache_dir / "dmr4g" / "302_5550.tif"]
 
     monkeypatch.setattr(dtm_cuzk, "fetch_cuzk_dmr4g", fake_fetch)
 
-    paths = dtm.fetch_tiles(
+    paths = dtm_cuzk.fetch(
         (285000, 5380000, 287000, 5382000), tmp_path / "tiles",
-        source="cuzk_dmr4g", crs="EPSG:3045", cache_dir=tmp_path / "cache")
+        tmp_path / "cache", "EPSG:3045")
 
     assert paths == [tmp_path / "cache" / "dmr4g" / "302_5550.tif"]
     assert seen == {

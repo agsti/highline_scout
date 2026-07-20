@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 import requests
 
-from highliner.etls.chunk import dtm as ingest
+from highliner.etls.chunk import dtm_core
 from highliner.etls.chunk.spain import dtm_icgc
 
 
@@ -34,7 +34,7 @@ def _fake_asc(bbox: tuple[float, float, float, float], width: int, height: int,
     return dest
 
 
-def test_fetch_tiles_skips_failures(
+def test_icgc_fetch_skips_failures(
         tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     def fake_download(bbox: tuple[float, float, float, float], width: int,
                       height: int, dest: Path) -> Path:
@@ -43,13 +43,13 @@ def test_fetch_tiles_skips_failures(
         return _fake_asc(bbox, width, height, dest)
     monkeypatch.setattr(dtm_icgc, "_download_tile", fake_download)
 
-    paths = ingest.fetch_tiles((484000, 4646000, 486000, 4647500),
-                               tmp_path / "tiles", res=5.0, tile_px=175)
+    paths = dtm_icgc.fetch((484000, 4646000, 486000, 4647500),
+                           tmp_path / "tiles", tmp_path / "cache", "EPSG:25831")
     assert len(paths) == 4                    # 2 of 6 specs failed
     assert all(p.exists() for p in paths)
 
 
-def test_fetch_tiles_retries_rate_limited_tiles_honoring_retry_after(
+def test_icgc_fetch_retries_rate_limited_tiles_honoring_retry_after(
         tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     sleeps: list[float] = []
     monkeypatch.setattr("highliner.etls.chunk.dtm_core.time.sleep",
@@ -65,8 +65,8 @@ def test_fetch_tiles_retries_rate_limited_tiles_honoring_retry_after(
         return _fake_asc(bbox, width, height, dest)
 
     monkeypatch.setattr(dtm_icgc, "_download_tile", fake_download)
-    paths = ingest.fetch_tiles((484000, 4646000, 486000, 4647500),
-                               tmp_path / "tiles", res=5.0, tile_px=175)
+    paths = dtm_icgc.fetch((484000, 4646000, 486000, 4647500),
+                           tmp_path / "tiles", tmp_path / "cache", "EPSG:25831")
 
     assert len(paths) == 6                        # no tile silently dropped
     assert all(p.exists() for p in paths)
@@ -74,7 +74,7 @@ def test_fetch_tiles_retries_rate_limited_tiles_honoring_retry_after(
     assert sleeps.count(7.0) == 4                 # Retry-After honored (2 tiles x 2)
 
 
-def test_fetch_tiles_raises_when_rate_limit_persists(
+def test_icgc_fetch_raises_when_rate_limit_persists(
         tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("highliner.etls.chunk.dtm_core.time.sleep", lambda s: None)
 
@@ -84,11 +84,11 @@ def test_fetch_tiles_raises_when_rate_limit_persists(
 
     monkeypatch.setattr(dtm_icgc, "_download_tile", fake_download)
     with pytest.raises(requests.HTTPError):
-        ingest.fetch_tiles((484000, 4646000, 486000, 4647500),
-                           tmp_path / "tiles", res=5.0, tile_px=175)
+        dtm_icgc.fetch((484000, 4646000, 486000, 4647500),
+                       tmp_path / "tiles", tmp_path / "cache", "EPSG:25831")
 
 
-def test_fetch_tiles_downloads_concurrently_in_spec_order(
+def test_icgc_fetch_downloads_concurrently_in_spec_order(
         tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     import threading
     import time
@@ -110,10 +110,11 @@ def test_fetch_tiles_downloads_concurrently_in_spec_order(
 
     monkeypatch.setattr(dtm_icgc, "_download_tile", fake_download)
     bbox = (484000, 4646000, 486000, 4647500)
-    paths = ingest.fetch_tiles(bbox, tmp_path / "tiles", res=5.0, tile_px=175)
+    paths = dtm_icgc.fetch(bbox, tmp_path / "tiles", tmp_path / "cache",
+                           "EPSG:25831")
 
     expected = [tmp_path / "tiles" / f"t_{int(tb[0])}_{int(tb[1])}.asc"
-                for tb, _w, _h in ingest.tile_specs(bbox, res=5.0, tile_px=175)]
+                for tb, _w, _h in dtm_core.tile_specs(bbox, res=5.0, tile_px=175)]
     assert paths == expected                  # deterministic spec order
     assert peak >= 2, "tile downloads must overlap"
 

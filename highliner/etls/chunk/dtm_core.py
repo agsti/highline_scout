@@ -1,8 +1,10 @@
 """Generic DTM tiling, retry, and CRS helpers shared by every country adapter.
 
 Country-specific download clients live in `<country>/dtm_<source>.py` and
-import from here. This module must not import any country package — that is
-what keeps the dependency graph acyclic.
+import from here; each exposes a module-level `Fetcher`-shaped entry point that
+the country's `main.py` passes into `shared.precompute`. This module must not
+import any country package — that is what keeps the dependency graph acyclic
+and lets a new country be added without editing shared code.
 """
 import concurrent.futures
 import math
@@ -32,7 +34,7 @@ Fetcher = Callable[[Bbox, Path, "Path | None", str], list[Path]]
 
 NATIVE_RES = 5.0       # meters — finest DTM resolution on this WCS
 MAX_TILE_PX = 175      # per side; 175*175 < 35,800 px request cap
-TILE_WORKERS = 8       # concurrent tile downloads per fetch_tiles call
+TILE_WORKERS = 8       # concurrent tile downloads per fetch_tile_grid call
 TILE_RETRY_ATTEMPTS = 4    # tries per tile before the transient failure is raised
 TILE_RETRY_BASE_S = 2.0    # exponential backoff base; Retry-After wins if larger
 NODATA = -9999.0

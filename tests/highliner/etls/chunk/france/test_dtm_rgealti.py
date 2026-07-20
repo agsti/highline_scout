@@ -5,7 +5,6 @@ from typing import cast
 import pytest
 import requests
 
-from highliner.etls.chunk import dtm as ingest
 from highliner.etls.chunk.france import dtm_rgealti
 
 
@@ -21,11 +20,11 @@ def _response(status: int, text: str = "", retry_after: str | None = None,
     return resp
 
 
-def test_fetch_tiles_rgealti_requires_cache_dir(tmp_path: Path) -> None:
+def test_rgealti_fetch_missing_cache_dir_raises(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="cache_dir"):
-        ingest.fetch_tiles(
+        dtm_rgealti.fetch(
             (900000.0, 6500000.0, 910000.0, 6510000.0),
-            tmp_path / "tiles", source="rgealti", crs="EPSG:2154")
+            tmp_path / "tiles", None, "EPSG:2154")
 
 
 def test_fetch_rgealti_tiles_rejects_non_lambert93_crs(tmp_path: Path) -> None:
@@ -306,10 +305,9 @@ def test_fetch_rgealti_tiles_serves_cached_department_dalles(
 
     monkeypatch.setattr(dtm_rgealti, "_download_archive", boom)
 
-    paths = ingest.fetch_tiles(
+    paths = dtm_rgealti.fetch(
         (980000.0, 6726000.0, 984000.0, 6730000.0),
-        tmp_path / "tiles", source="rgealti", crs="EPSG:2154",
-        cache_dir=cache_root)
+        tmp_path / "tiles", cache_root, "EPSG:2154")
 
     assert paths == [dalle]
 

@@ -3,18 +3,17 @@ from pathlib import Path
 import pytest
 import requests
 
-from highliner.etls.chunk import dtm as ingest
 from highliner.etls.chunk.italy import dtm_hrdtm
 
 
-def test_fetch_tiles_hrdtm_requires_cache_dir(tmp_path: Path) -> None:
+def test_hrdtm_fetch_missing_cache_dir_raises(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="cache_dir"):
-        ingest.fetch_tiles(
+        dtm_hrdtm.fetch(
             (6800000.0, 4900000.0, 6810000.0, 4910000.0),
-            tmp_path / "tiles", source="hrdtm", crs="EPSG:6875")
+            tmp_path / "tiles", None, "EPSG:6875")
 
 
-def test_fetch_tiles_hrdtm_reuses_complete_cached_file(
+def test_hrdtm_fetch_reuses_complete_cached_file(
         tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     payload = b"national geotiff"
     monkeypatch.setattr(dtm_hrdtm, "HRDTM_SIZE", len(payload))
@@ -27,10 +26,9 @@ def test_fetch_tiles_hrdtm_reuses_complete_cached_file(
 
     monkeypatch.setattr("highliner.etls.chunk.italy.dtm_hrdtm.requests.get", boom)
 
-    paths = ingest.fetch_tiles(
+    paths = dtm_hrdtm.fetch(
         (6800000.0, 4900000.0, 6810000.0, 4910000.0),
-        tmp_path / "tiles", source="hrdtm", crs="EPSG:6875",
-        cache_dir=tmp_path / "cache" / "italy")
+        tmp_path / "tiles", tmp_path / "cache" / "italy", "EPSG:6875")
 
     assert paths == [cached]
 

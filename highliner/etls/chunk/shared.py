@@ -58,7 +58,6 @@ def region_output_dir(data_dir: Path, country: str, region: str) -> Path:
 def process_chunk(cx: int, cy: int, core_bbox: Bbox, region_dir: Path,  # noqa: PLR0913
                   halo: float = config.CHUNK_HALO_M,
                   crs: str = config.UTM_CRS,
-                  dtm_source: str = "icgc",
                   drop_radius_m: float = config.DROP_RADIUS_M,
                   cache_dir: Path | None = None,
                   *, fetch: Fetcher) -> int:
@@ -202,7 +201,7 @@ def precompute(  # noqa: PLR0913
     total = len(chunks)
     if workers == 1:
         for i, (cx, cy, core) in enumerate(chunks, start=1):
-            process_chunk(cx, cy, core, rdir, crs=crs, dtm_source=dtm_source,
+            process_chunk(cx, cy, core, rdir, crs=crs,
                           drop_radius_m=drop_radius_m,
                           cache_dir=country_cache_dir, fetch=fetch)
             if report is not None:
@@ -210,7 +209,7 @@ def precompute(  # noqa: PLR0913
         return total
 
     task = functools.partial(
-        process_chunk, region_dir=rdir, crs=crs, dtm_source=dtm_source,
+        process_chunk, region_dir=rdir, crs=crs,
         drop_radius_m=drop_radius_m, cache_dir=country_cache_dir, fetch=fetch)
     _run_parallel(chunks, task, workers, report)
     return total

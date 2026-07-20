@@ -4,7 +4,6 @@ from typing import cast
 import pytest
 import requests
 
-from highliner.etls.chunk import dtm as ingest
 from highliner.etls.chunk.spain import dtm_cnig
 
 
@@ -72,7 +71,7 @@ def test_cnig_query_sheets_retries_throttled_page(
     assert sleeps == [3.0]
 
 
-def test_fetch_tiles_idee_uses_tif_tiles_and_region_crs(
+def test_idee_fetch_uses_tif_tiles_and_region_crs(
         tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     calls = []
 
@@ -89,15 +88,15 @@ def test_fetch_tiles_idee_uses_tif_tiles_and_region_crs(
 
     monkeypatch.setattr(dtm_cnig, "_download_idee_tile", fake_download)
 
-    paths = ingest.fetch_tiles((188000, 3060000, 188500, 3060500),
-                               tmp_path / "tiles", source="idee",
-                               crs="EPSG:4083")
+    paths = dtm_cnig.fetch_idee((188000, 3060000, 188500, 3060500),
+                                tmp_path / "tiles", tmp_path / "cache",
+                                "EPSG:4083")
     assert paths
     assert all(p.suffix == ".tif" for p in paths)
     assert {c[4] for c in calls} == {"EPSG:4083"}
 
 
-def test_fetch_tiles_cnig_uses_explicit_cache_dir(
+def test_cnig_fetch_uses_explicit_cache_dir(
         tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     seen: list[Path] = []
 
@@ -112,23 +111,22 @@ def test_fetch_tiles_cnig_uses_explicit_cache_dir(
 
     monkeypatch.setattr(dtm_cnig, "_download_cnig_sheet", fake_download)
 
-    paths = ingest.fetch_tiles(
+    paths = dtm_cnig.fetch(
         (188000, 3060000, 198000, 3070000),
         tmp_path / "data" / "spain" / "canarias" / "tiles" / "chunk_0_0_123",
-        source="cnig",
-        crs="EPSG:4083",
-        cache_dir=tmp_path / "cache" / "spain",
+        tmp_path / "cache" / "spain",
+        "EPSG:4083",
     )
 
     assert paths == [tmp_path / "cache" / "spain" / "mdt05_tiles" / "sheet.tif"]
     assert seen == paths
 
 
-def test_fetch_tiles_cnig_requires_cache_dir(tmp_path: Path) -> None:
+def test_cnig_fetch_missing_cache_dir_raises(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="cache_dir"):
-        ingest.fetch_tiles(
+        dtm_cnig.fetch(
             (188000, 3060000, 198000, 3070000),
-            tmp_path / "tiles", source="cnig", crs="EPSG:4083")
+            tmp_path / "tiles", None, "EPSG:4083")
 
 
 def test_fetch_cnig_tiles_retries_broken_stream_then_succeeds(
@@ -151,12 +149,11 @@ def test_fetch_cnig_tiles_retries_broken_stream_then_succeeds(
 
     monkeypatch.setattr(dtm_cnig, "_download_cnig_sheet", fake_download)
 
-    paths = ingest.fetch_tiles(
+    paths = dtm_cnig.fetch(
         (188000, 3060000, 198000, 3070000),
         tmp_path / "data" / "spain" / "canarias" / "tiles" / "chunk_0_0_123",
-        source="cnig",
-        crs="EPSG:4083",
-        cache_dir=tmp_path / "cache" / "spain",
+        tmp_path / "cache" / "spain",
+        "EPSG:4083",
     )
 
     assert attempts["n"] == 2                     # retried once after the broken stream
@@ -175,12 +172,11 @@ def test_fetch_cnig_tiles_raises_when_broken_stream_persists(
     monkeypatch.setattr(dtm_cnig, "_download_cnig_sheet", fake_download)
 
     with pytest.raises(requests.exceptions.ChunkedEncodingError):
-        ingest.fetch_tiles(
+        dtm_cnig.fetch(
             (188000, 3060000, 198000, 3070000),
             tmp_path / "data" / "spain" / "canarias" / "tiles" / "chunk_0_0_123",
-            source="cnig",
-            crs="EPSG:4083",
-            cache_dir=tmp_path / "cache" / "spain",
+            tmp_path / "cache" / "spain",
+            "EPSG:4083",
         )
 
 

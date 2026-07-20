@@ -216,10 +216,8 @@ def test_download_zip_retries_transient_errors_then_raises(
     assert len(attempts) == 4
 
 
-def test_fetch_tiles_dispatches_ea_lidar(
+def test_ea_fetch_dispatches_and_requires_cache_dir(
         tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    from highliner.etls.chunk import dtm
-
     seen: list[tuple[object, Path]] = []
 
     def fake_fetch(bbox: object, cache: Path) -> list[Path]:
@@ -228,14 +226,12 @@ def test_fetch_tiles_dispatches_ea_lidar(
 
     monkeypatch.setattr(dtm_ea, "fetch_ea_lidar", fake_fetch)
 
-    dtm.fetch_tiles((345000, 150000, 350000, 155000), tmp_path / "tiles",
-                    source="ea_lidar_1m", crs="EPSG:27700",
-                    cache_dir=tmp_path / "cache")
+    dtm_ea.fetch((345000, 150000, 350000, 155000), tmp_path / "tiles",
+                 tmp_path / "cache", "EPSG:27700")
     assert seen == [((345000, 150000, 350000, 155000), tmp_path / "cache")]
 
     with pytest.raises(ValueError, match="cache_dir"):
-        dtm.fetch_tiles((0, 0, 1, 1), tmp_path / "tiles",
-                        source="ea_lidar_1m", crs="EPSG:27700")
+        dtm_ea.fetch((0, 0, 1, 1), tmp_path / "tiles", None, "EPSG:27700")
 
 
 def test_ea_fetch_delegates_to_cache_client(

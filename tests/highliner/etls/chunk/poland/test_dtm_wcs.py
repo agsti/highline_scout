@@ -3,7 +3,6 @@ from pathlib import Path
 import pytest
 import requests
 
-from highliner.etls.chunk import dtm
 from highliner.etls.chunk.poland import dtm_wcs
 
 
@@ -56,7 +55,7 @@ def test_fetch_poland_wcs_treats_extent_error_as_empty(
         (89_000, 160_000, 89_100, 160_100), tmp_path, "EPSG:2180") == []
 
 
-def test_fetch_tiles_does_not_retry_unrelated_poland_bad_request(
+def test_poland_fetch_does_not_retry_unrelated_bad_request(
         monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     content = (
         b'<ows:ExceptionReport xmlns:ows="http://www.opengis.net/ows/2.0">'
@@ -73,12 +72,11 @@ def test_fetch_tiles_does_not_retry_unrelated_poland_bad_request(
     monkeypatch.setattr(requests, "get", fake_get)
 
     with pytest.raises(requests.HTTPError):
-        dtm.fetch_tiles((100, 200, 110, 210), tmp_path,
-                        source="poland_wcs", crs="EPSG:2180")
+        dtm_wcs.fetch((100, 200, 110, 210), tmp_path, None, "EPSG:2180")
     assert attempts == 1
 
 
-def test_fetch_tiles_retries_transient_poland_wcs_failure(
+def test_poland_fetch_retries_transient_wcs_failure(
         monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     attempts = 0
 
@@ -92,8 +90,7 @@ def test_fetch_tiles_retries_transient_poland_wcs_failure(
     monkeypatch.setattr(requests, "get", fake_get)
     monkeypatch.setattr("highliner.etls.chunk.dtm_core.time.sleep", lambda _: None)
 
-    paths = dtm.fetch_tiles((100, 200, 110, 210), tmp_path,
-                            source="poland_wcs", crs="EPSG:2180")
+    paths = dtm_wcs.fetch((100, 200, 110, 210), tmp_path, None, "EPSG:2180")
 
     assert len(paths) == 1
     assert attempts == 2
@@ -104,14 +101,13 @@ def test_fetch_poland_wcs_rejects_a_non_national_crs(tmp_path: Path) -> None:
         dtm_wcs.fetch_poland_wcs((0, 0, 1, 1), tmp_path, "EPSG:4326")
 
 
-def test_fetch_tiles_dispatches_polish_wcs(
+def test_poland_fetch_passes_through_wcs_result(
         monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     expected = [tmp_path / "tile.asc"]
     monkeypatch.setattr(dtm_wcs, "fetch_poland_wcs",
                         lambda bbox, tiles_dir, crs: expected)
 
-    assert dtm.fetch_tiles((1, 2, 3, 4), tmp_path, source="poland_wcs",
-                           crs="EPSG:2180") == expected
+    assert dtm_wcs.fetch((1, 2, 3, 4), tmp_path, None, "EPSG:2180") == expected
 
 
 def test_poland_fetch_retries_transient_failure(

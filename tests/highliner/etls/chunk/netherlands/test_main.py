@@ -1,4 +1,6 @@
+import runpy
 from typing import Any
+from unittest.mock import patch
 
 import pytest
 
@@ -39,3 +41,38 @@ def test_netherlands_region_selection_validates_resume_and_only_values() -> None
     assert netherlands._fmt_hms(3_661.9) == "1:01:01"
     with pytest.raises(SystemExit, match="unknown region"):
         netherlands._select_regions("missing", None)
+
+
+def test_netherlands_precompute_region_drives_the_progress_report(
+        monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+    def fake(*args: object, report: Any = None, **kwargs: object) -> int:
+        report(0, 0)      # first tick: no elapsed/eta yet
+        report(1, 2)      # partial progress: exercises the pct/eta branch
+        return 2
+
+    monkeypatch.setattr(netherlands.shared, "precompute", fake)
+    netherlands.main(["--only", "netherlands"])
+
+    out = capsys.readouterr().out
+    assert "chunk 1/2" in out
+    assert "completed 2 chunks" in out
+
+
+@pytest.mark.parametrize("flag", ["--jobs", "--workers"])
+def test_netherlands_rejects_non_positive_concurrency(flag: str) -> None:
+    with pytest.raises(SystemExit, match=">= 1"):
+        netherlands.main([flag, "0"])
+
+
+def test_netherlands_dunder_main_invokes_main() -> None:
+    with patch("highliner.etls.chunk.netherlands.main.main") as entry:
+        runpy.run_module("highliner.etls.chunk.netherlands.__main__",
+                         run_name="__main__")
+    entry.assert_called_once_with()
+
+
+def test_netherlands_main_runs_as_script(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Run the module as __main__ so the `if __name__` guard fires; a no-match
+    # --only selects no regions, so nothing is precomputed and no network runs.
+    monkeypatch.setattr("sys.argv", ["prog", "--only", "__none__"])
+    runpy.run_module("highliner.etls.chunk.netherlands.main", run_name="__main__")

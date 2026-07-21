@@ -94,6 +94,11 @@ def test_fetch_ahn_wcs_rejects_a_non_national_crs(tmp_path: Path) -> None:
         dtm_ahn.fetch_ahn_wcs((0, 0, 1, 1), tmp_path, "EPSG:4326")
 
 
+def test_is_extent_error_ignores_non_xml_bad_request() -> None:
+    assert dtm_ahn._is_extent_error(_response(400, b"not xml at all")) is False
+    assert dtm_ahn._is_extent_error(_response(200, b"")) is False
+
+
 def test_netherlands_fetch_forwards_tiles_dir_and_crs(
         tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     seen: list[tuple[object, object, object]] = []

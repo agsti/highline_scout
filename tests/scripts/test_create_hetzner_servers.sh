@@ -107,6 +107,88 @@ test_generate_cloud_init_empty_dir_has_empty_write_files() {
     rm -rf "$dir"
 }
 
+setup_stub_hcloud() {
+    # Args: space-separated server names whose `hcloud server create` call should fail.
+    local fail_names="$1"
+    STUB_DIR="$(mktemp -d)"
+    STUB_LOG="$STUB_DIR/calls.log"
+    cat > "$STUB_DIR/hcloud" <<STUB
+#!/usr/bin/env bash
+echo "\$*" >> "$STUB_LOG"
+if [[ "\$1" == "server" && "\$2" == "create" ]]; then
+    for fail in $fail_names; do
+        for arg in "\$@"; do
+            if [[ "\$arg" == "\$fail" ]]; then
+                exit 1
+            fi
+        done
+    done
+    exit 0
+elif [[ "\$1" == "server" && "\$2" == "ip" ]]; then
+    echo "10.0.0.\${3##*-}"
+    exit 0
+fi
+exit 1
+STUB
+    chmod +x "$STUB_DIR/hcloud"
+    export PATH="$STUB_DIR:$PATH"
+}
+
+test_main_creates_n_servers_with_expected_flags() {
+    setup_stub_hcloud ""
+    local dir; dir="$(mktemp -d)"
+    echo "x" > "$dir/f.txt"
+
+    local out; out="$(main 3 "$dir" 2>&1)"
+
+    assert_contains "$out" "cpx22-1  10.0.0.1" "reports server 1 with its IP"
+    assert_contains "$out" "cpx22-2  10.0.0.2" "reports server 2 with its IP"
+    assert_contains "$out" "cpx22-3  10.0.0.3" "reports server 3 with its IP"
+
+    local calls; calls="$(cat "$STUB_LOG")"
+    assert_contains "$calls" "--type cpx22" "passes --type cpx22"
+    assert_contains "$calls" "--image ubuntu-24.04" "passes --image ubuntu-24.04"
+    assert_contains "$calls" "--datacenter nbg1" "passes --datacenter nbg1"
+    assert_contains "$calls" "--ssh-key hetzner" "passes --ssh-key hetzner"
+
+    rm -rf "$dir" "$STUB_DIR"
+}
+
+test_main_continues_after_one_failure() {
+    setup_stub_hcloud "cpx22-2"
+    local dir; dir="$(mktemp -d)"
+    echo "x" > "$dir/f.txt"
+
+    local out exit_code
+    out="$(main 3 "$dir" 2>&1)"
+    exit_code=$?
+
+    assert_contains "$out" "FAILED: cpx22-2" "reports the failed server"
+    assert_contains "$out" "cpx22-1  10.0.0.1" "still creates server 1"
+    assert_contains "$out" "cpx22-3  10.0.0.3" "still creates server 3"
+    assert_eq "1" "$exit_code" "main exits non-zero when any server failed"
+
+    rm -rf "$dir" "$STUB_DIR"
+}
+
+test_main_rejects_missing_hcloud() {
+    local empty_path_dir dir out exit_code
+    empty_path_dir="$(mktemp -d)"
+    dir="$(mktemp -d)"
+    echo "x" > "$dir/f.txt"
+
+    local old_path="$PATH"
+    PATH="$empty_path_dir"
+    out="$(main 1 "$dir" 2>&1)"
+    exit_code=$?
+    PATH="$old_path"
+
+    assert_contains "$out" "hcloud CLI not found" "reports missing hcloud"
+    assert_eq "1" "$exit_code" "main exits non-zero when hcloud is missing"
+
+    rm -rf "$dir" "$empty_path_dir"
+}
+
 test_validate_args_rejects_non_numeric_n
 test_validate_args_rejects_zero
 test_validate_args_rejects_missing_dir
@@ -114,3 +196,12 @@ test_validate_args_accepts_valid_input
 test_check_hcloud_installed_fails_when_absent
 test_generate_cloud_init_embeds_files_and_preserves_exec_bit
 test_generate_cloud_init_empty_dir_has_empty_write_files
+test_main_creates_n_servers_with_expected_flags
+test_main_continues_after_one_failure
+test_main_rejects_missing_hcloud
+
+if [[ $FAILURES -gt 0 ]]; then
+    echo "$FAILURES test(s) failed" >&2
+    exit 1
+fi
+echo "All tests passed."

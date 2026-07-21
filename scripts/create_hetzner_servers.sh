@@ -1,8 +1,12 @@
 #!/usr/bin/env bash
 # Create N disposable Hetzner Cloud CPX22 servers, bootstrapped via cloud-init
-# with git/uv/pi/awscli plus every file in a given directory.
+# with git, python3, uv, just, awscli, and the pi coding agent.
 #
-# Usage: scripts/create_hetzner_servers.sh <N> <bootstrap-dir>
+# Usage: scripts/create_hetzner_servers.sh <N> <pi-env-file> <aws-credentials-file>
+#
+# pi-env-file: KEY=VALUE lines (one per line), exported for every login shell
+# on the new server (e.g. the pi coding agent's API key).
+# aws-credentials-file: copied verbatim to /root/.aws/credentials.
 #
 # Prerequisites: the `hcloud` CLI must be installed and authenticated
 # (existing context or HCLOUD_TOKEN), and an SSH key named "hetzner" must
@@ -23,20 +27,28 @@ check_hcloud_installed() {
 }
 
 validate_args() {
-    local n="$1" bootstrap_dir="$2"
+    local n="$1" pi_env_file="$2" aws_credentials_file="$3"
     if ! [[ "$n" =~ ^[1-9][0-9]*$ ]]; then
         echo "error: N must be a positive integer, got '$n'" >&2
         return 1
     fi
-    if [[ ! -d "$bootstrap_dir" ]]; then
-        echo "error: bootstrap-dir '$bootstrap_dir' is not a directory" >&2
+    if [[ ! -f "$pi_env_file" ]]; then
+        echo "error: pi-env-file '$pi_env_file' is not a file" >&2
+        return 1
+    fi
+    if [[ ! -f "$aws_credentials_file" ]]; then
+        echo "error: aws-credentials-file '$aws_credentials_file' is not a file" >&2
         return 1
     fi
 }
 
 generate_cloud_init() {
-    local bootstrap_dir="$1"
-    cat <<'HEADER'
+    local pi_env_file="$1" aws_credentials_file="$2"
+    local pi_env_b64 aws_credentials_b64
+    pi_env_b64="$(base64 -w0 "$pi_env_file")"
+    aws_credentials_b64="$(base64 -w0 "$aws_credentials_file")"
+
+    cat <<HEADER
 #cloud-config
 package_update: true
 packages:
@@ -44,37 +56,23 @@ packages:
   - curl
   - nodejs
   - npm
+  - python3
   - awscli
-HEADER
-
-    local files=()
-    while IFS= read -r -d '' f; do
-        files+=("$f")
-    done < <(find "$bootstrap_dir" -maxdepth 1 -type f -print0 | sort -z)
-
-    if [[ ${#files[@]} -eq 0 ]]; then
-        echo "write_files: []"
-    else
-        echo "write_files:"
-        local f base perms content
-        for f in "${files[@]}"; do
-            base="$(basename "$f")"
-            if [[ -x "$f" ]]; then perms="0755"; else perms="0644"; fi
-            content="$(base64 -w0 "$f")"
-            cat <<ENTRY
-  - path: /root/bootstrap/${base}
+write_files:
+  - path: /root/bootstrap/pi.env
     encoding: b64
-    permissions: '${perms}'
-    content: ${content}
-ENTRY
-        done
-    fi
-
-    cat <<'RUNCMD'
+    permissions: '0600'
+    content: ${pi_env_b64}
+  - path: /root/.aws/credentials
+    encoding: b64
+    permissions: '0600'
+    content: ${aws_credentials_b64}
 runcmd:
   - curl -LsSf https://astral.sh/uv/install.sh | sh
   - npm install -g @earendil-works/pi-coding-agent
-RUNCMD
+  - curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to /usr/local/bin
+  - bash -c 'while IFS= read -r line; do [ -n "\$line" ] && echo "export \$line" >> /etc/profile.d/pi-env.sh; done < /root/bootstrap/pi.env'
+HEADER
 }
 
 create_server() {
@@ -95,18 +93,18 @@ create_server() {
 }
 
 main() {
-    if [[ $# -ne 2 ]]; then
-        echo "usage: $0 <N> <bootstrap-dir>" >&2
+    if [[ $# -ne 3 ]]; then
+        echo "usage: $0 <N> <pi-env-file> <aws-credentials-file>" >&2
         return 1
     fi
-    local n="$1" bootstrap_dir="$2"
+    local n="$1" pi_env_file="$2" aws_credentials_file="$3"
 
     check_hcloud_installed || return 1
-    validate_args "$n" "$bootstrap_dir" || return 1
+    validate_args "$n" "$pi_env_file" "$aws_credentials_file" || return 1
 
     local cloud_init_file
     cloud_init_file="$(mktemp)"
-    generate_cloud_init "$bootstrap_dir" > "$cloud_init_file"
+    generate_cloud_init "$pi_env_file" "$aws_credentials_file" > "$cloud_init_file"
 
     local i failures=0
     for ((i = 1; i <= n; i++)); do
@@ -122,6 +120,6 @@ main() {
     return 0
 }
 
-if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+if [[ "${BASH_SOURCE[0]:-}" == "${0}" ]]; then
     main "$@"
 fi

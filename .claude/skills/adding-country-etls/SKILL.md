@@ -1,213 +1,79 @@
 ---
 name: adding-country-etls
-description: Use when adding a new country (or a new region) to the highliner ETL pipeline — wiring a DTM terrain source, chunk precompute, density, or protected-area restrictions for a country beyond Spain.
+description: Use when adding a new country (or a new region) to the highliner ETL pipeline — implementing the full set of ETLs (chunk precompute with a DTM terrain source, density, and protected-area restrictions) for a country beyond Spain.
 ---
 
 # Adding Country ETLs
 
-## Overview
+## Pattern
 
-Each ETL family is a thin country adapter over shared country-neutral code. An
-adapter exports `COUNTRY: Final[str]` and `main(argv)` and runs as
-`python -m highliner.etls.<family>.<country>`. Spain
-(`highliner/etls/*/spain/main.py`) is the reference implementation — copy its
-shape.
+A country needs all three ETL stages: chunk precompute, density, and
+restrictions. Each stage is a country package exporting `COUNTRY: Final[str]`
+and `main(argv)`, run as `python -m highliner.etls.<stage>.<country>`. Copy
+Spain's shape (`highliner/etls/*/spain/`) for all three — it's the reference
+implementation. No server or justfile changes are needed: the server
+discovers regions from `grid.json` on disk, and `just etl-<stage> <country>`
+already takes the country as an argument.
 
-The only supported precompute pattern is chunked
-(`highliner/etls/chunk/shared.py`): the region bbox is tiled into `CHUNK_M`
-squares (with a halo so `MAX_PAIR_LEN`-long pairs crossing chunk edges are
-still found); each chunk downloads DTM, extracts anchors, runs pairing at the
-loose `PRECOMPUTE_*` envelope so exposure is baked into every stored pair,
-writes `anchors/p_{cx}_{cy}.parquet` + `pairs/q_{cx}_{cy}.parquet`, then
-deletes the raw DTM — no raster persists under `data/`. The server only
-filters these precomputed pairs against live slider thresholds, so a new
-country needs no request-time work at all.
-
-## Quick reference
+## Steps
 
 | Piece | Create | Copy from |
 |---|---|---|
 | Chunk precompute CLI | `highliner/etls/chunk/<country>/main.py` | `chunk/spain/main.py` |
 | Density CLI | `highliner/etls/density/<country>/main.py` | `density/spain/main.py` |
-| Restrictions CLI (optional) | `highliner/etls/restriction/<country>/main.py` | `restriction/spain/main.py` |
-| DTM client module | `highliner/etls/chunk/<country>/dtm_<source>.py` | `czechia/dtm_cuzk.py` |
-| Fetcher entry point | `fetch()` in `highliner/etls/chunk/<country>/dtm_<source>.py` | `czechia/dtm_cuzk.py` |
-| Run commands | `just etl-chunk <country> <workers>` | — |
+| Restrictions CLI | `highliner/etls/restriction/<country>/main.py` | `restriction/spain/main.py` |
+| DTM client module | `highliner/etls/chunk/<country>/dtm_<source>.py` | `czechia/dtm_cuzk.py` (bulk) or `poland/dtm_wcs.py` (WCS) |
+| `__init__.py` + `__main__.py` per stage | same folders | `chunk/spain/__main__.py` etc. |
 | Tests | `tests/highliner/etls/<stage>/<country>/test_main.py` | `tests/highliner/etls/chunk/spain/test_main.py` |
 
-Output lands in `data/<country>/<region>/{grid.json,anchors/,pairs/}`; the DTM
-cache in `cache/<country>/`. The server discovers regions from `grid.json` on
-disk — **no server code changes are needed for a new country**.
+Each `__init__.py` is docstring-only — don't re-export `main`, it shadows the
+`main` submodule. Name the DTM module for its source, not the country
+(`dtm_bev.py`, not `dtm_austria.py`).
 
-Each country is a package. Alongside `main.py` it needs an `__init__.py`
-(docstring only — do not re-export `main`, it would shadow the `main`
-submodule) and an `__main__.py` so `python -m highliner.etls.<stage>.<country>`
-keeps working:
+1. **DTM source.** Find the national mapping agency's terrain product (or
+   INSPIRE Elevation for EU countries) and choose autonomously — don't ask
+   the user to pick. Requirements: bare-earth DTM (not DSM), reusable
+   license, ~5 m resolution (never below 10 m; if coarser than 5 m is the
+   finest available, proceed but flag it), bulk sheet downloads preferred
+   over tiled WCS (WCS only if no bulk product exists), and explicit handling
+   of the source's nodata/sea sentinel (don't assume ICGC's `-8888` carries
+   over). Expose `fetch(bbox, tiles_dir, cache_dir, crs) -> list[Path]` as a
+   **module-level** function — it's pickled for `--workers` multiprocessing,
+   so no lambdas or closures.
 
-    """Entry point for `python -m highliner.etls.chunk.<country>`."""
-    from highliner.etls.chunk.<country>.main import main
+2. **Chunk adapter.** Copy `chunk/spain/main.py`: a frozen `Region(name, bbox,
+   crs, dtm_source, fetch)` catalogue plus `main()` (including `--jobs`/
+   `--workers`, wired through unchanged). `bbox` is in the region's own
+   projected CRS in meters, not lon/lat — derive it from the country's
+   administrative-boundary service, rounded outward to 1000 m. Pick one
+   metric CRS per region (UTM zone or national equivalent). `dtm_source` is
+   provenance only (written to `grid.json`, never read back) — it must still
+   name the same source as `fetch`.
 
-    if __name__ == "__main__":
-        main()
+3. **Density adapter.** Copy `density/spain/main.py`, change `COUNTRY`.
+   Nothing else — it discovers every region under `data/<country>/` from
+   `grid.json`.
 
-Name the DTM module for its **source**, not its country — the folder already
-says the country. `austria/dtm_bev.py`, not `austria/dtm_austria.py`.
+4. **Restrictions adapter.** Copy `restriction/spain/main.py`. Source layers
+   from Natura 2000 (Birds Directive / SPA, Habitats Directive / SCI-SAC)
+   plus the country's own protected-area network. Each layer's tooltip must
+   state its impact on rigging, not just name the designation. New layer ids
+   need entries in `highliner/core/restrictions.py` `LAYERS` **and** all
+   three `RESTRICTION_STRINGS` catalogs
+   (`frontend/src/lib/i18n/restrictionStrings.ts`).
 
-## Progress reporting
+## Verify
 
-The work is tracked by its assigned GitHub issue. Add an evidence-bearing
-comment to that issue at least every 30 minutes while work is active; do not
-wait for a phase to finish if it is taking longer. Each comment must say what
-changed or was learned and include concrete evidence: a source URL, command
-and result, commit SHA, PR link, or a concise blocker with the failed command.
-When a country cannot be added because the resolution is lower than 10m,
-or the data is not available, mark the issue as blocked
-
-Post a comment at each of these checkpoints:
-
-1. **Source selection** — chosen DTM product/provider, licence, resolution,
-   delivery method, and source URL.
-2. **PR or blocker** — PR link and summary, or the blocker, impact, and the
-   next concrete action needed to unblock it.
-3. **Restriction layers found** - A summary about the restriction layers found,
-and an overview of the impacts about the highlining sport.
-
-## 1. DTM source (the real work)
-
-Where to look: the country's national mapping agency / geoportal (the IGN/CNIG
-equivalent — e.g. IGN France, DGT Portugal, swisstopo) and, for EU countries,
-the INSPIRE geoportal's Elevation theme. Choose the source autonomously per
-the rules below; do not ask the user to pick.
-
-Requirements for a usable terrain source:
-
-- **Bare-earth elevation (DTM, not DSM) covering the target bbox, with a
-  license permitting reuse.**
-- **Resolution: match Spain, ~5 m** (Spain uses MDT05 at 5 m;
-  `NATIVE_RES = 5.0` in `dtm_core.py`). Pick a 5 m-class national product if one
-  exists. If the finest available is coarser than 5 m, proceed with it anyway
-  — don't stop to ask — but report the shortfall to the user at the end:
-  coarser data leaves cliff faces unresolved, so extraction tuning
-  (`SLOPE_MIN_DEG` etc. in `core/config.py`) may need loosening.
-- **Prefer bulk sheet downloads over tiled WCS/coverage APIs** — the CNIG
-  pattern over the per-tile ICGC pattern. Bulk sheets are cached under
-  `cache/<country>/` and reused across chunks, regions, and re-runs; WCS tiles
-  are re-fetched per chunk and rate-limited. Fall back to a WCS/OGC-coverage
-  API only when the country has no bulk product. (Within Spain the same rule
-  applies: `dtm_source="cnig"` everywhere except Catalonia's ICGC.)
-- **Map the source's nodata and out-of-coverage behavior (sea, borders)
-  before trusting it.** Don't assume ICGC's `SEA_SENTINEL` (-8888) carries
-  over — a new source may flag nodata differently, or ambiguously (plain
-  `0`). An unmasked sea sentinel turns every coastline into a giant fake
-  cliff of spurious anchors.
-- we don't want anything lower than 10m resolution.
-
-Expose a module-level
-`fetch(bbox, tiles_dir, cache_dir, crs) -> list[Path]` matching `Fetcher` from
-`dtm_core`, in the country's own `etls/chunk/<country>/dtm_<source>.py` —
-that's the layout: each country's DTM client lives in that country's package,
-named for its source. There is no shared file to register it in; the country's
-`main.py` passes the function directly. A cache-backed source ignores
-`tiles_dir` and raises `ValueError(f"<source> source requires cache_dir")` when
-`cache_dir` is `None`. Generic tiling/retry/CRS helpers (`Bbox`, `tile_specs`,
-`fetch_tile_grid`, `_download_with_retries`, and friends) live in `dtm_core.py`
-and are meant to be imported from there — see `spain/dtm_cnig.py` for the
-pattern. For a bulk source follow `_fetch_cnig_tiles` (reachable as Spain's
-`dtm_cnig.fetch`): catalog query cached to disk (`_cached_query_sheets`),
-per-sheet download with flock + `.part` tmp file + transient-HTTP retries. For
-a coverage API follow Poland's `fetch_poland_wcs`
-(`highliner/etls/chunk/poland/dtm_wcs.py`), which issues one WCS `GetCoverage`
-request per chunk, downsampled server-side to 5 m via `scaleaxes`. If a helper is keyed by EPSG (`_preferred_huso`), extend it
-for the new CRS.
-
-## 2. Chunk adapter
-
-Copy `chunk/spain/main.py`: `COUNTRY`, a frozen
-`Region(name, bbox, crs, dtm_source, fetch)` catalogue, and `main()` with
-`--data-dir/--cache-dir/--start-at/--only/--jobs/--workers`, each region
-calling:
-
-```python
-shared.precompute(COUNTRY, region.name, region.bbox, data_dir,
-                  crs=region.crs, dtm_source=region.dtm_source,
-                  fetch=region.fetch,
-                  workers=workers, cache_dir=cache_dir, report=report)
-```
-
-- `bbox` is in the region's **projected CRS (meters)**, not lon/lat.
-- `dtm_source` is now **provenance only** — it is written to `grid.json` and
-  read back by nothing. `fetch` does the actual work. The two must describe the
-  same source, or the run's on-disk record will lie about where its terrain
-  came from.
-- Derive region bboxes from the country's administrative-boundary service
-  (Spain used IGN OGC API Features `administrativeunit` items filtered to
-  2nd-order units), reprojected to the region CRS and rounded outward to the
-  nearest 1000 m.
-- Pick one metric projected CRS per region (UTM zone or national equivalent
-  with acceptable distortion). It flows into `grid.json` and the server reads
-  it back from there — CRS is per-region, nothing global to edit.
-- Keep `if __name__ == "__main__": main()` so `python -m` works.
-
-## 3. Density adapter
-
-Copy `density/spain/main.py`, change `COUNTRY`. Nothing else: it discovers every
-region dir containing `grid.json` under `data/<country>/`. No `--region` flag,
-by design.
-
-## 4. Restrictions adapter (optional)
-
-Restriction layers mark areas where highlining can require permission or be
-forbidden outright — the map overlay exists so users check before rigging.
-Overlay-only: anchors/zones work without it.
-
-Finding the layers: in Europe, start from the descendants of EU nature
-protection law — Natura 2000 sites from the **Birds Directive** (Special
-Protection Areas; Spain's `zepa`) and the **Habitats Directive** (SCI/SAC;
-Spain's `zec`) — plus the country's own protected-area network (Spain's
-`enp`). The bird layer matters most for the sport: cliff-nesting raptors
-trigger seasonal climbing/rigging closures (roughly winter–summer, varying by
-site), which is exactly where highlines go. Habitat and park designations
-more often mean regulated activities or authorization requirements than
-outright bans. Each layer's tooltip must summarize this impact on highlining —
-what the designation means for rigging and who to check with — not just name
-the designation (see Spain's `LAYERS` text for the tone).
-
-Needs a source (WFS, bulk download) serving protected-area polygons with a
-license permitting reuse. Copy `restriction/spain/main.py`:
-
-- `SOURCE_URLS`/`SOURCE_GLOBS` + `download_sources(raw_dir)`: download only
-  when a source's glob is absent, extract flattened into
-  `data/<country>/restrictions/raw/`.
-- Loader normalizes every raw file to EPSG:4326.
-- One `LayerBuildSpec(id, source, name_field, keep)` per output layer;
-  `shared.write_layers` writes `<id>.parquet` into
-  `data/<country>/restrictions/`. Expect to rewrite the layer-derivation
-  logic — schemas rarely match Spain's `zepa`/`zec`/`enp` split.
-- New layer ids need display metadata in `highliner/core/restrictions.py`
-  `LAYERS` **and** entries in all three `RESTRICTION_STRINGS` catalogs
-  (`frontend/src/lib/i18n/restrictionStrings.ts`) — the catalog-parity test
-  fails otherwise.
-
-## 5. Wire and verify
-
-- `justfile`: no country registry or per-country wiring is needed. The recipes
-  take a country explicitly: `just etl-chunk <country> <workers>`,
-  `just etl-density <country> <workers>`, and
-  `just etl-restriction <country>`.
-- Tests mirror the Spain adapter tests: monkeypatch `spain.shared.precompute`
-  and assert argument forwarding; never hit the network.
-- Verify: `uv run python -m highliner.etls.chunk.<country> --help` (and
-  density/restriction), then `just test && just check`. Smoke-test the DTM
-  source with a few real chunks before a full run: temporarily add (or
-  shrink) a region to a several-chunk bbox (`CHUNK_M` = 10 km squares) and
-  run it with `--only <region>`; confirm anchors/pairs parquet appears and a
-  coastal chunk doesn't produce a wall of sea anchors.
-- End with a summary covering: **source** (product + provider), **resolution**
-  (flag if coarser than Spain's 5 m — `SLOPE_MIN_DEG`-family tuning may need
-  loosening), **method** (bulk sheets vs WCS/coverage API, and why),
-  **restrictions overview** (layers found, what they mean for highlining),
-  and **coverage in km²** (chunk count × `CHUNK_M`² summed over regions,
-  compared against the country's area per Wikipedia as a sanity check).
+- `uv run python -m highliner.etls.<stage>.<country> --help` for all three
+  stages, then `just test && just check`.
+- Smoke-test with real chunks: shrink a region to a few chunks, run with
+  `--only <region>`, confirm anchors/pairs parquet appears and a coastal
+  chunk isn't a wall of sea anchors.
+- Confirm parallelism actually works, not just that it avoids errors: delete
+  `data/<country>/<region>/` and `cache/<country>/`, time a `--workers 1` run
+  of the smoke-test bbox, delete both again, time `--workers 4`. It should be
+  meaningfully faster — if not (or if you get a `PicklingError`), the fetcher
+  isn't module-level and multiprocessing isn't engaging.
 
 ## Common mistakes
 
@@ -217,6 +83,5 @@ license permitting reuse. Copy `restriction/spain/main.py`:
 | WCS source when bulk sheets exist | slow, rate-limited, re-downloads every run |
 | unmasked sea/nodata sentinel | coastlines become giant fake cliffs |
 | coarser-than-5 m DTM without retuning | cliff faces unresolved, anchors missing |
-| inventing country-specific recipes | use the parameterized `etl-*` recipes instead |
 | layer strings only in English | i18n catalog-parity test fails |
 | lambda or nested function as the fetcher | `PicklingError` once `--workers > 1`; module-level only |

@@ -72,8 +72,45 @@ test_check_hcloud_installed_fails_when_absent() {
     rm -rf "$empty_path_dir"
 }
 
+test_generate_cloud_init_embeds_files_and_preserves_exec_bit() {
+    local dir; dir="$(mktemp -d)"
+    echo "hello" > "$dir/plain.txt"
+    printf '#!/bin/sh\necho hi\n' > "$dir/run.sh"
+    chmod +x "$dir/run.sh"
+
+    local out; out="$(generate_cloud_init "$dir")"
+
+    assert_contains "$out" "path: /root/bootstrap/plain.txt" "embeds plain.txt"
+    assert_contains "$out" "path: /root/bootstrap/run.sh" "embeds run.sh"
+    assert_contains "$out" "npm install -g @earendil-works/pi-coding-agent" "installs pi in runcmd"
+    assert_contains "$out" "curl -LsSf https://astral.sh/uv/install.sh | sh" "installs uv in runcmd"
+
+    local plain_b64 run_b64
+    plain_b64="$(base64 -w0 "$dir/plain.txt")"
+    run_b64="$(base64 -w0 "$dir/run.sh")"
+    assert_contains "$out" "content: ${plain_b64}" "plain.txt content matches its base64"
+    assert_contains "$out" "content: ${run_b64}" "run.sh content matches its base64"
+
+    local plain_perms run_perms
+    plain_perms="$(echo "$out" | grep -A2 "plain.txt" | grep permissions)"
+    run_perms="$(echo "$out" | grep -A2 "run.sh" | grep permissions)"
+    assert_contains "$plain_perms" "0644" "non-executable file gets 0644"
+    assert_contains "$run_perms" "0755" "executable file keeps 0755"
+
+    rm -rf "$dir"
+}
+
+test_generate_cloud_init_empty_dir_has_empty_write_files() {
+    local dir; dir="$(mktemp -d)"
+    local out; out="$(generate_cloud_init "$dir")"
+    assert_contains "$out" "write_files: []" "empty bootstrap dir produces empty write_files"
+    rm -rf "$dir"
+}
+
 test_validate_args_rejects_non_numeric_n
 test_validate_args_rejects_zero
 test_validate_args_rejects_missing_dir
 test_validate_args_accepts_valid_input
 test_check_hcloud_installed_fails_when_absent
+test_generate_cloud_init_embeds_files_and_preserves_exec_bit
+test_generate_cloud_init_empty_dir_has_empty_write_files

@@ -86,8 +86,19 @@ update:
 # Country adapters own terrain sources and country-specific ETL configuration.
 # Each recipe runs one country, e.g.: just etl-chunk italy 8
 
-etl-chunk country concurrency:
-    uv run python -m highliner.etls.chunk.{{country}} --workers {{concurrency}}
+# Chunk precompute, retried until it exits 0. A finished chunk's pair partition
+# makes it a no-op on the next pass, so a transient DTM/network failure (an
+# exhausted rate-limit retry, a dropped connection) just resumes from where it
+# stopped. Extra args pass through, e.g.: just etl-chunk united_states 10 --only california
+etl-chunk country concurrency *args:
+    #!/usr/bin/env bash
+    set -uo pipefail
+    attempt=1
+    until uv run python -m highliner.etls.chunk.{{country}} --workers {{concurrency}} {{args}}; do
+        echo "etl-chunk {{country}}: attempt ${attempt} exited non-zero; resuming in 15s (Ctrl-C to stop)..." >&2
+        attempt=$((attempt + 1))
+        sleep 15
+    done
 
 etl-density country concurrency:
     uv run python -m highliner.etls.density.{{country}} --workers {{concurrency}}

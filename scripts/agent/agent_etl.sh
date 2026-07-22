@@ -25,6 +25,7 @@ ISSUE_BODY="$(
 )"
 
 mark_busy
+
 pi --model "z-ai/glm-5.2" --provider "openrouter" <<EOF
 You are implementing GitHub issue #${ISSUE_NUMBER}.
 Read AGENTS.md
@@ -32,7 +33,11 @@ Read AGENTS.md
 
 
 Your task:
-1. Mark the issue as in-progress using `gh issue update`
+1. Mark the issue as "in-progress" using `
+    gh issue edit "$ISSUE_NUMBER" \
+        --repo "$GH_REPO" \
+        --add-label in-progress \
+`
 2. Get a fresh copy of the repository using git pull
 
 3. Execute issue:

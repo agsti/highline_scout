@@ -9,17 +9,21 @@ import sys
 
 _TITLE_RE = re.compile(r"^ETL: (.+)$")
 
-_BODY_TEMPLATE = """
-1. Implement the etl for {country} using the skill "adding-country-etls"
-2. create the data/ & cache/ folders if doesn't exist
-3. Run the complete ETL for that country in a subagent using the `just etl-country {country} 4`
-4. While it runs, check that the paralelization is working correctly, if it doesn't stop, fix and re-run
-5. Verify the expected output exists under data/
-6. Upload to hetzner cloud s3 using `aws s3 cp ./data/{country} s3://highlinescout/`
-
-
-branch: etl/{country}
-"""
+_BODY_TEMPLATE = (
+    "\n"
+    '1. Implement the etl for {country} using the skill "adding-country-etls"\n'
+    "2. create the data/ & cache/ folders if doesn't exist\n"
+    "3. Run the complete ETL for that country in a subagent using the "
+    "`just etl-country {country} 4`\n"
+    "4. While it runs, check that the paralelization is working correctly, "
+    "if it doesn't stop, fix and re-run\n"
+    "5. Verify the expected output exists under data/\n"
+    "6. Upload to hetzner cloud s3 using "
+    "`aws s3 cp ./data/{country} s3://highlinescout/`\n"
+    "\n"
+    "\n"
+    "branch: etl/{country}\n"
+)
 
 _OPEN_ISSUES_QUERY = """
 query($owner: String!, $name: String!, $endCursor: String) {

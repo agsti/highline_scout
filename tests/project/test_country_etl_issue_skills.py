@@ -14,8 +14,10 @@ def test_country_etl_skills_use_issue_based_progress_contracts() -> None:
     dispatching = _skill("dispatching-country-etls")
 
     for skill in (adding, dispatching):
-        assert "at least every 30 minutes" in skill
         assert "COUNTRIES.md" not in skill
         assert "sync_country_etl_issues" not in skill
 
+    # adding-country-etls is deliberately silent on issue cadence: dispatching-
+    # country-etls owns that contract and injects it into every dispatch prompt.
+    assert "at least every 30 minutes" in dispatching
     assert "Closes #<issue-number>" in dispatching

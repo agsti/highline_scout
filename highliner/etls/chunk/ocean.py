@@ -23,6 +23,7 @@ from pathlib import Path
 import geopandas as gpd
 import numpy as np
 import requests
+from pyproj import CRS
 from rasterio.features import rasterize
 from shapely.geometry.base import BaseGeometry
 
@@ -64,7 +65,8 @@ def _default_source_path() -> Path:
 def load_ocean_geometry(crs: str,
                         source_path: Path | None = None) -> BaseGeometry:
     """Load and reproject the ocean polygon into ``crs``, once per (crs,
-    source_path) per process."""
+    source_path) per process. Clips to the target CRS's area of use before
+    reprojecting to avoid processing the full global polygon."""
     path = source_path if source_path is not None else _default_source_path()
     if not path.exists():
         raise FileNotFoundError(
@@ -73,7 +75,16 @@ def load_ocean_geometry(crs: str,
     gdf = gpd.read_file(path)
     if gdf.crs is None:
         raise ValueError(f"{path}: source has no CRS")
-    return gdf.to_crs(crs).union_all()
+    # Clip to the target CRS's area of use (in its native EPSG:4326 bounds)
+    # before reprojecting. Cheaper than clipping after reprojection, and
+    # avoids rasterize() walking the full global vertex set.
+    target_crs = CRS.from_user_input(crs)
+    area_of_use = target_crs.area_of_use
+    if area_of_use is None:
+        raise ValueError(f"{crs}: no area of use bounds available")
+    minx, miny, maxx, maxy = area_of_use.bounds
+    clipped = gdf.cx[minx:maxx, miny:maxy]
+    return clipped.to_crs(crs).union_all()
 
 
 def fill_ocean_nodata(raster: Raster, ocean_geom: BaseGeometry) -> None:

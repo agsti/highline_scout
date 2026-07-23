@@ -1,6 +1,6 @@
 """Tests for the ocean/coastline nodata-fill used by every country's chunk raster."""
-from pathlib import Path
 import zipfile
+from pathlib import Path
 
 import geopandas as gpd
 import numpy as np
@@ -75,6 +75,34 @@ def test_load_ocean_geometry_reprojects_from_fixture(tmp_path: Path) -> None:
 
     # UTM 19S covers this part of Chile; reprojected bounds should land in
     # the hundreds-of-km-to-low-millions range, not still look like lon/lat.
+    minx, miny, maxx, maxy = geom.bounds
+    assert 100_000 < minx < maxx < 900_000
+    assert 6_200_000 < miny < maxy < 6_500_000
+
+
+def test_load_ocean_geometry_clips_to_crs_area_of_use(tmp_path: Path) -> None:
+    """Verify that load_ocean_geometry clips to the CRS's area of use,
+    excluding geographically distant polygons."""
+    fixture = tmp_path / "ne_10m_ocean.shp"
+
+    # Write a fixture with two polygons: one inside Chile's area of use,
+    # one far away in Asia. After clipping to EPSG:32719's bounds, only
+    # the Chile polygon should be present.
+    gdf = gpd.GeoDataFrame(
+        {"name": ["chile ocean", "far away"]},
+        geometry=[
+            Polygon([(-72.0, -34.0), (-70.0, -34.0),
+                    (-70.0, -32.0), (-72.0, -32.0)]),  # inside Chile's bounds
+            Polygon([(100.0, 40.0), (101.0, 40.0),
+                    (101.0, 41.0), (100.0, 41.0)])      # far away in Asia
+        ],
+        crs="EPSG:4326")
+    gdf.to_file(fixture)
+
+    geom = ocean.load_ocean_geometry("EPSG:32719", source_path=fixture)
+
+    # The resulting geometry should NOT extend anywhere near the far-away
+    # polygon's reprojected location. Bounds should stay within UTM 19S range.
     minx, miny, maxx, maxy = geom.bounds
     assert 100_000 < minx < maxx < 900_000
     assert 6_200_000 < miny < maxy < 6_500_000

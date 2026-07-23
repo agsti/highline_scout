@@ -108,6 +108,42 @@ def test_load_ocean_geometry_clips_to_crs_area_of_use(tmp_path: Path) -> None:
     assert 6_200_000 < miny < maxy < 6_500_000
 
 
+def test_load_ocean_geometry_clips_spanning_polygon(tmp_path: Path) -> None:
+    """Verify that load_ocean_geometry performs true geometric clip, not just
+    row filtering. Tests the case where a single polygon's bounding box spans
+    from South America to Asia — .cx[] (row filter) would return the entire
+    feature unclipped, while .clip() (geometric intersection) correctly cuts it
+    to the target area."""
+    fixture = tmp_path / "ne_10m_ocean.shp"
+
+    # Create a single polygon spanning from lon -72 (Chile) to lon 100 (Asia).
+    # This mimics Natural Earth's ocean polygons which are ocean-basin scale,
+    # not per-country. The bbox of this polygon overlaps both Chile's area and
+    # distant Asia, but we expect only the Chile portion to remain after clip.
+    # Latitude bounds are tight around Chile's area of use for EPSG:32719.
+    spanning_polygon = Polygon([
+        (-72.0, -34.0), (100.0, -34.0), (100.0, -32.0), (-72.0, -32.0)
+    ])
+    gdf = gpd.GeoDataFrame(
+        {"name": ["spanning ocean"]},
+        geometry=[spanning_polygon],
+        crs="EPSG:4326")
+    gdf.to_file(fixture)
+
+    geom = ocean.load_ocean_geometry("EPSG:32719", source_path=fixture)
+
+    # Bounds should be tightly clipped to Chile's area (similar to existing
+    # test ranges). If .cx[] were still used (which just filters rows and
+    # returns geometry unclipped), bounds would span from roughly -72 to 100
+    # in lon, which is absurd for a single UTM zone. With .clip(), bounds
+    # stay within Chile's range.
+    minx, miny, maxx, maxy = geom.bounds
+    assert 100_000 < minx < maxx < 900_000, \
+        f"X bounds {minx}-{maxx} outside Chile UTM19S range"
+    assert 6_200_000 < miny < maxy < 6_500_000, \
+        f"Y bounds {miny}-{maxy} outside Chile UTM19S range"
+
+
 def test_load_ocean_geometry_raises_when_source_missing(tmp_path: Path) -> None:
     missing = tmp_path / "does_not_exist.shp"
     with pytest.raises(FileNotFoundError, match="etls.chunk.ocean"):

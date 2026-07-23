@@ -24,6 +24,12 @@ from highliner.etls.chunk.terrain import extract_anchors
 from highliner.models.anchor import Anchor
 from highliner.models.candidate import Candidate
 
+# Under mypy's no_implicit_reexport, an imported submodule isn't accessible
+# as an attribute from outside unless explicitly re-exported. Tests patch
+# `shared.ocean.load_ocean_geometry` directly (they need the module object,
+# not just the two functions), so `ocean` must be listed here.
+__all__ = ["ocean"]
+
 Bbox = tuple[float, float, float, float]
 
 

@@ -44,6 +44,15 @@ def test_precompute_uses_explicit_country_for_outputs_and_cache(
     assert seen == [tmp_path / "cache" / "france"]
 
 
+def _patch_no_ocean(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Most process_chunk tests don't care about the ocean fix; stub out
+    load_ocean_geometry so they don't need the real Natural Earth cache file
+    and aren't affected by it (empty geometry never matches any cell)."""
+    from shapely.geometry import GeometryCollection
+    monkeypatch.setattr(shared.ocean, "load_ocean_geometry",
+                        lambda crs: GeometryCollection())
+
+
 def _patch_gap_download(monkeypatch: pytest.MonkeyPatch) -> None:
     """Make dtm_icgc._download_tile synthesize terrain: plateau 100 m everywhere
     except a deep N-S trench (elev 20) 40 m wide near the chunk's west side, so
@@ -69,8 +78,62 @@ def _patch_gap_download(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(_dtm_icgc, "_download_tile", fake)
 
 
+def _patch_ocean_edge_download(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Make dtm_icgc._download_tile synthesize a coastline: a 100 m plateau
+    west of x=485220, open-ocean nodata (-9999) east of it. Without ocean
+    fill, np.gradient can't compute a slope across the NaN boundary and the
+    directional sweep records zero drop toward it, so no anchor forms at the
+    coastline at all — the plateau is otherwise perfectly flat."""
+    from highliner.etls.chunk.spain import dtm_icgc as _dtm_icgc
+
+    def fake(bbox: tuple[float, float, float, float], width: int, height: int,
+             dest: Path) -> Path:
+        minx, miny, maxx, maxy = bbox
+        cell = (maxx - minx) / width
+        rows = []
+        for _ in range(height):
+            cells = []
+            for c in range(width):
+                x = minx + (c + 0.5) * cell
+                cells.append("100.0" if x < 485220.0 else "-9999")
+            rows.append(" ".join(cells))
+        header = [f"NCOLS {width}", f"NROWS {height}",
+                  f"XLLCORNER {minx}", f"YLLCORNER {miny}",
+                  f"CELLSIZE {cell}", "NODATA_VALUE -9999"]
+        dest.write_text("\n".join(header) + "\n" + "\n".join(rows) + "\n")
+        return dest
+    monkeypatch.setattr(_dtm_icgc, "_download_tile", fake)
+
+
+def test_process_chunk_detects_anchor_facing_ocean(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from shapely.geometry import box
+
+    _patch_ocean_edge_download(monkeypatch)
+    region_dir = tmp_path / "coast"
+    core = (485000.0, 4646000.0, 495000.0, 4656000.0)
+
+    # Everything east of x=485220 is "ocean", generously covering the halo.
+    ocean_box = box(485220.0, core[1] - config.CHUNK_HALO_M,
+                    core[2] + config.CHUNK_HALO_M, core[3] + config.CHUNK_HALO_M)
+    monkeypatch.setattr(shared.ocean, "load_ocean_geometry",
+                        lambda crs: ocean_box)
+
+    precompute.process_chunk(0, 0, core, region_dir, fetch=dtm_icgc.fetch)
+
+    apath = region_dir / "anchors" / "p_0_0.parquet"
+    assert apath.exists()
+
+    from highliner.server.repositories.partition_cache import read_anchor_columns
+    cols = read_anchor_columns(apath)
+    assert len(cols.x) > 0, "expected an anchor at the ocean-facing coastline"
+    near_coast = [x for x in cols.x if 485200.0 <= x <= 485225.0]
+    assert near_coast, "expected the anchor(s) to sit right at the coastline"
+
+
 def test_process_chunk_writes_partitions_and_deletes_tiles(
         tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    _patch_no_ocean(monkeypatch)
     _patch_gap_download(monkeypatch)
     region_dir = tmp_path / "catalonia"
     core = (485000.0, 4646000.0, 495000.0, 4656000.0)   # 10 km chunk
@@ -93,6 +156,7 @@ def test_process_chunk_writes_partitions_and_deletes_tiles(
 
 
 def test_process_chunk_resumes(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    _patch_no_ocean(monkeypatch)
     _patch_gap_download(monkeypatch)
     region_dir = tmp_path / "catalonia"
     core = (485000.0, 4646000.0, 495000.0, 4656000.0)
@@ -128,6 +192,7 @@ def test_process_chunk_stays_retriable_after_persistent_rate_limit(
 
     from highliner.etls.chunk.spain import dtm_icgc as _dtm_icgc
 
+    _patch_no_ocean(monkeypatch)
     monkeypatch.setattr("highliner.etls.chunk.dtm_core.time.sleep", lambda s: None)
     resp = requests.Response()
     resp.status_code = 429
@@ -199,6 +264,7 @@ def test_process_chunk_does_not_mark_done_when_candidate_write_fails(
 
 def test_precompute_writes_grid_and_all_chunks(
         tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    _patch_no_ocean(monkeypatch)
     _patch_gap_download(monkeypatch)
     bbox = (485000.0, 4646000.0, 505000.0, 4656000.0)        # 20 x 10 km -> 2 chunks
     seen = []
@@ -442,6 +508,7 @@ def _patch_seam_gap_download(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_cross_chunk_pair_owned_by_exactly_one_partition(
         tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    _patch_no_ocean(monkeypatch)
     _patch_seam_gap_download(monkeypatch)
     bbox = (485000.0, 4646000.0, 505000.0, 4656000.0)   # two 10 km chunks side by side
     precompute.precompute("spain", "catalonia", bbox, tmp_path, chunk_m=10000.0,

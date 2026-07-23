@@ -15,6 +15,7 @@ from collections.abc import Callable, Iterator
 from pathlib import Path
 
 from highliner.core import config
+from highliner.etls.chunk import ocean
 from highliner.etls.chunk.anchors import save_anchors
 from highliner.etls.chunk.candidates import save_candidates
 from highliner.etls.chunk.dtm_core import Fetcher, raster_from_tiles
@@ -85,6 +86,7 @@ def process_chunk(cx: int, cy: int, core_bbox: Bbox, region_dir: Path,  # noqa: 
         owned_pairs: list[Candidate] = []
         raster = raster_from_tiles(tiles, bbox=halo_bbox)
         if raster is not None:
+            ocean.fill_ocean_nodata(raster, ocean.load_ocean_geometry(crs))
             anchors = extract_anchors(
                 raster, slope_min=config.SLOPE_MIN_DEG, radius=drop_radius_m,
                 n_azimuths=config.N_AZIMUTHS, min_sector_drop=config.MIN_SECTOR_DROP_M,

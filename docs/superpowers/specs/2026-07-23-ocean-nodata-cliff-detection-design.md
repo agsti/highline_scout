@@ -43,15 +43,19 @@ them the same way would fabricate false cliffs at data gaps.
 
 ### Mechanism: one universal fix at the raster-loading layer
 
-`terrain.py` itself does not change. The fix lands in
-`highliner/etls/chunk/dtm_core.py`, the single chokepoint every country's
-per-chunk raster already passes through
-(`raster_from_tiles()` → `NODATA`/`SEA_SENTINEL` → `NaN`).
+`terrain.py` itself does not change. Every country's per-chunk raster already
+passes through one chokepoint, `raster_from_tiles()` in
+`highliner/etls/chunk/dtm_core.py` (`NODATA`/`SEA_SENTINEL` → `NaN`), and then
+into `highliner/etls/chunk/shared.py::process_chunk()`, which calls
+`raster_from_tiles()` and immediately after has both the resulting raster and
+the chunk's `crs` in scope. The fix lands there, as one call right after
+`raster_from_tiles()` and before `extract_anchors()` — keeping
+`raster_from_tiles()`'s own responsibility narrow (merge tiles only).
 
-Add one more step there: rasterize a coastline/ocean reference onto the
-chunk's exact grid. For cells that are **both** already `NaN` **and** inside
-the ocean polygon, fill with `0.0`. Cells that are `NaN` but not inside the
-ocean polygon are left untouched.
+That call rasterizes a coastline/ocean reference onto the chunk's exact grid.
+For cells that are **both** already `NaN` **and** inside the ocean polygon,
+fill with `0.0`. Cells that are `NaN` but not inside the ocean polygon are
+left untouched.
 
 This double-gate (must be NaN *and* inside the ocean polygon) means an
 imprecise coastline polygon can never overwrite real land elevation, and can

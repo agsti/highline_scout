@@ -1,5 +1,6 @@
 """Tests for the ocean/coastline nodata-fill used by every country's chunk raster."""
 from pathlib import Path
+import zipfile
 
 import geopandas as gpd
 import numpy as np
@@ -53,3 +54,65 @@ def test_fill_ocean_nodata_never_overwrites_real_elevation() -> None:
     ocean.fill_ocean_nodata(raster, ocean_geom)
 
     assert np.array_equal(raster.data, np.full((4, 4), 55.0, dtype="float32"))
+
+
+def _write_ocean_fixture(path: Path) -> None:
+    """A small square 'ocean' polygon in WGS84, written as a shapefile —
+    same format Natural Earth ships (a directory of .shp/.shx/.dbf/etc)."""
+    gdf = gpd.GeoDataFrame(
+        {"name": ["test ocean"]},
+        geometry=[Polygon([(-72.0, -34.0), (-70.0, -34.0),
+                           (-70.0, -32.0), (-72.0, -32.0)])],
+        crs="EPSG:4326")
+    gdf.to_file(path)
+
+
+def test_load_ocean_geometry_reprojects_from_fixture(tmp_path: Path) -> None:
+    fixture = tmp_path / "ne_10m_ocean.shp"
+    _write_ocean_fixture(fixture)
+
+    geom = ocean.load_ocean_geometry("EPSG:32719", source_path=fixture)
+
+    # UTM 19S covers this part of Chile; reprojected bounds should land in
+    # the hundreds-of-km-to-low-millions range, not still look like lon/lat.
+    minx, miny, maxx, maxy = geom.bounds
+    assert 100_000 < minx < maxx < 900_000
+    assert 6_200_000 < miny < maxy < 6_500_000
+
+
+def test_load_ocean_geometry_raises_when_source_missing(tmp_path: Path) -> None:
+    missing = tmp_path / "does_not_exist.shp"
+    with pytest.raises(FileNotFoundError, match="etls.chunk.ocean"):
+        ocean.load_ocean_geometry("EPSG:32719", source_path=missing)
+
+
+def test_download_source_skips_when_already_present(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    dest_dir = tmp_path / "coastline"
+    dest_dir.mkdir()
+    (dest_dir / "ne_10m_ocean.shp").write_text("already here")
+
+    def boom(*args: object, **kwargs: object) -> None:
+        raise AssertionError("must not re-download an existing source")
+
+    monkeypatch.setattr(ocean, "_download", boom)
+
+    ocean.download_source(dest_dir)
+
+
+def test_download_source_fetches_and_extracts_when_missing(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    dest_dir = tmp_path / "coastline"
+
+    def fake_download(_url: str, dest: Path) -> None:
+        with zipfile.ZipFile(dest, "w") as archive:
+            archive.writestr("ne_10m_ocean.shp", b"shp bytes")
+            archive.writestr("ne_10m_ocean.dbf", b"dbf bytes")
+
+    monkeypatch.setattr(ocean, "_download", fake_download)
+
+    ocean.download_source(dest_dir)
+
+    assert (dest_dir / "ne_10m_ocean.shp").read_bytes() == b"shp bytes"
+    assert (dest_dir / "ne_10m_ocean.dbf").read_bytes() == b"dbf bytes"
+    assert not list(dest_dir.glob("*.zip"))

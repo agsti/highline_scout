@@ -66,6 +66,7 @@ def process_chunk(cx: int, cy: int, core_bbox: Bbox, region_dir: Path,  # noqa: 
                   halo: float = config.CHUNK_HALO_M,
                   crs: str = config.UTM_CRS,
                   drop_radius_m: float = config.DROP_RADIUS_M,
+                  slope_min_deg: float = config.SLOPE_MIN_DEG,
                   cache_dir: Path | None = None,
                   *, fetch: Fetcher) -> int:
     """Process one chunk into anchor + pair partitions. Returns the number of
@@ -94,7 +95,7 @@ def process_chunk(cx: int, cy: int, core_bbox: Bbox, region_dir: Path,  # noqa: 
         if raster is not None:
             ocean.fill_ocean_nodata(raster, ocean.load_ocean_geometry(crs))
             anchors = extract_anchors(
-                raster, slope_min=config.SLOPE_MIN_DEG, radius=drop_radius_m,
+                raster, slope_min=slope_min_deg, radius=drop_radius_m,
                 n_azimuths=config.N_AZIMUTHS, min_sector_drop=config.MIN_SECTOR_DROP_M,
                 thin_dist=config.THIN_DIST_M)
             core_anchors = [a for a in anchors if _in_core(a.x, a.y, core_bbox)]
@@ -189,6 +190,7 @@ def precompute(  # noqa: PLR0913
         report: Callable[[int, int], None] | None = None,
         *, crs: str, dtm_source: str, fetch: Fetcher, workers: int = 1,
         drop_radius_m: float = config.DROP_RADIUS_M,
+        slope_min_deg: float = config.SLOPE_MIN_DEG,
         cache_dir: Path | None = None) -> int:
     """Precompute anchors + pairs for ``bbox`` under
     ``data_dir/<country>/<region>``. Writes grid.json, then processes every
@@ -211,6 +213,7 @@ def precompute(  # noqa: PLR0913
         for i, (cx, cy, core) in enumerate(chunks, start=1):
             process_chunk(cx, cy, core, rdir, crs=crs,
                           drop_radius_m=drop_radius_m,
+                          slope_min_deg=slope_min_deg,
                           cache_dir=country_cache_dir, fetch=fetch)
             if report is not None:
                 report(i, total)
@@ -218,6 +221,7 @@ def precompute(  # noqa: PLR0913
 
     task = functools.partial(
         process_chunk, region_dir=rdir, crs=crs,
-        drop_radius_m=drop_radius_m, cache_dir=country_cache_dir, fetch=fetch)
+        drop_radius_m=drop_radius_m, slope_min_deg=slope_min_deg,
+        cache_dir=country_cache_dir, fetch=fetch)
     _run_parallel(chunks, task, workers, report)
     return total

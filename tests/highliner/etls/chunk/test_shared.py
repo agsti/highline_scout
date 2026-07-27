@@ -1,4 +1,5 @@
 import concurrent.futures
+import math
 from collections.abc import Iterable
 from pathlib import Path
 from typing import cast
@@ -42,6 +43,25 @@ def test_precompute_uses_explicit_country_for_outputs_and_cache(
 
     assert (tmp_path / "france" / "alps" / "grid.json").exists()
     assert seen == [tmp_path / "cache" / "france"]
+
+
+def test_precompute_passes_slope_min_deg_to_process_chunk(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    seen: list[float] = []
+
+    def capture_slope(*args: object, **kwargs: float) -> int:
+        seen.append(kwargs["slope_min_deg"])
+        return 0
+
+    monkeypatch.setattr(shared, "process_chunk", capture_slope)
+
+    shared.precompute(
+        "france", "alps", (0.0, 0.0, 10.0, 10.0), tmp_path,
+        chunk_m=10.0, crs="EPSG:2154", dtm_source="icgc", fetch=dtm_icgc.fetch,
+        slope_min_deg=40.0,
+    )
+
+    assert seen == [40.0]
 
 
 def _patch_no_ocean(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -103,6 +123,80 @@ def _patch_ocean_edge_download(monkeypatch: pytest.MonkeyPatch) -> None:
         dest.write_text("\n".join(header) + "\n" + "\n".join(rows) + "\n")
         return dest
     monkeypatch.setattr(_dtm_icgc, "_download_tile", fake)
+
+
+def _patch_ramp_download(monkeypatch: pytest.MonkeyPatch,
+                         slope_deg: float) -> None:
+    """Make dtm_icgc._download_tile synthesize a uniform linear ramp at
+    exactly ``slope_deg`` everywhere (rise/run = tan(slope_deg), constant
+    regardless of resolution), so compute_slope reports ~slope_deg across
+    the whole chunk. The ramp's origin is a fixed constant, not each tile's
+    own local bbox -- fetch_tile_grid splits a chunk's halo bbox into many
+    875 m tiles, so an origin taken from each tile's own bbox would reset
+    per tile and create sawtooth discontinuities at every tile boundary."""
+    from highliner.etls.chunk.spain import dtm_icgc as _dtm_icgc
+    rise_per_m = math.tan(math.radians(slope_deg))
+    origin_x = 480000.0   # west of every tile bbox used by these tests
+
+    def fake(bbox: tuple[float, float, float, float], width: int, height: int,
+             dest: Path) -> Path:
+        minx, miny, maxx, maxy = bbox
+        cell = (maxx - minx) / width
+        rows = []
+        for _ in range(height):
+            cells = []
+            for c in range(width):
+                x = minx + (c + 0.5) * cell
+                elev = 1000.0 - rise_per_m * (x - origin_x)
+                cells.append(f"{elev:.3f}")
+            rows.append(" ".join(cells))
+        header = [f"NCOLS {width}", f"NROWS {height}",
+                  f"XLLCORNER {minx}", f"YLLCORNER {miny}",
+                  f"CELLSIZE {cell}", "NODATA_VALUE -9999"]
+        dest.write_text("\n".join(header) + "\n" + "\n".join(rows) + "\n")
+        return dest
+    monkeypatch.setattr(_dtm_icgc, "_download_tile", fake)
+
+
+def test_process_chunk_default_slope_min_misses_a_moderate_ramp(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A 50 deg ramp is real terrain but doesn't reach the default 55 deg
+    SLOPE_MIN_DEG threshold, so process_chunk finds no anchors on it."""
+    _patch_no_ocean(monkeypatch)
+    _patch_ramp_download(monkeypatch, slope_deg=50.0)
+    region_dir = tmp_path / "ramp"
+    core = (485000.0, 4646000.0, 495000.0, 4656000.0)
+
+    precompute.process_chunk(0, 0, core, region_dir, fetch=dtm_icgc.fetch)
+
+    from highliner.server.repositories.partition_cache import read_anchor_columns
+    cols = read_anchor_columns(region_dir / "anchors" / "p_0_0.parquet")
+    assert len(cols.x) == 0
+
+
+def test_process_chunk_honors_a_lower_slope_min_deg(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """The same 50 deg ramp IS detected once slope_min_deg is lowered below
+    it, proving the parameter genuinely reaches extract_anchors.
+
+    Unlike the "misses" test above, every cell here clears the (lowered)
+    threshold, so a small window is deliberate: the default 10 km core used
+    elsewhere in this file, once every cell in it qualifies as a candidate
+    anchor, produces enough anchors that KD-tree pairing at MAX_PAIR_LEN
+    (1000 m) blows up combinatorially into hundreds of millions of pairs and
+    OOMs. A small core plus an explicit small halo (still comfortably above
+    DROP_RADIUS_M) keeps the qualifying-everywhere raster tiny instead."""
+    _patch_no_ocean(monkeypatch)
+    _patch_ramp_download(monkeypatch, slope_deg=50.0)
+    region_dir = tmp_path / "ramp"
+    core = (485000.0, 4646000.0, 485200.0, 4646200.0)
+
+    precompute.process_chunk(0, 0, core, region_dir, fetch=dtm_icgc.fetch,
+                             slope_min_deg=45.0, halo=60.0)
+
+    from highliner.server.repositories.partition_cache import read_anchor_columns
+    cols = read_anchor_columns(region_dir / "anchors" / "p_0_0.parquet")
+    assert len(cols.x) > 0
 
 
 def test_process_chunk_detects_anchor_facing_ocean(

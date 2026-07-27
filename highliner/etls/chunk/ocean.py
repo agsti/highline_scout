@@ -88,7 +88,12 @@ def load_ocean_geometry(crs: str,
         raise ValueError(f"{crs}: no area of use bounds available")
     minx, miny, maxx, maxy = area_of_use.bounds
     clipped = gdf.clip(box(minx, miny, maxx, maxy))
-    return clipped.to_crs(crs).union_all()
+    # Reprojection (e.g. into an Albers Conic CRS like EPSG:5070) can turn an
+    # otherwise-valid polygon self-intersecting, which crashes union_all with
+    # a GEOS TopologyException. make_valid() after to_crs, not before: the
+    # source is valid going in, reprojection is what breaks it.
+    reprojected = clipped.to_crs(crs).geometry.make_valid()
+    return reprojected.union_all()
 
 
 def fill_ocean_nodata(raster: Raster, ocean_geom: BaseGeometry) -> None:

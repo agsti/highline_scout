@@ -10,8 +10,8 @@ work that matches a skill's description, read and follow its `SKILL.md`:
 
 - `.claude/skills/adding-country-etls/SKILL.md` — add a country or region to
   the ETL pipeline.
-- `.claude/skills/dispatching-country-etls/SKILL.md` — dispatch a batch of
-  country ETL additions from `COUNTRIES.md`.
+- `.claude/skills/dispatching-country-etls/SKILL.md` — dispatch country ETL
+  additions from explicit GitHub issue numbers.
 
 This applies to Codex as well as Claude. Keep skills in this shared location;
 do not copy them into a user-level skills directory.

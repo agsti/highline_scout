@@ -33,6 +33,11 @@ system interpreter's plain `venv` is known-broken here.
     uv venv --python 3.12 .venv
     uv pip install --python .venv/bin/python -e ".[dev]"
 
+Chile's chunk ETL (`highliner/etls/chunk/chile/dtm_alos.py`) shells out to the
+`unar` CLI to extract its DTM source's RAR archives (`apt-get install unar` /
+`brew install unar`) — some of the archives' sidecar files use a RAR
+compression method `py7zr`/`7z` can't read, but `unar` handles every member.
+
 For an isolated git worktree, create a separate `.venv` and run the same dev
 install there. Do not symlink a worktree's `.venv` to another checkout: virtual
 environment paths are checkout-specific. `uv` shares its download/build cache

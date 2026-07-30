@@ -32,8 +32,10 @@ The larger values printed by `df` and `free` are the container-visible host
 values, not the allocation.
 
 The runner stage must not set `USER`: AI Training imposes uid/gid `42420`, and
-leaving the image as root lets the platform select that user. `/artifacts`
-does not exist unless a volume is attached.
+leaving the image as root lets the platform select that user. The image's
+`/app` working directory must be mode `0777` so that imposed user can create
+repo-relative `data/`, `cache/`, and other outputs. `/artifacts` does not exist
+unless a volume is attached.
 
 ## Object Storage volume
 

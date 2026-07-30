@@ -45,7 +45,7 @@ COPY scripts/runner/entrypoint.sh /app/entrypoint.sh
 ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONUNBUFFERED=1
 
-RUN mkdir -p /artifacts && chmod 0777 /artifacts
+RUN mkdir -p /artifacts && chmod 0777 /app /artifacts
 
 ENTRYPOINT ["/app/entrypoint.sh"]
 

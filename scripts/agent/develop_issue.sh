@@ -26,12 +26,12 @@ Read AGENTS.md
 
 
 Your task:
-1. Mark the issue as "in-progress" using `
+1. Mark the issue as "in-progress" using:
     gh issue edit "$ISSUE_NUMBER" \
         --repo "$GH_REPO" \
-        --add-label in-progress \
+        --add-label in-progress
 
-2. call your branch auto/$ISSUE_NUMBER`
+2. call your branch auto/$ISSUE_NUMBER
 3. create an isolated worktree at REPO/.worktrees/auto_$ISSUE_NUMBER, switch to it if already exists
 4. Do a git pull when starting an get up to date with master or main
 5. Fix this issue:

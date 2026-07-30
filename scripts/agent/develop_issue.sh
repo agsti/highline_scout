@@ -63,4 +63,3 @@ else
         --repo "$GH_REPO" \
         --body "Agent exited with status ${exit_code}."
 fi
-

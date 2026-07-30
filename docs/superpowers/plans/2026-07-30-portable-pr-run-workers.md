@@ -12,14 +12,13 @@
 
 ## Global Constraints
 
-- All scripts are `bash` with `set -euo pipefail` (test-only scripts use `set -uo pipefail`, matching `tests/scripts/test_create_hetzner_servers.sh`).
-- Scripts that are unit-tested must guard their entry point so the file can be sourced without executing: `if [[ "${BASH_SOURCE[0]:-}" == "${0}" ]]; then main "$@"; fi`.
-- Shell tests live in `tests/scripts/test_<script-name>.sh`, source the script under test, use the existing `assert_eq` / `assert_contains` helper style, print `All tests passed.` and exit non-zero on failure. Run them with `bash tests/scripts/<file>.sh`.
+- All scripts are `bash` with `set -euo pipefail`, matching the style of the existing `scripts/agent/*.sh`.
+- No unit tests for shell scripts. Every task is verified by running the thing it built and checking the observable result — exit status, files on disk, job state.
 - Image reference: `ghcr.io/agsti/highline_scout/runner`, pinned by the immutable `sha-<short>` tag. Never the branch tag.
 - Entrypoint contract: positional `<command>`; environment `RUN_ID`, `ARTIFACTS` (newline-separated repo-relative paths), `ARTIFACT_DIR` (default `/artifacts`).
 - Platform script contract: `<run-id> <image> <command> [artifact-path...]`, synchronous, exits with the job's status.
 - The runner image contains no agent CLI, no LLM API key, no `gh`, and no GitHub token.
-- This machine is memory-tight: run any `pytest` under `ulimit -v` and `timeout`, using `.venv/bin/python` rather than `uv run`.
+- Run `bash -n <script>` on every shell script before committing it.
 
 ---
 
@@ -29,29 +28,25 @@
 |---|---|
 | `docs/superpowers/notes/2026-07-30-ovh-ai-training-probe.md` | Measured OVH facts (UID, disk, CLI syntax) that later tasks depend on |
 | `scripts/runner/entrypoint.sh` | Run one command, collect declared artifacts + log. Lives in the image |
-| `tests/scripts/test_runner_entrypoint.sh` | Unit tests for artifact collection and exit-status propagation |
 | `Dockerfile` | Adds a `runner` stage on top of the existing builder |
 | `.github/workflows/ci.yml` | Adds a build-push step for the `runner` target |
 | `scripts/agent/platforms/local.sh` | Schedule a job via `docker run` |
-| `tests/scripts/test_platforms_local.sh` | Unit tests with a stubbed `docker` |
 | `scripts/agent/platforms/ovh.sh` | Schedule a job via `ovhai job run`, poll to completion |
-| `tests/scripts/test_platforms_ovh.sh` | Unit tests with a stubbed `ovhai` |
 | `scripts/agent/run_pr.sh` | Local orchestrator: PR → image + sections → platform script → PR comment |
-| `tests/scripts/test_run_pr.sh` | Unit tests for prompt construction and arg validation |
 | `scripts/agent/develop_issue.sh` | Gains the artifacts-section instruction in its prompt |
 
 ---
 
 ### Task 1: Probe OVH AI Training and record the facts
 
-The spec lists three unverified facts that decide the Dockerfile's user, where `data/` can live, and the exact `ovhai` syntax Task 6 hardcodes. Settle them with a throwaway job before writing code against guesses.
+The spec lists three unverified facts that decide the Dockerfile's user, where `data/` can live, and the exact `ovhai` syntax Task 5 hardcodes. Settle them with a throwaway job before writing code against guesses.
 
 **Files:**
 - Create: `docs/superpowers/notes/2026-07-30-ovh-ai-training-probe.md`
 
 **Interfaces:**
 - Consumes: nothing.
-- Produces: the measured values Tasks 3 and 6 read — container UID, writable paths, local disk GB at a given `--cpu`, the exact `ovhai job run` flag spelling, the JSON field holding a job's id and terminal state.
+- Produces: the measured values Tasks 2 and 5 read — container UID, writable paths, local disk GB at a given `--cpu`, the exact `ovhai job run` flag spelling, the JSON field holding a job's id and terminal state.
 
 - [ ] **Step 1: Install and authenticate the CLI**
 
@@ -61,7 +56,7 @@ ovhai login
 ovhai me
 ```
 
-Expected: `ovhai me` prints your user without error. If login is interactive, run it yourself in the terminal with `! ovhai login`.
+Expected: `ovhai me` prints your user without error. `ovhai login` is interactive — run it yourself with `! ovhai login` if needed.
 
 - [ ] **Step 2: Run the probe job**
 
@@ -97,11 +92,11 @@ Record: the exact accepted `--volume` syntax, and whether the write succeeded un
 ovhai job get <job-id> --output json | head -40
 ```
 
-Record the JSON path to the job id and to its terminal state, plus the exact set of terminal state strings observed (e.g. `DONE`, `FAILED`). Task 6 parses these.
+Record the JSON path to the job id and to its terminal state, plus the exact terminal state strings observed (e.g. `DONE`, `FAILED`). Task 5 parses these.
 
 - [ ] **Step 6: Confirm billing source**
 
-Check the OVHcloud control panel that the probe jobs were billed against trial credits rather than a payment method. Record yes/no. If no, stop and raise it — the whole approach assumes credits cover AI Training.
+Check in the OVHcloud control panel that the probe jobs were billed against trial credits rather than a payment method. Record yes/no. If no, stop and raise it — the whole approach assumes credits cover AI Training.
 
 - [ ] **Step 7: Commit**
 
@@ -112,110 +107,17 @@ git commit -m "docs: record measured OVH AI Training job facts"
 
 ---
 
-### Task 2: Runner entrypoint script
+### Task 2: Runner entrypoint and Dockerfile stage
 
 **Files:**
 - Create: `scripts/runner/entrypoint.sh`
-- Test: `tests/scripts/test_runner_entrypoint.sh`
+- Modify: `Dockerfile` (append a new stage after the existing final stage)
 
 **Interfaces:**
-- Consumes: nothing.
-- Produces: `collect_artifacts <dest-dir> <newline-separated-paths>` and `main <command>`, sourced by the test. Writes to `$ARTIFACT_DIR/runs/$RUN_ID/`, containing `run.log` plus each declared path at its original relative position.
+- Consumes: the UID finding from Task 1.
+- Produces: build target `runner`, entrypoint `/app/entrypoint.sh`, writing to `$ARTIFACT_DIR/runs/$RUN_ID/` — `run.log` plus each declared path at its original relative position.
 
-- [ ] **Step 1: Write the failing test**
-
-Create `tests/scripts/test_runner_entrypoint.sh`:
-
-```bash
-#!/usr/bin/env bash
-# Tests for scripts/runner/entrypoint.sh.
-# Run directly: bash tests/scripts/test_runner_entrypoint.sh
-set -uo pipefail
-
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-source "$REPO_ROOT/scripts/runner/entrypoint.sh"
-
-FAILURES=0
-
-assert_eq() {
-    local expected="$1" actual="$2" msg="$3"
-    if [[ "$expected" != "$actual" ]]; then
-        echo "FAIL: $msg" >&2
-        echo "  expected: $expected" >&2
-        echo "  actual:   $actual" >&2
-        FAILURES=$((FAILURES + 1))
-    fi
-}
-
-assert_contains() {
-    local haystack="$1" needle="$2" msg="$3"
-    if [[ "$haystack" != *"$needle"* ]]; then
-        echo "FAIL: $msg" >&2
-        echo "  expected to contain: $needle" >&2
-        echo "  actual: $haystack" >&2
-        FAILURES=$((FAILURES + 1))
-    fi
-}
-
-test_collect_artifacts_preserves_relative_paths() {
-    local src dest
-    src="$(mktemp -d)"; dest="$(mktemp -d)"
-    mkdir -p "$src/data/italy"
-    printf 'rows' > "$src/data/italy/pairs.parquet"
-    (cd "$src" && collect_artifacts "$dest" "data/italy") >/dev/null 2>&1
-    assert_eq "rows" "$(cat "$dest/data/italy/pairs.parquet" 2>/dev/null)" \
-        "declared path copied at its original relative position"
-    rm -rf "$src" "$dest"
-}
-
-test_collect_artifacts_handles_multiple_paths() {
-    local src dest
-    src="$(mktemp -d)"; dest="$(mktemp -d)"
-    mkdir -p "$src/data" "$src/logs"
-    printf 'a' > "$src/data/a.txt"
-    printf 'b' > "$src/logs/b.txt"
-    (cd "$src" && collect_artifacts "$dest" "$(printf 'data\nlogs')") >/dev/null 2>&1
-    assert_eq "a" "$(cat "$dest/data/a.txt" 2>/dev/null)" "first path copied"
-    assert_eq "b" "$(cat "$dest/logs/b.txt" 2>/dev/null)" "second path copied"
-    rm -rf "$src" "$dest"
-}
-
-test_collect_artifacts_warns_on_missing_path_without_failing() {
-    local src dest out status
-    src="$(mktemp -d)"; dest="$(mktemp -d)"
-    out="$( (cd "$src" && collect_artifacts "$dest" "data/nope") 2>&1 )"
-    status=$?
-    assert_eq "0" "$status" "a missing declared path must not abort collection"
-    assert_contains "$out" "data/nope" "missing path is named in the warning"
-    rm -rf "$src" "$dest"
-}
-
-test_collect_artifacts_ignores_blank_lines() {
-    local src dest out
-    src="$(mktemp -d)"; dest="$(mktemp -d)"
-    out="$( (cd "$src" && collect_artifacts "$dest" "$(printf '\n\n')") 2>&1 )"
-    assert_eq "" "$out" "blank artifact lines produce no warnings"
-    rm -rf "$src" "$dest"
-}
-
-test_collect_artifacts_preserves_relative_paths
-test_collect_artifacts_handles_multiple_paths
-test_collect_artifacts_warns_on_missing_path_without_failing
-test_collect_artifacts_ignores_blank_lines
-
-if [[ $FAILURES -gt 0 ]]; then
-    echo "$FAILURES test(s) failed" >&2
-    exit 1
-fi
-echo "All tests passed."
-```
-
-- [ ] **Step 2: Run test to verify it fails**
-
-Run: `bash tests/scripts/test_runner_entrypoint.sh`
-Expected: FAIL — `No such file or directory` for `scripts/runner/entrypoint.sh`.
-
-- [ ] **Step 3: Write minimal implementation**
+- [ ] **Step 1: Write the entrypoint**
 
 Create `scripts/runner/entrypoint.sh`:
 
@@ -234,11 +136,10 @@ set -uo pipefail
 ARTIFACT_DIR="${ARTIFACT_DIR:-/artifacts}"
 RUN_ID="${RUN_ID:-$(date -u +%Y%m%d-%H%M%S)}"
 ARTIFACTS="${ARTIFACTS:-}"
-DEST=""
+DEST="$ARTIFACT_DIR/runs/$RUN_ID"
 
 collect_artifacts() {
-    local dest="$1" paths="$2" path parent
-    mkdir -p "$dest"
+    local path parent
     while IFS= read -r path; do
         [ -z "$path" ] && continue
         if [ ! -e "$path" ]; then
@@ -246,71 +147,51 @@ collect_artifacts() {
             continue
         fi
         parent="$(dirname "$path")"
-        mkdir -p "$dest/$parent"
-        cp -r "$path" "$dest/$parent/"
-    done <<< "$paths"
+        mkdir -p "$DEST/$parent"
+        cp -r "$path" "$DEST/$parent/"
+    done <<< "$ARTIFACTS"
     return 0
 }
 
-main() {
-    if [ "$#" -lt 1 ]; then
-        echo "usage: entrypoint.sh <command>" >&2
-        exit 2
-    fi
-    DEST="$ARTIFACT_DIR/runs/$RUN_ID"
-    mkdir -p "$DEST"
-    trap 'collect_artifacts "$DEST" "$ARTIFACTS"' EXIT
-    bash -lc "$*" 2>&1 | tee "$DEST/run.log"
-    exit "${PIPESTATUS[0]}"
-}
-
-if [[ "${BASH_SOURCE[0]:-}" == "${0}" ]]; then
-    main "$@"
+if [ "$#" -lt 1 ]; then
+    echo "usage: entrypoint.sh <command>" >&2
+    exit 2
 fi
+
+mkdir -p "$DEST"
+trap collect_artifacts EXIT
+
+bash -lc "$*" 2>&1 | tee "$DEST/run.log"
+exit "${PIPESTATUS[0]}"
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
-
-Run: `bash tests/scripts/test_runner_entrypoint.sh`
-Expected: `All tests passed.`
-
-- [ ] **Step 5: Verify the exit-status and trap behaviour end to end**
+- [ ] **Step 2: Verify it syntax-checks and behaves**
 
 ```bash
+bash -n scripts/runner/entrypoint.sh
 chmod +x scripts/runner/entrypoint.sh
 d="$(mktemp -d)"
-RUN_ID=t1 ARTIFACT_DIR="$d" ARTIFACTS="out" scripts/runner/entrypoint.sh 'mkdir -p out && echo hi > out/f && exit 3'
+RUN_ID=t1 ARTIFACT_DIR="$d" ARTIFACTS="out" \
+  scripts/runner/entrypoint.sh 'mkdir -p out && echo hi > out/f && exit 3'
 echo "exit=$?"
-ls "$d/runs/t1" "$d/runs/t1/out"
-cat "$d/runs/t1/run.log"
+cat "$d/runs/t1/out/f"; ls "$d/runs/t1"
 ```
 
-Expected: `exit=3`; `run.log` contains nothing from stdout of `mkdir`, but exists; `out/f` was still collected despite the non-zero exit.
+Expected: `exit=3`; `out/f` contains `hi` despite the non-zero exit (the trap fired); `run.log` exists alongside it.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 3: Verify a missing declared path warns without aborting**
 
 ```bash
-git add scripts/runner/entrypoint.sh tests/scripts/test_runner_entrypoint.sh
-git commit -m "feat(runner): add job entrypoint that keeps declared artifacts"
+d="$(mktemp -d)"
+RUN_ID=t2 ARTIFACT_DIR="$d" ARTIFACTS="$(printf 'out\nnope')" \
+  scripts/runner/entrypoint.sh 'mkdir -p out && echo hi > out/f'
+echo "exit=$?"
+ls "$d/runs/t2/out"
 ```
 
----
+Expected: `exit=0`, a warning naming `nope` on stderr, and `out/f` still collected.
 
-### Task 3: Runner stage in the Dockerfile
-
-**Files:**
-- Modify: `Dockerfile` (append a new stage after the existing final stage)
-
-**Interfaces:**
-- Consumes: `scripts/runner/entrypoint.sh` from Task 2; the UID finding from Task 1.
-- Produces: build target `runner`, whose entrypoint is `/app/entrypoint.sh` and whose working directory is `/app` with the `highliner` package and its venv on `PATH`.
-
-- [ ] **Step 1: Read the existing Dockerfile**
-
-Run: `cat Dockerfile`
-Note the builder stage name, the venv path (`/app/.venv`), the `app` user creation, and the final `PATH` setting — the runner stage mirrors them.
-
-- [ ] **Step 2: Append the runner stage**
+- [ ] **Step 4: Append the runner stage to the Dockerfile**
 
 ```dockerfile
 # --- ETL/command runner -------------------------------------------------
@@ -338,47 +219,46 @@ RUN mkdir -p /artifacts && chmod 0777 /artifacts
 ENTRYPOINT ["/app/entrypoint.sh"]
 ```
 
-If Task 1 found that AI Training forces a specific UID, leave the stage running as root (no `USER` line) so the entrypoint can write regardless — and note that decision in the probe notes file.
+Leave the stage running as root — no `USER` line — so the entrypoint can write whatever UID AI Training imposes. Note that decision in the probe notes.
 
-- [ ] **Step 3: Build the runner target**
-
-Run: `docker build --target runner -t highline-runner:test .`
-Expected: build succeeds.
-
-- [ ] **Step 4: Verify the image runs a command and keeps artifacts**
+- [ ] **Step 5: Build and run the image**
 
 ```bash
+docker build --target runner -t highline-runner:test .
 d="$(mktemp -d)"
 docker run --rm \
-  -e RUN_ID=t2 -e ARTIFACTS='out' -e ARTIFACT_DIR=/artifacts \
+  -e RUN_ID=t3 -e ARTIFACTS='out' -e ARTIFACT_DIR=/artifacts \
   -v "$d:/artifacts" \
   highline-runner:test 'mkdir -p out && just --version > out/just.txt'
-cat "$d/runs/t2/out/just.txt"
+cat "$d/runs/t3/out/just.txt"
 ```
 
 Expected: prints a `just` version, proving `just` is installed and artifacts survive the container.
 
-- [ ] **Step 5: Verify the server image still builds**
-
-Run: `docker build -t highline-server:test .`
-Expected: succeeds and still selects the server stage as default — the runner stage must not become the implicit final stage. If it did, move the runner stage above the server stage.
-
-- [ ] **Step 6: Commit**
+- [ ] **Step 6: Verify the server image still builds unchanged**
 
 ```bash
-git add Dockerfile
-git commit -m "feat(docker): add runner stage with just and unar"
+docker build -t highline-server:test .
+```
+
+Expected: succeeds and still selects the server stage by default — the runner stage must not become the implicit final stage. If it did, move the runner stage above the server stage.
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add scripts/runner/entrypoint.sh Dockerfile
+git commit -m "feat(runner): add job entrypoint and runner image stage"
 ```
 
 ---
 
-### Task 4: Publish the runner image from CI
+### Task 3: Publish the runner image from CI
 
 **Files:**
 - Modify: `.github/workflows/ci.yml:148-189` (the `docker` job)
 
 **Interfaces:**
-- Consumes: the `runner` build target from Task 3.
+- Consumes: the `runner` build target from Task 2.
 - Produces: `ghcr.io/agsti/highline_scout/runner:sha-<short>` on every pushed branch that passes `check`.
 
 - [ ] **Step 1: Add runner metadata and build steps to the `docker` job**
@@ -408,7 +288,7 @@ Append to the job's `steps`, after the existing build-and-push step:
           cache-to: type=gha,mode=max
 ```
 
-- [ ] **Step 2: Commit and push the branch**
+- [ ] **Step 2: Commit and push**
 
 ```bash
 git add .github/workflows/ci.yml
@@ -429,9 +309,10 @@ Expected: the `docker` job succeeds and both build-push steps run.
 ```bash
 gh api "/users/agsti/packages/container/highline_scout%2Frunner/versions" \
   --jq '.[0].metadata.container.tags'
+git rev-parse --short HEAD
 ```
 
-Expected: includes a `sha-<short>` tag matching `git rev-parse --short HEAD`.
+Expected: the tag list includes `sha-` followed by that short SHA.
 
 - [ ] **Step 5: Make the package public**
 
@@ -439,103 +320,23 @@ In the GitHub UI, set the `highline_scout/runner` package visibility to public s
 
 ```bash
 docker logout ghcr.io
-docker pull ghcr.io/agsti/highline_scout/runner:sha-<short>
+docker pull ghcr.io/agsti/highline_scout/runner:sha-$(git rev-parse --short HEAD)
 ```
 
 Expected: pull succeeds without login.
 
 ---
 
-### Task 5: Local platform script
+### Task 4: Local platform script
 
 **Files:**
 - Create: `scripts/agent/platforms/local.sh`
-- Test: `tests/scripts/test_platforms_local.sh`
 
 **Interfaces:**
 - Consumes: the entrypoint contract from Task 2.
-- Produces: `main <run-id> <image> <command> [artifact-path...]`, and `docker_args <run-id> <image> <command> <newline-separated-artifacts>` which prints the argument list passed to `docker`, so tests can assert on it without running Docker.
+- Produces: `platforms/local.sh <run-id> <image> <command> [artifact-path...]`, exiting with the container's status.
 
-- [ ] **Step 1: Write the failing test**
-
-Create `tests/scripts/test_platforms_local.sh`:
-
-```bash
-#!/usr/bin/env bash
-# Tests for scripts/agent/platforms/local.sh.
-# Run directly: bash tests/scripts/test_platforms_local.sh
-set -uo pipefail
-
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-source "$REPO_ROOT/scripts/agent/platforms/local.sh"
-# The sourced script sets -e; turn it back off so tests can exercise failure
-# paths without aborting this shell.
-set +e
-
-FAILURES=0
-
-assert_eq() {
-    local expected="$1" actual="$2" msg="$3"
-    if [[ "$expected" != "$actual" ]]; then
-        echo "FAIL: $msg" >&2
-        echo "  expected: $expected" >&2
-        echo "  actual:   $actual" >&2
-        FAILURES=$((FAILURES + 1))
-    fi
-}
-
-assert_contains() {
-    local haystack="$1" needle="$2" msg="$3"
-    if [[ "$haystack" != *"$needle"* ]]; then
-        echo "FAIL: $msg" >&2
-        echo "  expected to contain: $needle" >&2
-        echo "  actual: $haystack" >&2
-        FAILURES=$((FAILURES + 1))
-    fi
-}
-
-test_docker_args_passes_contract_env() {
-    local out
-    out="$(ARTIFACT_ROOT=/tmp/runs docker_args pr-7 img:tag 'just test' 'data/italy')"
-    assert_contains "$out" "RUN_ID=pr-7" "run id passed as RUN_ID"
-    assert_contains "$out" "ARTIFACTS=data/italy" "artifacts passed as ARTIFACTS"
-    assert_contains "$out" "ARTIFACT_DIR=/artifacts" "artifact dir fixed inside the container"
-    assert_contains "$out" "/tmp/runs:/artifacts" "artifact root bind-mounted"
-    assert_contains "$out" "img:tag" "image included"
-    assert_contains "$out" "just test" "command included"
-}
-
-test_docker_args_joins_multiple_artifacts_with_newlines() {
-    local out
-    out="$(ARTIFACT_ROOT=/tmp/runs docker_args pr-7 img:tag 'just test' "$(printf 'data/italy\ndata/spain')")"
-    assert_contains "$out" "data/italy" "first artifact present"
-    assert_contains "$out" "data/spain" "second artifact present"
-}
-
-test_main_rejects_too_few_args() {
-    local out status
-    out="$(main pr-7 img:tag 2>&1)"; status=$?
-    assert_eq "2" "$status" "missing command exits 2"
-    assert_contains "$out" "usage:" "usage printed"
-}
-
-test_docker_args_passes_contract_env
-test_docker_args_joins_multiple_artifacts_with_newlines
-test_main_rejects_too_few_args
-
-if [[ $FAILURES -gt 0 ]]; then
-    echo "$FAILURES test(s) failed" >&2
-    exit 1
-fi
-echo "All tests passed."
-```
-
-- [ ] **Step 2: Run test to verify it fails**
-
-Run: `bash tests/scripts/test_platforms_local.sh`
-Expected: FAIL — `No such file or directory`.
-
-- [ ] **Step 3: Write minimal implementation**
+- [ ] **Step 1: Write the script**
 
 Create `scripts/agent/platforms/local.sh`:
 
@@ -551,160 +352,82 @@ set -euo pipefail
 
 ARTIFACT_ROOT="${ARTIFACT_ROOT:-$PWD/.runs}"
 
-docker_args() {
-    local run_id="$1" image="$2" command="$3" artifacts="$4"
-    printf '%s\n' \
-        run --rm \
-        -e "RUN_ID=$run_id" \
-        -e "ARTIFACTS=$artifacts" \
-        -e "ARTIFACT_DIR=/artifacts" \
-        -v "$ARTIFACT_ROOT:/artifacts" \
-        "$image" "$command"
-}
-
-main() {
-    if [ "$#" -lt 3 ]; then
-        echo "usage: local.sh <run-id> <image> <command> [artifact-path...]" >&2
-        return 2
-    fi
-    local run_id="$1" image="$2" command="$3"
-    shift 3
-    local artifacts=""
-    if [ "$#" -gt 0 ]; then
-        artifacts="$(printf '%s\n' "$@")"
-    fi
-    mkdir -p "$ARTIFACT_ROOT"
-    local args=()
-    while IFS= read -r line; do args+=("$line"); done < <(
-        docker_args "$run_id" "$image" "$command" "$artifacts"
-    )
-    docker "${args[@]}"
-}
-
-if [[ "${BASH_SOURCE[0]:-}" == "${0}" ]]; then
-    main "$@"
+if [ "$#" -lt 3 ]; then
+    echo "usage: local.sh <run-id> <image> <command> [artifact-path...]" >&2
+    exit 2
 fi
+
+RUN_ID="$1"
+IMAGE="$2"
+COMMAND="$3"
+shift 3
+
+ARTIFACTS=""
+if [ "$#" -gt 0 ]; then
+    ARTIFACTS="$(printf '%s\n' "$@")"
+fi
+
+mkdir -p "$ARTIFACT_ROOT"
+
+exec docker run --rm \
+    -e "RUN_ID=$RUN_ID" \
+    -e "ARTIFACTS=$ARTIFACTS" \
+    -e "ARTIFACT_DIR=/artifacts" \
+    -v "$ARTIFACT_ROOT:/artifacts" \
+    "$IMAGE" "$COMMAND"
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
-
-Run: `bash tests/scripts/test_platforms_local.sh`
-Expected: `All tests passed.`
-
-- [ ] **Step 5: Verify against the real image**
+- [ ] **Step 2: Verify argument handling**
 
 ```bash
+bash -n scripts/agent/platforms/local.sh
 chmod +x scripts/agent/platforms/local.sh
+scripts/agent/platforms/local.sh pr-7 img:tag; echo "exit=$?"
+```
+
+Expected: usage message, `exit=2`.
+
+- [ ] **Step 3: Verify a real run against the image from Task 2**
+
+```bash
 ARTIFACT_ROOT="$(mktemp -d)" scripts/agent/platforms/local.sh \
   pr-test highline-runner:test 'mkdir -p out && echo ok > out/f' out
+echo "exit=$?"
 ```
 
-Expected: exit 0, and `runs/pr-test/out/f` exists under the temp `ARTIFACT_ROOT`.
+Expected: `exit=0`, and `runs/pr-test/out/f` plus `runs/pr-test/run.log` exist under that `ARTIFACT_ROOT`.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 4: Verify a failing command propagates its status**
 
 ```bash
-git add scripts/agent/platforms/local.sh tests/scripts/test_platforms_local.sh
+ARTIFACT_ROOT="$(mktemp -d)" scripts/agent/platforms/local.sh \
+  pr-fail highline-runner:test 'exit 4'
+echo "exit=$?"
+```
+
+Expected: `exit=4`.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add scripts/agent/platforms/local.sh
 git commit -m "feat(platforms): add local docker runner"
 ```
 
 ---
 
-### Task 6: OVH platform script
+### Task 5: OVH platform script
 
 **Files:**
 - Create: `scripts/agent/platforms/ovh.sh`
-- Test: `tests/scripts/test_platforms_ovh.sh`
 
 **Interfaces:**
 - Consumes: the exact `ovhai` flags and JSON field paths recorded in Task 1; the entrypoint contract from Task 2.
-- Produces: `ovhai_args <run-id> <image> <command> <newline-separated-artifacts>` printing the submit argument list, `terminal_status <state>` mapping a state string to 0/1/2 (success/failure/still-running), and `main` with the shared platform signature.
+- Produces: `platforms/ovh.sh <run-id> <image> <command> [artifact-path...]`, submitting a job, polling to a terminal state, and exiting 0 only if the job finished cleanly.
 
-- [ ] **Step 1: Write the failing test**
+- [ ] **Step 1: Write the script**
 
-Create `tests/scripts/test_platforms_ovh.sh`:
-
-```bash
-#!/usr/bin/env bash
-# Tests for scripts/agent/platforms/ovh.sh.
-# Run directly: bash tests/scripts/test_platforms_ovh.sh
-set -uo pipefail
-
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-source "$REPO_ROOT/scripts/agent/platforms/ovh.sh"
-# The sourced script sets -e; turn it back off so tests can exercise failure
-# paths without aborting this shell.
-set +e
-
-FAILURES=0
-
-assert_eq() {
-    local expected="$1" actual="$2" msg="$3"
-    if [[ "$expected" != "$actual" ]]; then
-        echo "FAIL: $msg" >&2
-        echo "  expected: $expected" >&2
-        echo "  actual:   $actual" >&2
-        FAILURES=$((FAILURES + 1))
-    fi
-}
-
-assert_contains() {
-    local haystack="$1" needle="$2" msg="$3"
-    if [[ "$haystack" != *"$needle"* ]]; then
-        echo "FAIL: $msg" >&2
-        echo "  expected to contain: $needle" >&2
-        echo "  actual: $haystack" >&2
-        FAILURES=$((FAILURES + 1))
-    fi
-}
-
-test_ovhai_args_include_cpu_volume_and_env() {
-    local out
-    out="$(OVH_CPU=8 OVH_BUCKET=highline-runs OVH_REGION=GRA \
-        ovhai_args pr-7 img:tag 'just etl-chunk italy 8' 'data/italy')"
-    assert_contains "$out" "--cpu" "cpu flag present"
-    assert_contains "$out" "8" "cpu count present"
-    assert_contains "$out" "highline-runs@GRA:/artifacts:rw" "bucket attached read-write"
-    assert_contains "$out" "RUN_ID=pr-7" "run id passed"
-    assert_contains "$out" "ARTIFACTS=data/italy" "artifacts passed"
-    assert_contains "$out" "img:tag" "image present"
-}
-
-test_terminal_status_maps_states() {
-    terminal_status DONE; assert_eq "0" "$?" "DONE is success"
-    terminal_status FAILED; assert_eq "1" "$?" "FAILED is failure"
-    terminal_status ERROR; assert_eq "1" "$?" "ERROR is failure"
-    terminal_status TIMEOUT; assert_eq "1" "$?" "TIMEOUT is failure"
-    terminal_status RUNNING; assert_eq "2" "$?" "RUNNING is not terminal"
-    terminal_status PENDING; assert_eq "2" "$?" "PENDING is not terminal"
-}
-
-test_main_rejects_too_few_args() {
-    local out status
-    out="$(main pr-7 img:tag 2>&1)"; status=$?
-    assert_eq "2" "$status" "missing command exits 2"
-    assert_contains "$out" "usage:" "usage printed"
-}
-
-test_ovhai_args_include_cpu_volume_and_env
-test_terminal_status_maps_states
-test_main_rejects_too_few_args
-
-if [[ $FAILURES -gt 0 ]]; then
-    echo "$FAILURES test(s) failed" >&2
-    exit 1
-fi
-echo "All tests passed."
-```
-
-- [ ] **Step 2: Run test to verify it fails**
-
-Run: `bash tests/scripts/test_platforms_ovh.sh`
-Expected: FAIL — `No such file or directory`.
-
-- [ ] **Step 3: Write minimal implementation**
-
-Create `scripts/agent/platforms/ovh.sh`. Correct the flag spellings and the two `jq` paths against what Task 1 recorded if they differ from the values below:
+Create `scripts/agent/platforms/ovh.sh`. Correct the flag spellings and the two `jq` paths against what Task 1 recorded if they differ:
 
 ```bash
 #!/usr/bin/env bash
@@ -724,193 +447,104 @@ OVH_BUCKET="${OVH_BUCKET:-highline-runs}"
 OVH_REGION="${OVH_REGION:-GRA}"
 POLL_SECONDS="${POLL_SECONDS:-30}"
 
-ovhai_args() {
-    local run_id="$1" image="$2" command="$3" artifacts="$4"
-    printf '%s\n' \
-        job run \
-        --name "run-$run_id" \
+if [ "$#" -lt 3 ]; then
+    echo "usage: ovh.sh <run-id> <image> <command> [artifact-path...]" >&2
+    exit 2
+fi
+
+RUN_ID="$1"
+IMAGE="$2"
+COMMAND="$3"
+shift 3
+
+ARTIFACTS=""
+if [ "$#" -gt 0 ]; then
+    ARTIFACTS="$(printf '%s\n' "$@")"
+fi
+
+JOB_ID="$(
+    ovhai job run \
+        --name "run-$RUN_ID" \
         --cpu "$OVH_CPU" \
         --volume "$OVH_BUCKET@$OVH_REGION:/artifacts:rw" \
-        --env "RUN_ID=$run_id" \
-        --env "ARTIFACTS=$artifacts" \
+        --env "RUN_ID=$RUN_ID" \
+        --env "ARTIFACTS=$ARTIFACTS" \
         --env "ARTIFACT_DIR=/artifacts" \
         --output json \
-        "$image" -- "$command"
-}
+        "$IMAGE" -- "$COMMAND" | jq -r '.id'
+)"
+echo "submitted job $JOB_ID for $RUN_ID" >&2
 
-# 0 = finished ok, 1 = finished badly, 2 = not terminal yet
-terminal_status() {
-    case "$1" in
-    DONE) return 0 ;;
-    FAILED | ERROR | TIMEOUT | INTERRUPTED) return 1 ;;
-    *) return 2 ;;
+while true; do
+    STATE="$(ovhai job get "$JOB_ID" --output json | jq -r '.status.state')"
+    case "$STATE" in
+    DONE)
+        echo "job $JOB_ID finished: $STATE" >&2
+        exit 0
+        ;;
+    FAILED | ERROR | TIMEOUT | INTERRUPTED)
+        echo "job $JOB_ID finished: $STATE" >&2
+        echo "logs: ovhai job logs $JOB_ID" >&2
+        exit 1
+        ;;
     esac
-}
-
-wait_for_job() {
-    local job_id="$1" state status
-    while true; do
-        state="$(ovhai job get "$job_id" --output json | jq -r '.status.state')"
-        terminal_status "$state"
-        status=$?
-        if [ "$status" -ne 2 ]; then
-            echo "job $job_id finished: $state" >&2
-            return "$status"
-        fi
-        sleep "$POLL_SECONDS"
-    done
-}
-
-main() {
-    if [ "$#" -lt 3 ]; then
-        echo "usage: ovh.sh <run-id> <image> <command> [artifact-path...]" >&2
-        return 2
-    fi
-    local run_id="$1" image="$2" command="$3"
-    shift 3
-    local artifacts=""
-    if [ "$#" -gt 0 ]; then
-        artifacts="$(printf '%s\n' "$@")"
-    fi
-
-    local args=()
-    while IFS= read -r line; do args+=("$line"); done < <(
-        ovhai_args "$run_id" "$image" "$command" "$artifacts"
-    )
-
-    local job_id
-    job_id="$(ovhai "${args[@]}" | jq -r '.id')"
-    echo "submitted job $job_id for $run_id" >&2
-
-    wait_for_job "$job_id"
-}
-
-if [[ "${BASH_SOURCE[0]:-}" == "${0}" ]]; then
-    main "$@"
-fi
+    sleep "$POLL_SECONDS"
+done
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
-
-Run: `bash tests/scripts/test_platforms_ovh.sh`
-Expected: `All tests passed.`
-
-- [ ] **Step 5: Verify against real OVH with a cheap command**
+- [ ] **Step 2: Verify argument handling**
 
 ```bash
+bash -n scripts/agent/platforms/ovh.sh
 chmod +x scripts/agent/platforms/ovh.sh
-OVH_CPU=1 scripts/agent/platforms/ovh.sh \
-  smoke-1 ghcr.io/agsti/highline_scout/runner:sha-<short> \
-  'mkdir -p out && just --version > out/just.txt' out
+scripts/agent/platforms/ovh.sh pr-7 img:tag; echo "exit=$?"
 ```
 
-Expected: exits 0 within a few minutes, and `runs/smoke-1/out/just.txt` plus `run.log` appear in the bucket. Confirm with `ovhai job logs <job-id>` if it fails.
+Expected: usage message, `exit=2`.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 3: Smoke-run a cheap job on real OVH**
 
 ```bash
-git add scripts/agent/platforms/ovh.sh tests/scripts/test_platforms_ovh.sh
+OVH_CPU=1 OVH_BUCKET=<bucket> OVH_REGION=<region> \
+  scripts/agent/platforms/ovh.sh \
+  smoke-1 "ghcr.io/agsti/highline_scout/runner:sha-$(git rev-parse --short HEAD)" \
+  'mkdir -p out && just --version > out/just.txt' out
+echo "exit=$?"
+```
+
+Expected: `exit=0` within a few minutes; `runs/smoke-1/out/just.txt` and `run.log` appear in the bucket. If it fails, read `ovhai job logs <job-id>` — a pull failure means the package is still private (Task 3 Step 5).
+
+- [ ] **Step 4: Verify a failing job exits non-zero**
+
+```bash
+OVH_CPU=1 OVH_BUCKET=<bucket> OVH_REGION=<region> \
+  scripts/agent/platforms/ovh.sh \
+  smoke-fail "ghcr.io/agsti/highline_scout/runner:sha-$(git rev-parse --short HEAD)" \
+  'exit 4'
+echo "exit=$?"
+```
+
+Expected: `exit=1` (the script maps any bad terminal state to 1), with the state printed.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add scripts/agent/platforms/ovh.sh
 git commit -m "feat(platforms): add OVH AI Training runner"
 ```
 
 ---
 
-### Task 7: Local orchestrator
+### Task 6: Local orchestrator
 
 **Files:**
 - Create: `scripts/agent/run_pr.sh`
-- Test: `tests/scripts/test_run_pr.sh`
 
 **Interfaces:**
-- Consumes: `scripts/agent/agent_call.sh <agent>` (existing, prompt on stdin); the platform script signature from Tasks 5 and 6.
-- Produces: `build_prompt <pr-number> <platform> <image>` printing the orchestrator prompt, and `image_ref <pr-number>` printing `ghcr.io/agsti/highline_scout/runner:sha-<short-head-sha>`.
+- Consumes: `scripts/agent/agent_call.sh <agent>` (existing, prompt on stdin); the platform contract from Tasks 4 and 5.
+- Produces: `run_pr.sh <claude|codex|pi> <pr-number> <local|ovh>`, with `DRY_RUN=1` printing the prompt instead of invoking the agent.
 
-- [ ] **Step 1: Write the failing test**
-
-Create `tests/scripts/test_run_pr.sh`:
-
-```bash
-#!/usr/bin/env bash
-# Tests for scripts/agent/run_pr.sh.
-# Run directly: bash tests/scripts/test_run_pr.sh
-set -uo pipefail
-
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-source "$REPO_ROOT/scripts/agent/run_pr.sh"
-# The sourced script sets -e; turn it back off so tests can exercise failure
-# paths without aborting this shell.
-set +e
-
-FAILURES=0
-
-assert_eq() {
-    local expected="$1" actual="$2" msg="$3"
-    if [[ "$expected" != "$actual" ]]; then
-        echo "FAIL: $msg" >&2
-        echo "  expected: $expected" >&2
-        echo "  actual:   $actual" >&2
-        FAILURES=$((FAILURES + 1))
-    fi
-}
-
-assert_contains() {
-    local haystack="$1" needle="$2" msg="$3"
-    if [[ "$haystack" != *"$needle"* ]]; then
-        echo "FAIL: $msg" >&2
-        echo "  expected to contain: $needle" >&2
-        echo "  actual: $haystack" >&2
-        FAILURES=$((FAILURES + 1))
-    fi
-}
-
-test_build_prompt_names_platform_script_and_image() {
-    local out
-    out="$(build_prompt 42 ovh ghcr.io/agsti/highline_scout/runner:sha-abc1234)"
-    assert_contains "$out" "#42" "PR number stated"
-    assert_contains "$out" "scripts/agent/platforms/ovh.sh" "platform script named"
-    assert_contains "$out" "sha-abc1234" "pinned image passed through"
-    assert_contains "$out" "how to run" "prompt asks for the how-to-run section"
-    assert_contains "$out" "artifacts" "prompt asks for the artifacts section"
-}
-
-test_build_prompt_switches_platform_script() {
-    local out
-    out="$(build_prompt 42 local img:tag)"
-    assert_contains "$out" "scripts/agent/platforms/local.sh" "local platform script named"
-}
-
-test_main_rejects_unknown_platform() {
-    local out status
-    out="$(main pi 42 bogus 2>&1)"; status=$?
-    assert_eq "2" "$status" "unknown platform exits 2"
-    assert_contains "$out" "bogus" "offending platform named"
-}
-
-test_main_rejects_too_few_args() {
-    local out status
-    out="$(main pi 2>&1)"; status=$?
-    assert_eq "2" "$status" "missing platform exits 2"
-    assert_contains "$out" "usage:" "usage printed"
-}
-
-test_build_prompt_names_platform_script_and_image
-test_build_prompt_switches_platform_script
-test_main_rejects_unknown_platform
-test_main_rejects_too_few_args
-
-if [[ $FAILURES -gt 0 ]]; then
-    echo "$FAILURES test(s) failed" >&2
-    exit 1
-fi
-echo "All tests passed."
-```
-
-- [ ] **Step 2: Run test to verify it fails**
-
-Run: `bash tests/scripts/test_run_pr.sh`
-Expected: FAIL — `No such file or directory`.
-
-- [ ] **Step 3: Write minimal implementation**
+- [ ] **Step 1: Write the script**
 
 Create `scripts/agent/run_pr.sh`:
 
@@ -919,34 +553,44 @@ Create `scripts/agent/run_pr.sh`:
 # Run a PR's "how to run" section on a platform and report back on the PR.
 #
 # usage: run_pr.sh <claude|codex|pi> <pr-number> <local|ovh>
+#
+# Environment:
+#   DRY_RUN=1   print the prompt instead of invoking the agent
 set -euo pipefail
 
-GH_REPO="${GH_REPO:-}"
+if [ "$#" -lt 3 ]; then
+    echo "usage: run_pr.sh <claude|codex|pi> <pr-number> <local|ovh>" >&2
+    exit 2
+fi
+
+AGENT="$1"
+PR="$2"
+PLATFORM="$3"
+
+case "$PLATFORM" in
+local | ovh) ;;
+*)
+    echo "run_pr.sh: unknown platform '${PLATFORM}' (expected local or ovh)" >&2
+    exit 2
+    ;;
+esac
+
+# Honour GH_REPO if set, otherwise use the repo of the current directory.
+export GH_REPO="${GH_REPO:-$(gh repo view --json nameWithOwner --jq .nameWithOwner)}"
+
 SCRIPT_DIR="$(dirname "$0")"
 IMAGE_REPO="${IMAGE_REPO:-ghcr.io/agsti/highline_scout/runner}"
 
-# Resolved lazily, not at source time, so tests can source this file without
-# needing gh or a network round-trip.
-resolve_repo() {
-    [ -n "$GH_REPO" ] ||
-        GH_REPO="$(gh repo view --json nameWithOwner --jq .nameWithOwner)"
-    export GH_REPO
-}
+HEAD_SHA="$(gh pr view "$PR" --repo "$GH_REPO" --json headRefOid --jq '.headRefOid')"
+IMAGE="${IMAGE_REPO}:sha-${HEAD_SHA:0:7}"
 
-image_ref() {
-    local pr="$1" sha
-    sha="$(gh pr view "$pr" --repo "$GH_REPO" --json headRefOid --jq '.headRefOid')"
-    printf '%s:sha-%s' "$IMAGE_REPO" "${sha:0:7}"
-}
-
-build_prompt() {
-    local pr="$1" platform="$2" image="$3"
+PROMPT="$(
     cat <<EOF
-You are running the verification job for GitHub pull request #${pr}.
+You are running the verification job for GitHub pull request #${PR}.
 Read AGENTS.md.
 
 1. Read the PR body:
-   gh pr view ${pr} --repo ${GH_REPO} --json title,body
+   gh pr view ${PR} --repo ${GH_REPO} --json title,body
 
 2. Extract two things from it:
    - the "how to run" section: the exact commands, in order
@@ -955,87 +599,74 @@ Read AGENTS.md.
    missing, and exit non-zero. Do not guess.
 
 3. Schedule the job. The image is already built by CI; do not build anything:
-   ${SCRIPT_DIR}/platforms/${platform}.sh pr-${pr} ${image} "<command>" <artifact-path...>
+   ${SCRIPT_DIR}/platforms/${PLATFORM}.sh pr-${PR} ${IMAGE} "<command>" <artifact-path...>
    Join multiple how-to-run commands into a single shell command with &&.
    The script is synchronous and exits with the job's status.
 
 4. Report the outcome as a PR comment: pass or fail, how long it took, the
    artifact paths that were kept, and the tail of the log if it failed.
-   gh pr comment ${pr} --repo ${GH_REPO} --body "..."
+   gh pr comment ${PR} --repo ${GH_REPO} --body "..."
 
 5. Exit with the job's status.
 EOF
-}
+)"
 
-main() {
-    if [ "$#" -lt 3 ]; then
-        echo "usage: run_pr.sh <claude|codex|pi> <pr-number> <local|ovh>" >&2
-        return 2
-    fi
-    local agent="$1" pr="$2" platform="$3"
-
-    case "$platform" in
-    local | ovh) ;;
-    *)
-        echo "run_pr.sh: unknown platform '${platform}' (expected local or ovh)" >&2
-        return 2
-        ;;
-    esac
-
-    resolve_repo
-    local image
-    image="$(image_ref "$pr")"
-    build_prompt "$pr" "$platform" "$image" | "$SCRIPT_DIR/agent_call.sh" "$agent"
-}
-
-if [[ "${BASH_SOURCE[0]:-}" == "${0}" ]]; then
-    main "$@"
+if [ "${DRY_RUN:-}" = "1" ]; then
+    printf '%s\n' "$PROMPT"
+    exit 0
 fi
+
+printf '%s\n' "$PROMPT" | "$SCRIPT_DIR/agent_call.sh" "$AGENT"
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
-
-Run: `bash tests/scripts/test_run_pr.sh`
-Expected: `All tests passed.`
-
-Note: `test_main_rejects_unknown_platform` must reach the platform check before `image_ref` runs, so keep the `case` above the `image_ref` call.
-
-- [ ] **Step 5: Dry-run the prompt against a real PR**
+- [ ] **Step 2: Verify argument handling**
 
 ```bash
+bash -n scripts/agent/run_pr.sh
 chmod +x scripts/agent/run_pr.sh
-source scripts/agent/run_pr.sh
-build_prompt 42 ovh "$(image_ref 42)"
+scripts/agent/run_pr.sh pi; echo "exit=$?"
+scripts/agent/run_pr.sh pi 42 bogus; echo "exit=$?"
 ```
 
-Expected: a prompt naming PR #42, `platforms/ovh.sh`, and a `sha-` pinned image. Substitute any open PR number.
+Expected: usage message then `exit=2`; then an "unknown platform 'bogus'" message and `exit=2`. The platform check must come before any `gh` call so this second case costs no network round-trip.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 3: Inspect the generated prompt against a real PR**
 
 ```bash
-git add scripts/agent/run_pr.sh tests/scripts/test_run_pr.sh
+DRY_RUN=1 scripts/agent/run_pr.sh pi <open-pr-number> ovh
+```
+
+Expected: a prompt naming that PR, `platforms/ovh.sh`, `pr-<N>` as the run id, and a `sha-`-pinned image whose tag matches that PR's head SHA.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add scripts/agent/run_pr.sh
 git commit -m "feat(agent): add PR-run orchestrator"
 ```
 
 ---
 
-### Task 8: Require an artifacts section in generated PRs
+### Task 7: Require an artifacts section in generated PRs
 
 **Files:**
 - Modify: `scripts/agent/develop_issue.sh` (the heredoc prompt, near the "how to run" instruction)
 
 **Interfaces:**
 - Consumes: nothing.
-- Produces: PR bodies carrying an "artifacts" section, which Task 7's orchestrator requires.
+- Produces: PR bodies carrying an "artifacts" section, which Task 6's orchestrator requires.
 
 - [ ] **Step 1: Read the current prompt**
 
-Run: `cat scripts/agent/develop_issue.sh`
+```bash
+cat scripts/agent/develop_issue.sh
+```
+
 Locate the numbered instruction that asks for the "how to run" section.
 
 - [ ] **Step 2: Add the artifacts instruction**
 
-Immediately after the "how to run" instruction, insert:
+Immediately after the "how to run" instruction, insert a new numbered item:
 
 ```
 9. In the PR, add a section "artifacts" listing the repo-relative paths whose
@@ -1045,14 +676,14 @@ Immediately after the "how to run" instruction, insert:
 
 Renumber the following instruction so the list stays sequential.
 
-- [ ] **Step 3: Verify the script still parses and the prompt contains both sections**
+- [ ] **Step 3: Verify**
 
 ```bash
 bash -n scripts/agent/develop_issue.sh
 grep -n "how to run\|artifacts" scripts/agent/develop_issue.sh
 ```
 
-Expected: no syntax errors; both sections appear in the prompt.
+Expected: no syntax errors; both sections appear in the prompt, in order.
 
 - [ ] **Step 4: Commit**
 
@@ -1065,17 +696,9 @@ git commit -m "feat(agent): require an artifacts section in generated PRs"
 
 ## Verification
 
-After all tasks, from the repo root:
+End to end, once all tasks are done:
 
-```bash
-for t in tests/scripts/test_runner_entrypoint.sh \
-         tests/scripts/test_platforms_local.sh \
-         tests/scripts/test_platforms_ovh.sh \
-         tests/scripts/test_run_pr.sh; do
-    echo "== $t"; bash "$t" || echo "FAILED: $t"
-done
-```
-
-Expected: `All tests passed.` from each.
-
-End-to-end: open a PR with a how-to-run and an artifacts section, wait for CI to publish the runner image, then `scripts/agent/run_pr.sh pi <pr> ovh` and confirm a verdict comment lands on the PR with artifacts in the bucket.
+1. Open a PR with a how-to-run and an artifacts section.
+2. Wait for CI to publish `ghcr.io/agsti/highline_scout/runner:sha-<short>` for its head commit.
+3. `DRY_RUN=1 scripts/agent/run_pr.sh pi <pr> ovh` — confirm the prompt pins the right image.
+4. `scripts/agent/run_pr.sh pi <pr> ovh` — confirm a verdict comment lands on the PR and the declared artifacts appear under `runs/pr-<N>/` in the bucket.

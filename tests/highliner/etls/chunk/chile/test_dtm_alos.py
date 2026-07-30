@@ -49,6 +49,7 @@ def test_match_archive_finds_the_covering_region() -> None:
 
     found = dtm_alos._match_archive(bbox, "EPSG:32718")
 
+    assert found is not None
     assert found.name == entry.name
 
 
@@ -82,6 +83,7 @@ def test_match_archive_tolerates_halo_poking_past_the_declared_bbox() -> None:
 
     found = dtm_alos._match_archive(bbox, "EPSG:32719")
 
+    assert found is not None
     assert found.name == "tarapaca"
 
 

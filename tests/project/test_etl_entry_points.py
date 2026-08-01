@@ -8,8 +8,8 @@ import sys
 
 import pytest
 
-CHUNK_COUNTRIES = ("austria", "czechia", "france", "italy", "poland", "spain",
-                   "switzerland", "united_kingdom")
+CHUNK_COUNTRIES = ("austria", "czechia", "france", "french_polynesia", "italy",
+                   "poland", "spain", "switzerland", "united_kingdom")
 DENSITY_COUNTRIES = CHUNK_COUNTRIES
 RESTRICTION_COUNTRIES = tuple(c for c in CHUNK_COUNTRIES
                               if c != "united_kingdom")

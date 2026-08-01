@@ -1,0 +1,1 @@
+"""Andorra protected-area adapter."""

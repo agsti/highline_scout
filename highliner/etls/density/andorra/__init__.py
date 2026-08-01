@@ -1,0 +1,1 @@
+"""Andorra density adapter."""

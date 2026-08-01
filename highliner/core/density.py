@@ -12,6 +12,9 @@ LAYER_BITS = {
     "zps": 8,
     "zsc": 16,
     "euap": 32,
+    "pt_zpe": 64,
+    "pt_zec": 128,
+    "pt_rnap": 256,
 }
 
 

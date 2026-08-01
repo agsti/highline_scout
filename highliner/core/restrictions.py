@@ -10,6 +10,32 @@ class LayerSpec(TypedDict):
 
 
 LAYERS: dict[str, LayerSpec] = {
+    "pt_zpe": {
+        "label": "ZPE (Birds)", "color": "#e31a1c",
+        "tooltip": ("Special Protection Area for Birds - Natura 2000 (EU Birds "
+                    "Directive; Portuguese ZPE). Cliffs may have seasonal closures "
+                    "for raptor nesting; check with ICNF before rigging."),
+        "highlight": ("Cliffs may have seasonal closures for raptor nesting; check "
+                      "with ICNF before rigging."),
+    },
+    "pt_zec": {
+        "label": "ZEC / SIC", "color": "#ff7f00",
+        "tooltip": ("Special Area of Conservation / Site of Community Importance "
+                    "- Natura 2000 (EU Habitats Directive; Portuguese ZEC/SIC). "
+                    "Activities that may harm protected habitats can be regulated "
+                    "and may require an environmental assessment."),
+        "highlight": ("Activities that may harm protected habitats can be regulated "
+                      "and may require an environmental assessment."),
+    },
+    "pt_rnap": {
+        "label": "Protected Areas (RNAP)", "color": "#6a3d9a",
+        "tooltip": ("Portuguese National Network of Protected Areas (RNAP), such "
+                    "as parks, reserves and natural monuments. Access, anchoring, "
+                    "climbing and organized activity may be regulated; check with "
+                    "ICNF before rigging."),
+        "highlight": ("Access, anchoring, climbing and organized activity may be "
+                      "regulated; check with ICNF before rigging."),
+    },
     "zepa": {
         "label": "ZEPA (Birds)",
         "color": "#e31a1c",

@@ -1,0 +1,1 @@
+"""Belgium protected-area adapter."""

@@ -1,0 +1,1 @@
+"""Australian density ETL adapter."""

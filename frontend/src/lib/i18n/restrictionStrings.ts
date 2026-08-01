@@ -92,6 +92,13 @@ export const RESTRICTION_STRINGS: Partial<Record<Lang, Record<string, Restrictio
       highlight:
         "El highline no está prohibido automáticamente en todo el parque, pero las zonas protegidas y las normas locales pueden regular el acceso, los anclajes y las actividades organizadas; consulta a la dirección del parque antes de instalar.",
     },
+    ca_protected: {
+      label: "Áreas protegidas y conservadas de Canadá",
+      tooltip:
+        "Área protegida o conservada de la base de datos nacional CPCAD de Canadá. El acceso, la escalada, los anclajes, la acampada y las actividades organizadas pueden estar regulados por la autoridad indígena, federal, provincial, territorial o local responsable; consulta las normas específicas antes de instalar.",
+      highlight:
+        "El acceso, la escalada, los anclajes, la acampada y las actividades organizadas pueden estar regulados por la autoridad indígena, federal, provincial, territorial o local responsable; consulta las normas específicas antes de instalar.",
+    },
   },
   ca: {
     zepa: {
@@ -177,6 +184,13 @@ export const RESTRICTION_STRINGS: Partial<Record<Lang, Record<string, Restrictio
         "Parc Nacional Suís o parc d'importància nacional. El highline no està prohibit automàticament a tot el parc, però les zones protegides i les normes locals poden regular l'accés, els ancoratges i les activitats organitzades; consulteu la direcció del parc abans d'instal·lar.",
       highlight:
         "El highline no està prohibit automàticament a tot el parc, però les zones protegides i les normes locals poden regular l'accés, els ancoratges i les activitats organitzades; consulteu la direcció del parc abans d'instal·lar.",
+    },
+    ca_protected: {
+      label: "Àrees protegides i conservades del Canadà",
+      tooltip:
+        "Àrea protegida o conservada de la base de dades nacional CPCAD del Canadà. L'accés, l'escalada, els ancoratges, l'acampada i les activitats organitzades poden estar regulats per l'autoritat indígena, federal, provincial, territorial o local responsable; consulteu les normes específiques abans d'instal·lar.",
+      highlight:
+        "L'accés, l'escalada, els ancoratges, l'acampada i les activitats organitzades poden estar regulats per l'autoritat indígena, federal, provincial, territorial o local responsable; consulteu les normes específiques abans d'instal·lar.",
     },
   },
 };

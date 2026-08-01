@@ -12,6 +12,7 @@ LAYER_BITS = {
     "zps": 8,
     "zsc": 16,
     "euap": 32,
+    "id_kawasan_konservasi": 64,
 }
 
 

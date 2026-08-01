@@ -92,6 +92,13 @@ export const RESTRICTION_STRINGS: Partial<Record<Lang, Record<string, Restrictio
       highlight:
         "El highline no está prohibido automáticamente en todo el parque, pero las zonas protegidas y las normas locales pueden regular el acceso, los anclajes y las actividades organizadas; consulta a la dirección del parque antes de instalar.",
     },
+    la_protected_areas: {
+      label: "Áreas protegidas de Laos",
+      tooltip:
+        "Área protegida nacional, bosque de protección o bosque de producción de Laos. El acceso, la escalada, la acampada y otras actividades recreativas pueden estar regulados; consulta a la autoridad local competente antes de instalar.",
+      highlight:
+        "El acceso, la escalada, la acampada y otras actividades recreativas pueden estar regulados; consulta a la autoridad local competente antes de instalar.",
+    },
   },
   ca: {
     zepa: {
@@ -177,6 +184,13 @@ export const RESTRICTION_STRINGS: Partial<Record<Lang, Record<string, Restrictio
         "Parc Nacional Suís o parc d'importància nacional. El highline no està prohibit automàticament a tot el parc, però les zones protegides i les normes locals poden regular l'accés, els ancoratges i les activitats organitzades; consulteu la direcció del parc abans d'instal·lar.",
       highlight:
         "El highline no està prohibit automàticament a tot el parc, però les zones protegides i les normes locals poden regular l'accés, els ancoratges i les activitats organitzades; consulteu la direcció del parc abans d'instal·lar.",
+    },
+    la_protected_areas: {
+      label: "Àrees protegides de Laos",
+      tooltip:
+        "Àrea protegida nacional, bosc de protecció o bosc de producció de Laos. L'accés, l'escalada, l'acampada i altres activitats recreatives poden estar regulats; consulteu l'autoritat local competent abans d'instal·lar.",
+      highlight:
+        "L'accés, l'escalada, l'acampada i altres activitats recreatives poden estar regulats; consulteu l'autoritat local competent abans d'instal·lar.",
     },
   },
 };

@@ -1,0 +1,1 @@
+"""Andorra chunk-precompute adapter."""

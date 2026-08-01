@@ -92,6 +92,13 @@ export const RESTRICTION_STRINGS: Partial<Record<Lang, Record<string, Restrictio
       highlight:
         "El highline no está prohibido automáticamente en todo el parque, pero las zonas protegidas y las normas locales pueden regular el acceso, los anclajes y las actividades organizadas; consulta a la dirección del parque antes de instalar.",
     },
+    ad_natural_parks: {
+      label: "Parques naturales de Andorra",
+      tooltip:
+        "Parque natural comunal andorrano (Comapedrosa o Sorteny). El highline no está prohibido automáticamente, pero el acceso, los anclajes, el vivac, los drones y las actividades organizadas pueden estar regulados; consulta a la dirección del parque antes de instalar.",
+      highlight:
+        "El highline no está prohibido automáticamente, pero el acceso, los anclajes, el vivac, los drones y las actividades organizadas pueden estar regulados; consulta a la dirección del parque antes de instalar.",
+    },
   },
   ca: {
     zepa: {
@@ -177,6 +184,13 @@ export const RESTRICTION_STRINGS: Partial<Record<Lang, Record<string, Restrictio
         "Parc Nacional Suís o parc d'importància nacional. El highline no està prohibit automàticament a tot el parc, però les zones protegides i les normes locals poden regular l'accés, els ancoratges i les activitats organitzades; consulteu la direcció del parc abans d'instal·lar.",
       highlight:
         "El highline no està prohibit automàticament a tot el parc, però les zones protegides i les normes locals poden regular l'accés, els ancoratges i les activitats organitzades; consulteu la direcció del parc abans d'instal·lar.",
+    },
+    ad_natural_parks: {
+      label: "Parcs naturals d'Andorra",
+      tooltip:
+        "Parc natural comunal andorrà (Comapedrosa o Sorteny). El highline no està prohibit automàticament, però l'accés, els ancoratges, el vivac, els drons i les activitats organitzades poden estar regulats; consulteu la direcció del parc abans d'instal·lar.",
+      highlight:
+        "El highline no està prohibit automàticament, però l'accés, els ancoratges, el vivac, els drons i les activitats organitzades poden estar regulats; consulteu la direcció del parc abans d'instal·lar.",
     },
   },
 };

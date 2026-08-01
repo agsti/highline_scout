@@ -44,9 +44,12 @@ COPY justfile pyproject.toml ./
 COPY scripts/runner/entrypoint.sh /app/entrypoint.sh
 
 ENV PATH="/app/.venv/bin:$PATH" \
+    UV_CACHE_DIR=/app/.cache/uv \
     PYTHONUNBUFFERED=1
 
-RUN mkdir -p /artifacts && chmod 0777 /app /artifacts
+RUN mkdir -p /artifacts /app/.cache/uv \
+    && chmod -R a+rwX /app/.venv \
+    && chmod 0777 /app /artifacts /app/.cache /app/.cache/uv
 
 ENTRYPOINT ["/app/entrypoint.sh"]
 

@@ -1,0 +1,1 @@
+"""Portugal chunk adapter tests."""

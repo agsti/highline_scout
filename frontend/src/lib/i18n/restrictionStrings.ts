@@ -8,6 +8,27 @@ export interface RestrictionText {
 
 export const RESTRICTION_STRINGS: Partial<Record<Lang, Record<string, RestrictionText>>> = {
   es: {
+    pt_zpe: {
+      label: "ZPE (Aves)",
+      tooltip:
+        "Zona de Protección Especial para las Aves — Natura 2000 (Directiva Aves; ZPE portuguesa). Los cortados pueden tener cierres estacionales por la nidificación de rapaces; consulta al ICNF antes de instalar.",
+      highlight:
+        "Los cortados pueden tener cierres estacionales por la nidificación de rapaces; consulta al ICNF antes de instalar.",
+    },
+    pt_zec: {
+      label: "ZEC / SIC",
+      tooltip:
+        "Zona Especial de Conservación / Lugar de Importancia Comunitaria — Natura 2000 (Directiva Hábitats; ZEC/SIC portuguesa). Las actividades que puedan dañar hábitats protegidos pueden estar reguladas y requerir evaluación ambiental.",
+      highlight:
+        "Las actividades que puedan dañar hábitats protegidos pueden estar reguladas y requerir evaluación ambiental.",
+    },
+    pt_rnap: {
+      label: "Áreas protegidas (RNAP)",
+      tooltip:
+        "Red Nacional de Áreas Protegidas portuguesa (RNAP), como parques, reservas y monumentos naturales. El acceso, los anclajes, la escalada y las actividades organizadas pueden estar regulados; consulta al ICNF antes de instalar.",
+      highlight:
+        "El acceso, los anclajes, la escalada y las actividades organizadas pueden estar regulados; consulta al ICNF antes de instalar.",
+    },
     zepa: {
       label: "ZEPA (Aves)",
       tooltip:
@@ -94,6 +115,27 @@ export const RESTRICTION_STRINGS: Partial<Record<Lang, Record<string, Restrictio
     },
   },
   ca: {
+    pt_zpe: {
+      label: "ZPE (Aus)",
+      tooltip:
+        "Zona de Protecció Especial per a les Aus — Natura 2000 (Directiva Aus; ZPE portuguesa). Els cingles poden tenir tancaments estacionals per la nidificació de rapinyaires; consulteu l'ICNF abans d'instal·lar.",
+      highlight:
+        "Els cingles poden tenir tancaments estacionals per la nidificació de rapinyaires; consulteu l'ICNF abans d'instal·lar.",
+    },
+    pt_zec: {
+      label: "ZEC / SIC",
+      tooltip:
+        "Zona Especial de Conservació / Lloc d'Importància Comunitària — Natura 2000 (Directiva Hàbitats; ZEC/SIC portuguesa). Les activitats que puguin malmetre hàbitats protegits poden estar regulades i requerir avaluació ambiental.",
+      highlight:
+        "Les activitats que puguin malmetre hàbitats protegits poden estar regulades i requerir avaluació ambiental.",
+    },
+    pt_rnap: {
+      label: "Àrees protegides (RNAP)",
+      tooltip:
+        "Xarxa Nacional d'Àrees Protegides portuguesa (RNAP), com parcs, reserves i monuments naturals. L'accés, els ancoratges, l'escalada i les activitats organitzades poden estar regulats; consulteu l'ICNF abans d'instal·lar.",
+      highlight:
+        "L'accés, els ancoratges, l'escalada i les activitats organitzades poden estar regulats; consulteu l'ICNF abans d'instal·lar.",
+    },
     zepa: {
       label: "ZEPA (Aus)",
       tooltip:

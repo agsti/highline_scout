@@ -1,0 +1,1 @@
+"""Portugal density adapter tests."""

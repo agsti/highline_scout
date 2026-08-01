@@ -1,0 +1,1 @@
+"""Laos density ETL adapter."""

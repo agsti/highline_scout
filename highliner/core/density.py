@@ -12,6 +12,7 @@ LAYER_BITS = {
     "zps": 8,
     "zsc": 16,
     "euap": 32,
+    "la_protected_areas": 64,
 }
 
 

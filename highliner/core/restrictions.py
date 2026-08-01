@@ -168,4 +168,15 @@ LAYERS: dict[str, LayerSpec] = {
                       "access, anchoring and organized activity; check with "
                       "park management before rigging."),
     },
+    "la_protected_areas": {
+        "label": "Laos Protected Areas",
+        "color": "#33a02c",
+        "tooltip": ("Laos national protected area, protection forest or production "
+                    "forest. Access, climbing, camping and other recreational "
+                    "activity can be regulated; check the relevant local authority "
+                    "before rigging."),
+        "highlight": ("Access, climbing, camping and other recreational activity "
+                      "can be regulated; check the relevant local authority before "
+                      "rigging."),
+    },
 }

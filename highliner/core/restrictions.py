@@ -88,6 +88,17 @@ LAYERS: dict[str, LayerSpec] = {
                       "often regulated and may need authorization from the "
                       "managing body."),
     },
+    "mx_anp": {
+        "label": "Federal Protected Natural Areas (CONANP)",
+        "color": "#6a3d9a",
+        "tooltip": ("Federal protected natural area designated by Mexico's "
+                    "CONANP. Access, climbing, anchors, bivouacking and events "
+                    "may be regulated by the area's decree and management plan; "
+                    "check with the protected-area administration before rigging."),
+        "highlight": ("Access, climbing, anchors, bivouacking and events may be "
+                      "regulated by the area's decree and management plan; check "
+                      "with the protected-area administration before rigging."),
+    },
     # France. Same semantics as the Spanish and Italian layers above (birds /
     # habitats / national protected areas), so they share those layers'
     # colors — the countries never overlap on the map.

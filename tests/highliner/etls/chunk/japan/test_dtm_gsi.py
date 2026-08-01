@@ -9,6 +9,16 @@ from highliner.etls.chunk.dtm_core import NODATA
 from highliner.etls.chunk.japan import dtm_gsi
 
 
+class _Response:
+    def __init__(self, status_code: int, content: bytes = b"") -> None:
+        self.status_code = status_code
+        self.content = content
+
+    def raise_for_status(self) -> None:
+        if self.status_code >= 400:
+            raise requests.HTTPError()
+
+
 def test_gsi_rgb_decoder_handles_signed_heights_and_nodata() -> None:
     rgb = np.array([[[0, 128]], [[1, 0]], [[244, 0]]], dtype="uint8")
     decoded = dtm_gsi._decode(rgb)
@@ -25,9 +35,8 @@ def test_gsi_tile_range_covers_tiles_on_both_sides_of_equator_and_meridian() -> 
 
 def test_gsi_missing_tile_writes_a_nodata_raster(
         monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    response = requests.Response()
-    response.status_code = 404
-    monkeypatch.setattr(dtm_gsi.requests, "get", lambda *args, **kwargs: response)
+    response = _Response(404)
+    monkeypatch.setattr(requests, "get", lambda *args, **kwargs: response)
     dest = tmp_path / "missing.tif"
 
     assert dtm_gsi._download(1, 2, dest, "EPSG:3857") == dest
@@ -39,12 +48,9 @@ def test_gsi_missing_tile_writes_a_nodata_raster(
 
 def test_gsi_present_tile_is_written_with_the_requested_crs(
         monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    response = requests.Response()
-    response.status_code = 200
-    response._content = b"png"
-    response._content_consumed = True
+    response = _Response(200, b"png")
     written: list[tuple[bytes, int, int, Path, str]] = []
-    monkeypatch.setattr(dtm_gsi.requests, "get", lambda *args, **kwargs: response)
+    monkeypatch.setattr(requests, "get", lambda *args, **kwargs: response)
     monkeypatch.setattr(dtm_gsi, "_write_tile",
                         lambda *args: written.append(args))
     dest = tmp_path / "present.tif"

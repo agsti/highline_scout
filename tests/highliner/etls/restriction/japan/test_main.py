@@ -47,7 +47,7 @@ def test_japan_load_source_assigns_wgs84_when_source_crs_is_missing(
     layer_dir = tmp_path / "jp_national_parks"
     layer_dir.mkdir()
     (layer_dir / "areas.shp").touch()
-    monkeypatch.setattr(japan.gpd, "read_file", lambda path: source)
+    monkeypatch.setattr(gpd, "read_file", lambda path: source)
 
     loaded = japan._load_source("jp_national_parks", tmp_path)
 

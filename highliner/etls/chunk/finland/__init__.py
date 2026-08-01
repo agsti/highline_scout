@@ -1,0 +1,1 @@
+"""Finland chunk-precompute adapter."""

@@ -184,7 +184,7 @@ def _write_zoom(path: Path, zoom: int, cells: dict[CellKey, CellSummary],
         off=off,
         hl=np.array([key[0] for key, _ in flat], dtype=np.int16),
         he=np.array([key[1] for key, _ in flat], dtype=np.int16),
-        hm=np.array([key[2] for key, _ in flat], dtype=np.int8),
+        hm=np.array([key[2] for key, _ in flat], dtype=np.int16),
         hc=np.array([value for _, value in flat], dtype=np.int32),
     )
     return len(keys)

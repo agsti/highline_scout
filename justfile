@@ -95,9 +95,10 @@ etl-chunk country concurrency *args:
     set -uo pipefail
     attempt=1
     until uv run python -m highliner.etls.chunk.{{country}} --workers {{concurrency}} {{args}}; do
-        echo "etl-chunk {{country}}: attempt ${attempt} exited non-zero; resuming in 15s (Ctrl-C to stop)..." >&2
+        delay=$((15 * attempt))
+        echo "etl-chunk {{country}}: attempt ${attempt} exited non-zero; resuming in ${delay}s (Ctrl-C to stop)..." >&2
         attempt=$((attempt + 1))
-        sleep 15
+        sleep "$delay"
     done
 
 etl-density country concurrency:

@@ -168,4 +168,15 @@ LAYERS: dict[str, LayerSpec] = {
                       "access, anchoring and organized activity; check with "
                       "park management before rigging."),
     },
+    "id_kawasan_konservasi": {
+        "label": "Indonesian Conservation Areas",
+        "color": "#6a3d9a",
+        "tooltip": ("Indonesian conservation area (Kawasan Konservasi). "
+                    "Access, climbing, camping and other recreational activity "
+                    "can be restricted by the management authority; check local "
+                    "rules and obtain permission before rigging."),
+        "highlight": ("Access, climbing, camping and other recreational activity "
+                      "can be restricted by the management authority; check local "
+                      "rules and obtain permission before rigging."),
+    },
 }

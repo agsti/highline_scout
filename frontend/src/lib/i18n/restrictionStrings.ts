@@ -92,6 +92,13 @@ export const RESTRICTION_STRINGS: Partial<Record<Lang, Record<string, Restrictio
       highlight:
         "El highline no está prohibido automáticamente en todo el parque, pero las zonas protegidas y las normas locales pueden regular el acceso, los anclajes y las actividades organizadas; consulta a la dirección del parque antes de instalar.",
     },
+    id_kawasan_konservasi: {
+      label: "Áreas de conservación de Indonesia",
+      tooltip:
+        "Área de conservación de Indonesia (Kawasan Konservasi). El acceso, la escalada, el vivac y otras actividades recreativas pueden estar restringidos por la autoridad gestora; consulta las normas locales y consigue permiso antes de instalar.",
+      highlight:
+        "El acceso, la escalada, el vivac y otras actividades recreativas pueden estar restringidos por la autoridad gestora; consulta las normas locales y consigue permiso antes de instalar.",
+    },
   },
   ca: {
     zepa: {
@@ -177,6 +184,13 @@ export const RESTRICTION_STRINGS: Partial<Record<Lang, Record<string, Restrictio
         "Parc Nacional Suís o parc d'importància nacional. El highline no està prohibit automàticament a tot el parc, però les zones protegides i les normes locals poden regular l'accés, els ancoratges i les activitats organitzades; consulteu la direcció del parc abans d'instal·lar.",
       highlight:
         "El highline no està prohibit automàticament a tot el parc, però les zones protegides i les normes locals poden regular l'accés, els ancoratges i les activitats organitzades; consulteu la direcció del parc abans d'instal·lar.",
+    },
+    id_kawasan_konservasi: {
+      label: "Àrees de conservació d'Indonèsia",
+      tooltip:
+        "Àrea de conservació d'Indonèsia (Kawasan Konservasi). L'accés, l'escalada, el vivac i altres activitats recreatives poden estar restringits per l'autoritat gestora; consulteu les normes locals i obteniu permís abans d'instal·lar.",
+      highlight:
+        "L'accés, l'escalada, el vivac i altres activitats recreatives poden estar restringits per l'autoritat gestora; consulteu les normes locals i obteniu permís abans d'instal·lar.",
     },
   },
 };

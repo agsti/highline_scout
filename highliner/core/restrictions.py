@@ -168,4 +168,17 @@ LAYERS: dict[str, LayerSpec] = {
                       "access, anchoring and organized activity; check with "
                       "park management before rigging."),
     },
+    "ca_protected": {
+        "label": "Canadian Protected and Conserved Areas",
+        "color": "#6a3d9a",
+        "tooltip": ("Protected or conserved area in Canada's CPCAD national "
+                    "database. Access, climbing, anchoring, camping and "
+                    "organized activity can be regulated by the responsible "
+                    "Indigenous, federal, provincial, territorial or local "
+                    "authority; check site-specific rules before rigging."),
+        "highlight": ("Access, climbing, anchoring, camping and organized "
+                      "activity can be regulated by the responsible Indigenous, "
+                      "federal, provincial, territorial or local authority; "
+                      "check site-specific rules before rigging."),
+    },
 }

@@ -32,7 +32,7 @@ def download_sources(raw_dir: Path) -> None:
     raw_dir.mkdir(parents=True, exist_ok=True)
     for layer, url in SOURCE_URLS.items():
         dest = raw_dir / layer
-        if list(dest.glob("*.shp")):
+        if list(dest.rglob("*.shp")):
             continue
         archive = raw_dir / f"{layer}.zip"
         if not archive.exists():

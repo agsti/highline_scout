@@ -21,6 +21,9 @@ LAYER_BITS = {
     "cl_snaspe": 4096,
     "cl_santuario": 8192,
     "cl_conservacion_privada": 16384,
+    "dk_spa": 32768,
+    "dk_sac": 65536,
+    "dk_protected": 131072,
 }
 
 

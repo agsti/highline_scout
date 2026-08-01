@@ -113,6 +113,21 @@ export const RESTRICTION_STRINGS: Partial<Record<Lang, Record<string, Restrictio
       highlight:
         "El acceso, el camping y la instalación dependen del propietario, no de un organismo público; consigue su permiso antes de instalar.",
     },
+    dk_spa: {
+      label: "ZEPA (Dinamarca)",
+      tooltip: "Zona danesa de Especial Protección para las Aves (Natura 2000, Directiva Aves). Los acantilados y peñascos costeros pueden tener restricciones estacionales de acceso para evitar molestias a aves nidificantes; confirma las normas locales antes de instalar.",
+      highlight: "Los acantilados y peñascos costeros pueden tener restricciones estacionales de acceso para evitar molestias a aves nidificantes; confirma las normas locales antes de instalar.",
+    },
+    dk_sac: {
+      label: "ZEC (Dinamarca)",
+      tooltip: "Zona danesa de Especial Conservación (Natura 2000, Directiva Hábitats). La instalación o el acceso que dañe un hábitat protegido puede estar regulado; consulta el plan de gestión antes de instalar.",
+      highlight: "La instalación o el acceso que dañe un hábitat protegido puede estar regulado; consulta el plan de gestión antes de instalar.",
+    },
+    dk_protected: {
+      label: "Áreas protegidas (Dinamarca)",
+      tooltip: "Área danesa protegida a nivel nacional. Su orden de protección puede restringir el acceso, la escalada, los anclajes fijos, el vivac y las actividades organizadas; consulta a la autoridad responsable antes de instalar.",
+      highlight: "Su orden de protección puede restringir el acceso, la escalada, los anclajes fijos, el vivac y las actividades organizadas; consulta a la autoridad responsable antes de instalar.",
+    },
   },
   ca: {
     zepa: {
@@ -219,6 +234,21 @@ export const RESTRICTION_STRINGS: Partial<Record<Lang, Record<string, Restrictio
         "Terreny de conservació privat o comunitari, o altre terreny estatal protegit fora del SNASPE. L'accés, l'acampada i la instal·lació depenen del propietari, no d'un organisme públic; aconseguiu el seu permís abans d'instal·lar.",
       highlight:
         "L'accés, l'acampada i la instal·lació depenen del propietari, no d'un organisme públic; aconseguiu el seu permís abans d'instal·lar.",
+    },
+    dk_spa: {
+      label: "ZEPA (Dinamarca)",
+      tooltip: "Zona danesa d'Especial Protecció per a les Aus (Natura 2000, Directiva Aus). Els penya-segats i cingles costaners poden tenir restriccions estacionals d'accés per evitar molèsties a les aus nidificants; confirmeu les normes locals abans d'instal·lar.",
+      highlight: "Els penya-segats i cingles costaners poden tenir restriccions estacionals d'accés per evitar molèsties a les aus nidificants; confirmeu les normes locals abans d'instal·lar.",
+    },
+    dk_sac: {
+      label: "ZEC (Dinamarca)",
+      tooltip: "Zona danesa d'Especial Conservació (Natura 2000, Directiva Hàbitats). La instal·lació o l'accés que malmeti un hàbitat protegit pot estar regulat; consulteu el pla de gestió abans d'instal·lar.",
+      highlight: "La instal·lació o l'accés que malmeti un hàbitat protegit pot estar regulat; consulteu el pla de gestió abans d'instal·lar.",
+    },
+    dk_protected: {
+      label: "Àrees protegides (Dinamarca)",
+      tooltip: "Àrea danesa protegida a escala nacional. La seva ordre de protecció pot restringir l'accés, l'escalada, els ancoratges fixos, el vivac i les activitats organitzades; consulteu l'autoritat responsable abans d'instal·lar.",
+      highlight: "La seva ordre de protecció pot restringir l'accés, l'escalada, els ancoratges fixos, el vivac i les activitats organitzades; consulteu l'autoritat responsable abans d'instal·lar.",
     },
   },
 };

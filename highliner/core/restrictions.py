@@ -47,6 +47,19 @@ LAYERS: dict[str, LayerSpec] = {
                       "often regulated and may need authorization from the "
                       "managing body."),
     },
+    "au_capad": {
+        "label": "Australian Protected Areas (CAPAD)",
+        "color": "#6a3d9a",
+        "tooltip": ("Commonwealth Collaborative Australian Protected Areas "
+                    "Database (CAPAD) protected area. Access, climbing, "
+                    "anchoring, camping and organised activities can be "
+                    "regulated under the site management plan; check with the "
+                    "relevant land manager before rigging."),
+        "highlight": ("Access, climbing, anchoring, camping and organised "
+                      "activities can be regulated under the site management "
+                      "plan; check with the relevant land manager before "
+                      "rigging."),
+    },
     # Italy. Same semantics as the Spanish layers above (birds / habitats /
     # national protected areas), so they share those layers' colors — the two
     # countries never overlap on the map.

@@ -1,0 +1,1 @@
+"""Malta chunk-precompute adapter."""

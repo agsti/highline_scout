@@ -38,6 +38,7 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /app/.venv /app/.venv
+COPY --from=builder /usr/local/bin/uv /usr/local/bin/uv
 COPY highliner ./highliner
 COPY justfile pyproject.toml ./
 COPY scripts/runner/entrypoint.sh /app/entrypoint.sh

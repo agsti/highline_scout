@@ -1,0 +1,1 @@
+"""Mexico protected-area adapter."""

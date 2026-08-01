@@ -92,6 +92,13 @@ export const RESTRICTION_STRINGS: Partial<Record<Lang, Record<string, Restrictio
       highlight:
         "El highline no está prohibido automáticamente en todo el parque, pero las zonas protegidas y las normas locales pueden regular el acceso, los anclajes y las actividades organizadas; consulta a la dirección del parque antes de instalar.",
     },
+    mx_anp: {
+      label: "Áreas naturales protegidas federales (CONANP)",
+      tooltip:
+        "Área natural protegida federal designada por la CONANP de México. El acceso, la escalada, los anclajes, el vivac y los eventos pueden estar regulados por el decreto y el plan de gestión; consulta a la administración del espacio antes de instalar.",
+      highlight:
+        "El acceso, la escalada, los anclajes, el vivac y los eventos pueden estar regulados por el decreto y el plan de gestión; consulta a la administración del espacio antes de instalar.",
+    },
   },
   ca: {
     zepa: {
@@ -177,6 +184,13 @@ export const RESTRICTION_STRINGS: Partial<Record<Lang, Record<string, Restrictio
         "Parc Nacional Suís o parc d'importància nacional. El highline no està prohibit automàticament a tot el parc, però les zones protegides i les normes locals poden regular l'accés, els ancoratges i les activitats organitzades; consulteu la direcció del parc abans d'instal·lar.",
       highlight:
         "El highline no està prohibit automàticament a tot el parc, però les zones protegides i les normes locals poden regular l'accés, els ancoratges i les activitats organitzades; consulteu la direcció del parc abans d'instal·lar.",
+    },
+    mx_anp: {
+      label: "Àrees naturals protegides federals (CONANP)",
+      tooltip:
+        "Àrea natural protegida federal designada per la CONANP de Mèxic. L'accés, l'escalada, els ancoratges, el vivac i els esdeveniments poden estar regulats pel decret i el pla de gestió; consulteu l'administració de l'espai abans d'instal·lar.",
+      highlight:
+        "L'accés, l'escalada, els ancoratges, el vivac i els esdeveniments poden estar regulats pel decret i el pla de gestió; consulteu l'administració de l'espai abans d'instal·lar.",
     },
   },
 };

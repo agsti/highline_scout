@@ -29,6 +29,13 @@ export const RESTRICTION_STRINGS: Partial<Record<Lang, Record<string, Restrictio
       highlight:
         "La escalada, el vivac, los drones y los actos organizados suelen estar regulados y pueden necesitar autorización del órgano gestor.",
     },
+    pf_protected: {
+      label: "Áreas protegidas (Polinesia Francesa)",
+      tooltip:
+        "Área natural protegida de la Polinesia Francesa, incluido un humedal Ramsar o una reserva de biosfera de la UNESCO. Las normas de acceso y de protección de la fauna pueden limitar la escalada, los anclajes o las actividades organizadas; consulta al órgano gestor local antes de instalar.",
+      highlight:
+        "Las normas de acceso y de protección de la fauna pueden limitar la escalada, los anclajes o las actividades organizadas; consulta al órgano gestor local antes de instalar.",
+    },
     zps: {
       label: "ZPS (Aves)",
       tooltip:
@@ -114,6 +121,13 @@ export const RESTRICTION_STRINGS: Partial<Record<Lang, Record<string, Restrictio
         "Espai Natural Protegit — una figura de protecció estatal o autonòmica com un parc nacional o natural, una reserva natural o un monument natural, cadascun amb el seu pla de gestió. L'escalada, el vivac, els drons i els actes organitzats sovint estan regulats i poden necessitar autorització de l'òrgan gestor.",
       highlight:
         "L'escalada, el vivac, els drons i els actes organitzats sovint estan regulats i poden necessitar autorització de l'òrgan gestor.",
+    },
+    pf_protected: {
+      label: "Àrees protegides (Polinèsia Francesa)",
+      tooltip:
+        "Espai natural protegit de la Polinèsia Francesa, inclòs un aiguamoll Ramsar o una reserva de biosfera de la UNESCO. Les normes d'accés i de protecció de la fauna poden limitar l'escalada, els ancoratges o les activitats organitzades; consulteu l'òrgan gestor local abans d'instal·lar.",
+      highlight:
+        "Les normes d'accés i de protecció de la fauna poden limitar l'escalada, els ancoratges o les activitats organitzades; consulteu l'òrgan gestor local abans d'instal·lar.",
     },
     zps: {
       label: "ZPS (Aus)",

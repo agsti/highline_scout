@@ -1,0 +1,1 @@
+"""Japan restriction ETL tests."""

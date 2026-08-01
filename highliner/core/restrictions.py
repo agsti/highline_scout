@@ -212,4 +212,21 @@ LAYERS: dict[str, LayerSpec] = {
                       "discretion, not a public agency's; get the owner's "
                       "permission before rigging."),
     },
+    "jp_national_parks": {
+        "label": "National Parks (Japan)", "color": "#6a3d9a",
+        "tooltip": ("Japanese National Park. Special protection and special zones "
+                    "can regulate construction, access and recreation; check with "
+                    "the Ministry of the Environment before rigging."),
+        "highlight": ("Special protection and special zones can regulate construction, "
+                      "access and recreation; check with the Ministry of the "
+                      "Environment before rigging."),
+    },
+    "jp_wildlife_areas": {
+        "label": "National Wildlife Protection Areas (Japan)", "color": "#e31a1c",
+        "tooltip": ("National wildlife protection area. Access and disturbance of "
+                    "wildlife can be restricted, especially in special protection "
+                    "areas; check local rules before rigging."),
+        "highlight": ("Access and disturbance of wildlife can be restricted, "
+                      "in special protection areas; check local rules before rigging."),
+    },
 }

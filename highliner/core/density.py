@@ -21,6 +21,8 @@ LAYER_BITS = {
     "cl_snaspe": 4096,
     "cl_santuario": 8192,
     "cl_conservacion_privada": 16384,
+    "jp_national_parks": 32768,
+    "jp_wildlife_areas": 65536,
 }
 
 

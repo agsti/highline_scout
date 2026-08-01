@@ -23,6 +23,17 @@ def _feature(name: str, beschermin: str) -> dict[str, object]:
     }
 
 
+def _park_feature(name: str) -> dict[str, object]:
+    return {
+        "type": "Feature",
+        "properties": {"naam": name},
+        "geometry": {
+            "type": "Polygon",
+            "coordinates": [[[0, 0], [0, 1], [1, 1], [1, 0], [0, 0]]],
+        },
+    }
+
+
 def _wfs_response(features: list[dict[str, object]]) -> requests.Response:
     response = requests.Response()
     response.status_code = 200
@@ -49,6 +60,17 @@ def test_netherlands_specs_split_birds_and_habitats_by_directive() -> None:
 
     assert set(birds["name"]) == {"Birds only", "Both"}
     assert set(habitats["name"]) == {"Habitats only", "Both", "Quarry"}
+
+
+def test_netherlands_specs_keep_every_national_park() -> None:
+    parks = gpd.GeoDataFrame(
+        {"naam": ["  De Meinweg  ", "Veluwezoom"]},
+        geometry=[Polygon([(0, 0), (0, 1), (1, 1), (1, 0)])] * 2,
+        crs="EPSG:4326")
+
+    enp = shared.build_layer(parks, netherlands.SPECS["enp"])
+
+    assert list(enp["name"]) == ["De Meinweg", "Veluwezoom"]
 
 
 def test_netherlands_specs_normalize_official_names() -> None:
@@ -95,6 +117,10 @@ def test_download_sources_writes_once_and_skips_existing(
     def fake_get(*args: object, **kwargs: object) -> requests.Response:
         nonlocal calls
         calls += 1
+        params = kwargs.get("params")
+        assert isinstance(params, dict)
+        if params["typeNames"] == netherlands._PARK_TYPE_NAME:
+            return _wfs_response([_park_feature("De Meinweg")])
         return _wfs_response([_feature("Site", "VR+HR")])
 
     monkeypatch.setattr(requests, "get", fake_get)
@@ -102,9 +128,11 @@ def test_download_sources_writes_once_and_skips_existing(
     netherlands.download_sources(tmp_path)
     netherlands.download_sources(tmp_path)   # second call reuses the raw file
 
-    assert calls == 1
+    assert calls == 2
     written = json.loads((tmp_path / "natura2000.geojson").read_text())
     assert len(written["features"]) == 1
+    parks = json.loads((tmp_path / "nationale_parken.geojson").read_text())
+    assert len(parks["features"]) == 1
 
 
 def test_download_sources_rejects_empty_register(
@@ -119,16 +147,25 @@ def test_netherlands_main_writes_both_natura2000_overlays(
         monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     features = [_feature("Birds", "VR"), _feature("Habitats", "HR"),
                 _feature("Both", "VR+HR")]
-    monkeypatch.setattr(requests, "get",
-                        lambda *a, **k: _wfs_response(features))
+
+    def fake_get(*args: object, **kwargs: object) -> requests.Response:
+        params = kwargs.get("params")
+        assert isinstance(params, dict)
+        if params["typeNames"] == netherlands._PARK_TYPE_NAME:
+            return _wfs_response([_park_feature("De Meinweg")])
+        return _wfs_response(features)
+
+    monkeypatch.setattr(requests, "get", fake_get)
 
     netherlands.main(["--data-dir", str(tmp_path)])
 
     out = tmp_path / "netherlands" / "restrictions"
     zepa = gpd.read_parquet(out / "zepa.parquet")
     zec = gpd.read_parquet(out / "zec.parquet")
+    enp = gpd.read_parquet(out / "enp.parquet")
     assert set(zepa["name"]) == {"Birds", "Both"}
     assert set(zec["name"]) == {"Habitats", "Both"}
+    assert list(enp["name"]) == ["De Meinweg"]
 
 
 def test_netherlands_restriction_dunder_main_invokes_main() -> None:

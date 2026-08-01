@@ -1,0 +1,1 @@
+"""Cyprus chunk-precompute adapter."""

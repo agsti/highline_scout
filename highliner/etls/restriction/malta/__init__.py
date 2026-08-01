@@ -1,0 +1,1 @@
+"""Malta restriction ETL adapter."""

@@ -1,0 +1,1 @@
+"""Malta density ETL adapter."""

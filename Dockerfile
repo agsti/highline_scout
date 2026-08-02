@@ -43,6 +43,8 @@ COPY highliner ./highliner
 COPY justfile pyproject.toml ./
 COPY scripts/runner/entrypoint.sh /app/entrypoint.sh
 
+RUN /app/.venv/bin/python -m highliner.etls.chunk.ocean
+
 ENV PATH="/app/.venv/bin:$PATH" \
     UV_CACHE_DIR=/app/.cache/uv \
     PYTHONUNBUFFERED=1

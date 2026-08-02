@@ -59,3 +59,4 @@ def test_runner_image_includes_uv_for_declared_pr_commands() -> None:
     assert "COPY --from=builder /usr/local/bin/uv /usr/local/bin/uv" in runner_stage
     assert 'UV_CACHE_DIR=/app/.cache/uv' in runner_stage
     assert "chmod -R a+rwX /app/.venv" in runner_stage
+    assert "RUN /app/.venv/bin/python -m highliner.etls.chunk.ocean" in runner_stage

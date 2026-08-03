@@ -212,4 +212,37 @@ LAYERS: dict[str, LayerSpec] = {
                       "discretion, not a public agency's; get the owner's "
                       "permission before rigging."),
     },
+    "dk_spa": {
+        "label": "SPA (Birds)",
+        "color": "#e31a1c",
+        "tooltip": ("Danish Special Protection Area for Birds (Natura 2000, "
+                    "EU Birds Directive). Cliffs and coastal crags can have "
+                    "seasonal access restrictions to avoid nesting-bird "
+                    "disturbance; confirm local rules before rigging."),
+        "highlight": ("Cliffs and coastal crags can have seasonal access "
+                      "restrictions to avoid nesting-bird disturbance; "
+                      "confirm local rules before rigging."),
+    },
+    "dk_sac": {
+        "label": "SAC (Habitats)",
+        "color": "#ff7f00",
+        "tooltip": ("Danish Special Area of Conservation (Natura 2000, EU "
+                    "Habitats Directive). Rigging or access that harms a "
+                    "protected habitat may be regulated; check the site's "
+                    "management plan before rigging."),
+        "highlight": ("Rigging or access that harms a protected habitat may "
+                      "be regulated; check the site's management plan before "
+                      "rigging."),
+    },
+    "dk_protected": {
+        "label": "Protected Areas (Denmark)",
+        "color": "#6a3d9a",
+        "tooltip": ("Danish nationally protected area. Its protection order "
+                    "can restrict access, climbing, fixed anchors, camping "
+                    "and organized activity; check with the responsible "
+                    "authority before rigging."),
+        "highlight": ("Its protection order can restrict access, climbing, "
+                      "fixed anchors, camping and organized activity; check "
+                      "with the responsible authority before rigging."),
+    },
 }

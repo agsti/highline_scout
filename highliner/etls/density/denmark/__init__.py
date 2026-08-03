@@ -1,0 +1,1 @@
+"""Denmark density ETL adapter."""

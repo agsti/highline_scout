@@ -162,10 +162,42 @@ into the module docstring, where it is prose rather than dead code.
 `tile_specs` snaps the bbox outward to the 5 m grid and each request's `size`
 is the extent divided by 5, so every tile's pixel boundaries land on the same
 global 5 m lattice in the region CRS. `raster_from_tiles` merges with
-`bounds=halo_bbox`, clipping the snapped overshoot back. Tiles therefore
-compose exactly, with no resampling mismatch at the seams despite each tile
-being resampled server-side independently. This is verified empirically rather
-than assumed (see below).
+`bounds=halo_bbox`, clipping the snapped overshoot back. The geometry is
+therefore exact: for a chunk halo bbox already on the 5 m grid, `_snap` changes
+nothing and the four tiles tile the footprint precisely.
+
+**The pixel values are nevertheless not bit-identical to a single full-size
+export, and cannot be.** An earlier draft of this spec asserted they would be.
+That was wrong, and measurement on 2026-08-10 (chunk 26,57) showed why:
+
+| Comparison | Result |
+| --- | --- |
+| two identical single-shot requests | bit-identical (server is deterministic) |
+| two identical tiled fetches | bit-identical (our path is deterministic) |
+| tiled vs single-shot, whole chunk | max 0.194 m, mean of differing cells 0.005 m, p99 0.018 m |
+| **one lone 1210 px tile vs the same window of the single-shot** | **max 0.149 m — no merging involved** |
+
+The last row is decisive: a single tile request, with no merge or seam logic in
+play at all, already disagrees with the corresponding window of the big
+request. Differences are spread across the whole footprint rather than
+concentrated at the tile boundary (seam-to-interior ratio 1.14 by column, 1.70
+by row). The ImageServer's blend of ~50 overlapping source rasters simply
+varies with the requested extent. This is a property of the service, not of our
+tiling.
+
+The magnitude is immaterial to this pipeline, and the existing data already
+contains it. The smallest vertical threshold anywhere in the analysis is
+`MIN_SECTOR_DROP_M = 15.0 m`, 77× the worst-case difference and ~800× the p99.
+More directly: adjacent chunks' halos overlap by 1050 m, so that overlapping
+ground has *always* been fetched twice under two different request extents —
+the 8711 California chunks computed under the old code path already embody this
+exact variance. The codebase anticipates it, at `config.py:29` ("Two
+extractions of one line can wander up to ~THIN_DIST_M apart") and `shared.py:109`
+("sub-meter drift between a pair re-extracted in adjacent chunks"). Tiling
+introduces no new class of inconsistency.
+
+The acceptance criterion is therefore a bound, not equality: **max < 0.5 m and
+p99 < 0.05 m**. Observed: 0.194 m and 0.018 m.
 
 ### Failure policy: unchanged
 
@@ -201,8 +233,9 @@ Empirical validation against the live service:
 1. Fetch chunk 26,58 through the new path; it must succeed where the single
    full-size request 504s every time.
 2. Fetch chunk 26,57 both ways — it is the neighbour that does work single-shot
-   at 60.5 s — and assert the merged arrays are identical, proving the seam
-   reasoning above.
+   at 60.5 s — and assert the merged arrays agree within max 0.5 m and p99
+   0.05 m, the bound justified under "Seam correctness" above. Equality is not
+   an available criterion; the service does not offer it.
 
 Per the machine's memory constraints, pytest runs under `ulimit -v` and
 `timeout`, using `.venv/bin/python` directly rather than `uv run`.

@@ -147,10 +147,15 @@ moves from once-per-chunk to once-per-tile; the semantics are identical because
 the test is per-cell.
 
 Removed: `fetch_3dep` (superseded by `_download_tile`), `_pixel_dims` (now
-`tile_specs`' job), and the `MAX_EXPORT_PX` runtime guard. `tile_specs`
-provably caps width and height at `tile_px`, so the guard is dead code.
-`MAX_EXPORT_PX` is retained only as a documented constant recording the ArcGIS
-hard cap, with a note that the real limit is time, not pixels.
+`tile_specs`' job), and `MAX_EXPORT_PX` together with its runtime guard.
+`tile_specs` provably caps width and height at `tile_px`, so the guard is dead
+code. The constant is deleted rather than kept for documentation: `just
+deadcode` runs vulture at `min_confidence = 60` over `highliner/`, which reports
+unread module-level constants, and the project's policy is to fix the source
+rather than extend `[tool.vulture] ignore_names`. The knowledge it encoded —
+that ArcGIS caps an export at 8000 px per side, but the limit that actually
+binds is the ~90 s gateway timeout at roughly 2400 px over dense terrain — moves
+into the module docstring, where it is prose rather than dead code.
 
 ### Seam correctness
 

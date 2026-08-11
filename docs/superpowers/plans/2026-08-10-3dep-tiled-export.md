@@ -516,12 +516,18 @@ If `rmdir` refuses because a directory is non-empty, a run is still in progress
 - [ ] **Step 2: Re-run the region**
 
 ```bash
-just etl-chunk united_states 10
+just etl-chunk united_states 10 --only california
 ```
 
-Expected: alabama through arkansas report completion within seconds (all chunks
-skipped by the resume path), then california fetches only chunk 26,58 and prints
-`[california] completed 8712 chunks`.
+`--only` is required here. Without it the CLI iterates all 51 regions
+(`main.py:186`, `_select_regions`), so after california it would roll straight
+into colorado and begin a multi-day national run. Scope this task to the one
+region that needs finishing.
+
+Expected: `[california] starting precompute`, then a progress line that reaches
+8712/8712 after fetching exactly one chunk, then
+`[california] completed 8712 chunks`. It should take well under two minutes —
+8711 chunks are skipped by the resume path and only 26,58 is downloaded.
 
 - [ ] **Step 3: Verify the region is genuinely complete**
 

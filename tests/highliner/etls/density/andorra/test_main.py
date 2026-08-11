@@ -1,4 +1,6 @@
+import runpy
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -20,3 +22,10 @@ def test_andorra_density_adapter_scopes_the_country(
 
 def test_andorra_natural_parks_have_a_density_mask_bit() -> None:
     assert layer_mask(["ad_natural_parks"]) != 0
+
+
+def test_andorra_density_dunder_main_invokes_main() -> None:
+    with patch("highliner.etls.density.andorra.main.main") as entry:
+        runpy.run_module("highliner.etls.density.andorra.__main__",
+                         run_name="__main__")
+    entry.assert_called_once_with()

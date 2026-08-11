@@ -12,7 +12,7 @@ from highliner.core import config
 from highliner.etls.restriction import shared
 
 COUNTRY: Final[str] = "andorra"
-__all__ = ["main", "subprocess"]
+__all__ = ["main", "shutil", "subprocess"]
 SOURCE_URL = ("https://www.iea.ad/images/stories/Sigma/Mapes_E00/"
               "Parcs_Naturals_ArcGis.rar")
 SOURCE_FILE: Final[str] = "Parcs_Naturals_ArcGis.rar"

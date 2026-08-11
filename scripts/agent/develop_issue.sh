@@ -33,7 +33,7 @@ Your task:
 
 2. call your branch auto/$ISSUE_NUMBER
 3. create an isolated worktree at REPO/.worktrees/auto_$ISSUE_NUMBER, switch to it if already exists
-4. Do a git pull when starting an get up to date with master or main
+4. Do a git pull when starting and get up to date with master or main
 5. Fix this issue:
 ======== ISSUE START ==========
 ${ISSUE_BODY}

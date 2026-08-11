@@ -12,7 +12,16 @@ LAYER_BITS = {
     "zps": 8,
     "zsc": 16,
     "euap": 32,
-    "ad_natural_parks": 64,
+    "fr_zps": 64,
+    "fr_zsc": 128,
+    "fr_ep": 256,
+    "ch_game_reserves": 512,
+    "ch_bird_reserves": 1024,
+    "ch_parks": 2048,
+    "cl_snaspe": 4096,
+    "cl_santuario": 8192,
+    "cl_conservacion_privada": 16384,
+    "ad_natural_parks": 32768,
 }
 
 

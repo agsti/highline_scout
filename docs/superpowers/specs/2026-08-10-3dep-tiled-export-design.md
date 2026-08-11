@@ -55,8 +55,8 @@ Two secondary findings:
 
 This is not California-specific. `_region()`
 (`united_states/main.py:40`) wires `dtm_3dep.fetch` into all 51 US regions
-(50 states + DC), so any state with dense lidar over steep terrain can hit it —
-Colorado, Washington, Utah, Idaho and Wyoming are likely candidates. Alabama,
+(50 states + DC), so any region with dense overlapping lidar coverage can hit
+it — the risk follows acquisition density, not terrain steepness. Alabama,
 Alaska, Arizona and Arkansas completed because their footprints happened to
 stay under the budget, not because they are immune.
 
@@ -250,8 +250,10 @@ Per the machine's memory constraints, pytest runs under `ulimit -v` and
 
 ## Rollout
 
-Re-run `just etl-chunk united_states 10` after merge. California skips its 8711
-finished chunks and fetches only 26,58, so no one-off tooling is needed. The
-four completed regions are unaffected: they are skipped wholesale by the resume
-path, and DTM tiles are transient, so no stored data depends on the old fetch
-path.
+After merge, California was re-run with `just etl-chunk united_states 10 --only california`.
+The `--only california` flag is required to scope the region; without it the
+CLI walks all 51 regions and would start an unintended multi-day national run.
+California skipped its 8711 finished chunks and fetched only 26,58, completing
+the region at 8712/8712. The four completed regions (alabama, alaska, arizona,
+arkansas) are unaffected: they are skipped wholesale by the resume path, and
+DTM tiles are transient, so no stored data depends on the old fetch path.

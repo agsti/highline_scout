@@ -472,7 +472,7 @@ roughly 80–300 m) rather than 504ing, and check 2 prints a max diff under 0.5 
 and a p99 under 0.05 m, followed by `PASS`.
 
 If check 2 exceeds either bound, stop and report rather than loosening it
-further. The bounds are already ~30× and ~800× looser than the measured values
+further. The bounds are already ~2.6× and ~2.8× looser than the measured values
 (0.194 m and 0.018 m), so a breach would mean something genuinely changed —
 most likely tile grids failing to align on the 5 m lattice, which would make
 the merged terrain differ structurally from what the other 8711 California

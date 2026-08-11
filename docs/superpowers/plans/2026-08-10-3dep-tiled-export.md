@@ -547,9 +547,17 @@ EOF
 )
 ```
 
-Expected: `missing: []`, and non-zero anchor and pair counts for 26,58 — it is
-steep Sierra Nevada terrain, so an all-zero result would mean the fetch returned
-filler rather than real elevation.
+Expected: `missing: []`.
+
+Do **not** expect non-zero anchors. Chunk 26,58 is gentle foothill terrain
+(measured range 82.3–254.9 m over 12.1 km), well below the 55° slope and 15 m
+sector-drop thresholds, and every already-computed neighbour in columns 24–26
+is likewise `0/0`. Zero anchors there is the correct answer and matches what the
+old code path produced in the same terrain.
+
+The real check that the fetch returned genuine elevation rather than filler is
+Task 2's check 1, which reported 5,856,400 finite cells and a plausible
+elevation range for this chunk.
 
 ---
 

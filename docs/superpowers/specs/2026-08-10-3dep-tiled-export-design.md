@@ -13,7 +13,9 @@ turns that into an `HTTPError`, the chunk fails, and
 
 Confirmed on the California run, chunk `26,58` (EPSG:5070 core
 `-2097000, 1823000` → `-2087000, 1833000`; roughly 37.05–37.16 N,
-120.06–119.98 W, Sierra Nevada near Yosemite). It has failed on every attempt —
+120.06–119.98 W — the Central Valley edge and low Sierra foothills near
+Snelling, **not** steep terrain: its measured elevation range is 82.3–254.9 m
+across the full 12.1 km footprint). It has failed on every attempt —
 2026-07-28, 2026-07-30 and 2026-08-10 — leaving three empty
 `data/united_states/california/tiles/chunk_26_58_<pid>/` directories, one per
 run. California is otherwise complete: 8711 of 8712 chunks written.
@@ -33,6 +35,12 @@ catalog (`ImageServer/query`, `returnCountOnly`) reports ~50 overlapping source
 items over 26,58 and 51 over 26,57 — dense overlapping lidar projects that are
 expensive to blend. 26,57 cleared the ~90 s bar at 60.5 s; 26,58 sits just over
 it. That is why the failure is deterministic rather than flaky.
+
+Note what the cost actually tracks: **the number of overlapping source rasters,
+not terrain steepness.** Chunk 26,58 is gentle ground that yields no cliffs at
+all (it extracts zero anchors, matching every already-computed neighbour in
+`cx` 24–26). The states most at risk are therefore those with many overlapping
+lidar acquisitions, which is not the same set as the mountainous states.
 
 Two secondary findings:
 

@@ -35,6 +35,12 @@ drops a tile whose download raises `RuntimeError`.
   add entries to `[tool.vulture] ignore_names` to work around it.
 - The machine is memory-tight. Run pytest via `.venv/bin/python -m pytest`
   inside a subshell with `ulimit -v` and `timeout` — never bare `uv run pytest`.
+  Size the cap to the target: 4 GB is fine for a single test file, but the full
+  `tests/highliner/etls/chunk` suite spawns `ProcessPoolExecutor` workers whose
+  combined *virtual* reservation exceeds it, and three tests in
+  `test_shared_process_chunk.py` fail spuriously. Use `ulimit -v 12000000` for
+  that suite (384 pass, ~28 s). A test that fails under a tight cap but passes
+  when run alone is a cap artifact, not a regression.
 
 ---
 

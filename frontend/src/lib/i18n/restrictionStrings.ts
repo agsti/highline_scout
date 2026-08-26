@@ -97,6 +97,27 @@ export const RESTRICTION_STRINGS: Partial<Record<Lang, Record<string, Restrictio
       highlight:
         "El highline no está prohibido automáticamente en todo el parque, pero las zonas protegidas y las normas locales pueden regular el acceso, los anclajes y las actividades organizadas; consulta a la dirección del parque antes de instalar.",
     },
+    cl_snaspe: {
+      label: "SNASPE (Parques y Reservas Nacionales)",
+      tooltip:
+        "Parque nacional, reserva nacional, monumento natural o reserva forestal administrado por CONAF (Sistema Nacional de Áreas Silvestres Protegidas del Estado). El ingreso suele requerir permiso/pago, y CONAF puede restringir o prohibir la escalada, el vivac y los anclajes fijos en una unidad concreta; consulta con la administración del parque antes de instalar.",
+      highlight:
+        "El ingreso suele requerir permiso/pago, y CONAF puede restringir o prohibir la escalada, el vivac y los anclajes fijos en una unidad concreta; consulta con la administración del parque antes de instalar.",
+    },
+    cl_santuario: {
+      label: "Santuarios de la Naturaleza y Reservas de la Biósfera",
+      tooltip:
+        "Santuario de la Naturaleza, reserva de la biósfera o paisaje de conservación - una designación del Ministerio del Medio Ambiente que puede aplicarse a terrenos privados. Según la Ley de Monumentos Nacionales, instalar anclajes fijos aquí sin autorización previa del Consejo de Monumentos Nacionales es un delito legal, no solo una norma del parque.",
+      highlight:
+        "Según la Ley de Monumentos Nacionales, instalar anclajes fijos aquí sin autorización previa del Consejo de Monumentos Nacionales es un delito legal, no solo una norma del parque.",
+    },
+    cl_conservacion_privada: {
+      label: "Conservación Privada y Comunitaria",
+      tooltip:
+        "Terreno de conservación privado o comunitario, u otro terreno estatal protegido fuera del SNASPE. El acceso, el camping y la instalación dependen del propietario, no de un organismo público; consigue su permiso antes de instalar.",
+      highlight:
+        "El acceso, el camping y la instalación dependen del propietario, no de un organismo público; consigue su permiso antes de instalar.",
+    },
   },
   ca: {
     au_capad: {
@@ -187,6 +208,27 @@ export const RESTRICTION_STRINGS: Partial<Record<Lang, Record<string, Restrictio
         "Parc Nacional Suís o parc d'importància nacional. El highline no està prohibit automàticament a tot el parc, però les zones protegides i les normes locals poden regular l'accés, els ancoratges i les activitats organitzades; consulteu la direcció del parc abans d'instal·lar.",
       highlight:
         "El highline no està prohibit automàticament a tot el parc, però les zones protegides i les normes locals poden regular l'accés, els ancoratges i les activitats organitzades; consulteu la direcció del parc abans d'instal·lar.",
+    },
+    cl_snaspe: {
+      label: "SNASPE (Parcs i Reserves Nacionals)",
+      tooltip:
+        "Parc nacional, reserva nacional, monument natural o reserva forestal administrat per CONAF (Sistema Nacional de Àrees Silvestres Protegides de l'Estat). L'entrada sol requerir permís/pagament, i CONAF pot restringir o prohibir l'escalada, el vivac i els ancoratges fixos en una unitat concreta; consulteu l'administració del parc abans d'instal·lar.",
+      highlight:
+        "L'entrada sol requerir permís/pagament, i CONAF pot restringir o prohibir l'escalada, el vivac i els ancoratges fixos en una unitat concreta; consulteu l'administració del parc abans d'instal·lar.",
+    },
+    cl_santuario: {
+      label: "Santuaris de la Natura i Reserves de la Biosfera",
+      tooltip:
+        "Santuari de la Natura, reserva de la biosfera o paisatge de conservació - una designació del Ministeri del Medi Ambient que pot aplicar-se a terrenys privats. Segons la Llei de Monuments Nacionals, instal·lar ancoratges fixos aquí sense autorització prèvia del Consell de Monuments Nacionals és un delicte legal, no només una norma del parc.",
+      highlight:
+        "Segons la Llei de Monuments Nacionals, instal·lar ancoratges fixos aquí sense autorització prèvia del Consell de Monuments Nacionals és un delicte legal, no només una norma del parc.",
+    },
+    cl_conservacion_privada: {
+      label: "Conservació Privada i Comunitària",
+      tooltip:
+        "Terreny de conservació privat o comunitari, o altre terreny estatal protegit fora del SNASPE. L'accés, l'acampada i la instal·lació depenen del propietari, no d'un organisme públic; aconseguiu el seu permís abans d'instal·lar.",
+      highlight:
+        "L'accés, l'acampada i la instal·lació depenen del propietari, no d'un organisme públic; aconseguiu el seu permís abans d'instal·lar.",
     },
   },
 };

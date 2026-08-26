@@ -15,6 +15,7 @@ from collections.abc import Callable, Iterator
 from pathlib import Path
 
 from highliner.core import config
+from highliner.etls.chunk import ocean
 from highliner.etls.chunk.anchors import save_anchors
 from highliner.etls.chunk.candidates import save_candidates
 from highliner.etls.chunk.dtm_core import Fetcher, raster_from_tiles
@@ -22,6 +23,12 @@ from highliner.etls.chunk.pairing import find_candidates
 from highliner.etls.chunk.terrain import extract_anchors
 from highliner.models.anchor import Anchor
 from highliner.models.candidate import Candidate
+
+# Under mypy's no_implicit_reexport, an imported submodule isn't accessible
+# as an attribute from outside unless explicitly re-exported. Tests patch
+# `shared.ocean.load_ocean_geometry` directly (they need the module object,
+# not just the two functions), so `ocean` must be listed here.
+__all__ = ["ocean"]
 
 Bbox = tuple[float, float, float, float]
 
@@ -59,6 +66,7 @@ def process_chunk(cx: int, cy: int, core_bbox: Bbox, region_dir: Path,  # noqa: 
                   halo: float = config.CHUNK_HALO_M,
                   crs: str = config.UTM_CRS,
                   drop_radius_m: float = config.DROP_RADIUS_M,
+                  slope_min_deg: float = config.SLOPE_MIN_DEG,
                   cache_dir: Path | None = None,
                   *, fetch: Fetcher) -> int:
     """Process one chunk into anchor + pair partitions. Returns the number of
@@ -85,8 +93,9 @@ def process_chunk(cx: int, cy: int, core_bbox: Bbox, region_dir: Path,  # noqa: 
         owned_pairs: list[Candidate] = []
         raster = raster_from_tiles(tiles, bbox=halo_bbox)
         if raster is not None:
+            ocean.fill_ocean_nodata(raster, ocean.load_ocean_geometry(crs))
             anchors = extract_anchors(
-                raster, slope_min=config.SLOPE_MIN_DEG, radius=drop_radius_m,
+                raster, slope_min=slope_min_deg, radius=drop_radius_m,
                 n_azimuths=config.N_AZIMUTHS, min_sector_drop=config.MIN_SECTOR_DROP_M,
                 thin_dist=config.THIN_DIST_M)
             core_anchors = [a for a in anchors if _in_core(a.x, a.y, core_bbox)]
@@ -175,12 +184,37 @@ def _check_parallel_results(
             raise RuntimeError(f"chunk {cx},{cy} failed") from exc
 
 
+def _write_grid(region_dir: Path, grid: dict[str, object]) -> None:
+    """Record the grid, refusing to mix output built under a different one.
+
+    Chunk files are keyed by grid index alone, so re-running into a region
+    directory whose bbox, chunk size, CRS or DTM source changed would silently
+    accept stale chunks as finished work for different geography. Existing
+    output is what makes that dangerous: an empty region directory is simply
+    re-gridded.
+    """
+    path = region_dir / "grid.json"
+    if path.exists():
+        previous = json.loads(path.read_text())
+        changed = sorted(key for key in set(previous) | set(grid)
+                         if previous.get(key) != grid.get(key))
+        if changed and any(region_dir.glob("pairs/q_*.parquet")):
+            raise ValueError(
+                f"{path} records a different grid ({', '.join(changed)} "
+                f"changed) but {region_dir} already holds chunk output. "
+                "Chunks are keyed by grid index, so resuming would mix the "
+                f"two. Delete {region_dir} to rebuild it, or point --data-dir "
+                "somewhere else.")
+    path.write_text(json.dumps(grid))
+
+
 def precompute(  # noqa: PLR0913
         country: str, region: str, bbox: Bbox, data_dir: Path,
         chunk_m: float = config.CHUNK_M,
         report: Callable[[int, int], None] | None = None,
         *, crs: str, dtm_source: str, fetch: Fetcher, workers: int = 1,
         drop_radius_m: float = config.DROP_RADIUS_M,
+        slope_min_deg: float = config.SLOPE_MIN_DEG,
         cache_dir: Path | None = None) -> int:
     """Precompute anchors + pairs for ``bbox`` under
     ``data_dir/<country>/<region>``. Writes grid.json, then processes every
@@ -193,9 +227,8 @@ def precompute(  # noqa: PLR0913
     rdir = region_output_dir(data_dir, country, region)
     country_cache_dir = Path(cache_dir or config.CACHE_DIR) / country
     rdir.mkdir(parents=True, exist_ok=True)
-    (rdir / "grid.json").write_text(json.dumps(
-        {"bbox": list(bbox), "chunk_m": chunk_m,
-         "crs": crs, "dtm_source": dtm_source}))
+    _write_grid(rdir, {"bbox": list(bbox), "chunk_m": chunk_m,
+                       "crs": crs, "dtm_source": dtm_source})
 
     chunks = list(chunk_grid(bbox, chunk_m))
     total = len(chunks)
@@ -203,6 +236,7 @@ def precompute(  # noqa: PLR0913
         for i, (cx, cy, core) in enumerate(chunks, start=1):
             process_chunk(cx, cy, core, rdir, crs=crs,
                           drop_radius_m=drop_radius_m,
+                          slope_min_deg=slope_min_deg,
                           cache_dir=country_cache_dir, fetch=fetch)
             if report is not None:
                 report(i, total)
@@ -210,6 +244,7 @@ def precompute(  # noqa: PLR0913
 
     task = functools.partial(
         process_chunk, region_dir=rdir, crs=crs,
-        drop_radius_m=drop_radius_m, cache_dir=country_cache_dir, fetch=fetch)
+        drop_radius_m=drop_radius_m, slope_min_deg=slope_min_deg,
+        cache_dir=country_cache_dir, fetch=fetch)
     _run_parallel(chunks, task, workers, report)
     return total

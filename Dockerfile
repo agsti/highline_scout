@@ -25,6 +25,40 @@ COPY pyproject.toml uv.lock ./
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked --no-install-project --no-dev
 
+# --- ETL/command runner -------------------------------------------------
+FROM python:3.12-slim-bookworm AS runner
+
+WORKDIR /app
+
+# unar and 7z are both needed and neither substitutes for the other: Chile's
+# RAR sidecars use a compression method 7z cannot read, while Ireland's GSI
+# LiDAR ships .7z archives that unar does not handle. p7zip-full is the package
+# that provides /usr/bin/7z; plain p7zip only gives 7zr.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        ca-certificates curl git unar p7zip-full \
+    && curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh \
+        | bash -s -- --to /usr/local/bin \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /app/.venv /app/.venv
+COPY --from=builder /usr/local/bin/uv /usr/local/bin/uv
+COPY highliner ./highliner
+COPY justfile pyproject.toml ./
+COPY scripts/runner/entrypoint.sh /app/entrypoint.sh
+
+RUN /app/.venv/bin/python -m highliner.etls.chunk.ocean
+
+ENV PATH="/app/.venv/bin:$PATH" \
+    UV_CACHE_DIR=/app/.cache/uv \
+    PYTHONUNBUFFERED=1
+
+RUN mkdir -p /artifacts /app/.cache/uv \
+    && chmod -R a+rwX /app/.venv \
+    && chmod 0777 /app /artifacts /app/.cache /app/.cache/uv
+
+ENTRYPOINT ["/app/entrypoint.sh"]
+
 # Runtime stage: just the venv + source, no uv or build cache.
 FROM python:3.12-slim-bookworm
 

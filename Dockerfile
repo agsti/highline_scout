@@ -49,9 +49,13 @@ ENV PATH="/app/.venv/bin:$PATH" \
     UV_CACHE_DIR=/app/.cache/uv \
     PYTHONUNBUFFERED=1
 
-RUN mkdir -p /artifacts /app/.cache/uv \
-    && chmod -R a+rwX /app/.venv \
-    && chmod 0777 /app /artifacts /app/.cache /app/.cache/uv
+# The image is built as root but AI Training runs the container as an
+# arbitrary non-root UID, so every path the job writes has to be world-writable.
+# That includes /app/cache, which the ocean bake above creates root-owned:
+# without this a run dies on `mkdir cache/<country>` for its DTM tiles.
+RUN mkdir -p /artifacts /app/.cache/uv /app/cache /app/data \
+    && chmod -R a+rwX /app/.venv /app/cache \
+    && chmod 0777 /app /artifacts /app/.cache /app/.cache/uv /app/cache /app/data
 
 ENTRYPOINT ["/app/entrypoint.sh"]
 

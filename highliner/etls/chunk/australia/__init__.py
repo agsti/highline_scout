@@ -1,0 +1,1 @@
+"""Australian chunk precompute adapter."""

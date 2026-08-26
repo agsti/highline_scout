@@ -8,6 +8,11 @@ export interface RestrictionText {
 
 export const RESTRICTION_STRINGS: Partial<Record<Lang, Record<string, RestrictionText>>> = {
   es: {
+    au_capad: {
+      label: "Áreas protegidas australianas (CAPAD)",
+      tooltip: "Área protegida de la Base de Datos Colaborativa Australiana de Áreas Protegidas (CAPAD). El acceso, la escalada, los anclajes, la acampada y las actividades organizadas pueden estar regulados por el plan de gestión del lugar; consulta al gestor del terreno antes de instalar.",
+      highlight: "El acceso, la escalada, los anclajes, la acampada y las actividades organizadas pueden estar regulados por el plan de gestión del lugar; consulta al gestor del terreno antes de instalar.",
+    },
     zepa: {
       label: "ZEPA (Aves)",
       tooltip:
@@ -115,6 +120,11 @@ export const RESTRICTION_STRINGS: Partial<Record<Lang, Record<string, Restrictio
     },
   },
   ca: {
+    au_capad: {
+      label: "Àrees protegides australianes (CAPAD)",
+      tooltip: "Àrea protegida de la Base de Dades Col·laborativa Australiana d'Àrees Protegides (CAPAD). L'accés, l'escalada, els ancoratges, l'acampada i les activitats organitzades poden estar regulats pel pla de gestió del lloc; consulteu el gestor del terreny abans d'instal·lar.",
+      highlight: "L'accés, l'escalada, els ancoratges, l'acampada i les activitats organitzades poden estar regulats pel pla de gestió del lloc; consulteu el gestor del terreny abans d'instal·lar.",
+    },
     zepa: {
       label: "ZEPA (Aus)",
       tooltip:

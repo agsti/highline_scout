@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Final
 
 from highliner.core import config
-from highliner.etls.chunk import shared
+from highliner.etls.chunk import shared as shared
 from highliner.etls.chunk.dtm_core import Fetcher
 from highliner.etls.chunk.ireland import dtm_gsi
 from highliner.etls.chunk.shared import Bbox

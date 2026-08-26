@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Final
 
 from highliner.core import config
-from highliner.etls.density import shared
+from highliner.etls.density import shared as shared
 
 COUNTRY: Final[str] = "ireland"
 

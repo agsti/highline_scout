@@ -20,8 +20,9 @@ TERMINAL_RE='^(DONE|FAILED|ERROR|TIMEOUT|INTERRUPTED|SYNC_FAILED)$'
 if [ "$#" -gt 0 ]; then
     PRS=("$@")
 else
+    # Only <number>.log — agents drop other scratch files in here too.
     mapfile -t PRS < <(find "$LOG_DIR" -name '*.log' -printf '%f\n' 2>/dev/null \
-        | sed 's/\.log$//' | sort -n)
+        | sed 's/\.log$//' | grep -E '^[0-9]+$' | sort -n)
 fi
 
 if [ "${#PRS[@]}" -eq 0 ]; then

@@ -9,6 +9,7 @@ from highliner.core import config
 from highliner.etls.density import shared
 
 COUNTRY: Final[str] = "slovenia"
+__all__ = ["main", "shared"]
 
 
 def main(argv: list[str] | None = None) -> None:

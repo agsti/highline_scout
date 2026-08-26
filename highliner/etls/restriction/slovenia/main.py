@@ -10,6 +10,7 @@ from highliner.core import config
 from highliner.etls.restriction import shared
 
 COUNTRY: Final[str] = "slovenia"
+__all__ = ["main", "shared"]
 _BASE = "https://gis.arso.gov.si/geoserver-beta/SI.ARSO.NATURA/wfs"
 _NATURA_QUERY = ("?service=WFS&version=2.0.0&request=GetFeature&"
                  "typeNames=SI.ARSO.NATURA:NATURA_2000&"

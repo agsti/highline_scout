@@ -1,4 +1,5 @@
 import concurrent.futures
+import json
 from collections.abc import Iterable
 from pathlib import Path
 from typing import cast
@@ -258,3 +259,62 @@ def test_precompute_writes_dtm_source_as_provenance_not_dispatch(
         (tmp_path / "spain" / "canarias" / "grid.json").read_text())
     assert grid["crs"] == "EPSG:4083"
     assert grid["dtm_source"] == "cnig"
+
+
+def _empty_fetch(bbox: tuple[float, float, float, float], tiles_dir: Path,
+                 cache_dir: Path | None, crs: str) -> list[Path]:
+    return []
+
+
+def _precompute_10km(tmp_path: Path, bbox: tuple[float, float, float, float],
+                     chunk_m: float = 10000.0, crs: str = "EPSG:4083") -> int:
+    return shared.precompute("spain", "canarias", bbox, tmp_path,
+                             chunk_m=chunk_m, crs=crs, dtm_source="cnig",
+                             fetch=_empty_fetch, cache_dir=tmp_path / "cache")
+
+
+def test_precompute_refuses_to_resume_onto_a_different_grid(
+        tmp_path: Path) -> None:
+    """Chunk files are keyed by grid index alone, so reusing an output dir
+    under a changed bbox would silently accept stale chunks as complete for
+    different geography."""
+    bbox = (188000.0, 3060000.0, 198000.0, 3070000.0)
+    _precompute_10km(tmp_path, bbox)
+    region = tmp_path / "spain" / "canarias"
+    assert list((region / "pairs").glob("q_*.parquet"))    # output to protect
+
+    moved = (388000.0, 3060000.0, 398000.0, 3070000.0)
+    with pytest.raises(ValueError, match="bbox"):
+        _precompute_10km(tmp_path, moved)
+
+
+def test_precompute_refuses_a_changed_chunk_size(tmp_path: Path) -> None:
+    bbox = (188000.0, 3060000.0, 198000.0, 3070000.0)
+    _precompute_10km(tmp_path, bbox)
+
+    with pytest.raises(ValueError, match="chunk_m"):
+        _precompute_10km(tmp_path, bbox, chunk_m=5000.0)
+
+
+def test_precompute_resumes_happily_onto_the_same_grid(tmp_path: Path) -> None:
+    bbox = (188000.0, 3060000.0, 198000.0, 3070000.0)
+    first = _precompute_10km(tmp_path, bbox)
+    second = _precompute_10km(tmp_path, bbox)
+
+    assert first == second
+
+
+def test_precompute_reuses_an_empty_region_dir_under_a_new_grid(
+        tmp_path: Path) -> None:
+    """Nothing to invalidate means nothing to refuse."""
+    bbox = (188000.0, 3060000.0, 198000.0, 3070000.0)
+    _precompute_10km(tmp_path, bbox)
+    region = tmp_path / "spain" / "canarias"
+    for stale in (region / "pairs").glob("q_*.parquet"):
+        stale.unlink()
+
+    moved = (388000.0, 3060000.0, 398000.0, 3070000.0)
+    _precompute_10km(tmp_path, moved)
+
+    grid = json.loads((region / "grid.json").read_text())
+    assert grid["bbox"] == list(moved)

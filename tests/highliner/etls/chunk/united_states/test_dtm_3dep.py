@@ -29,13 +29,31 @@ def _response(status: int, content: bytes) -> requests.Response:
     return response
 
 
-def test_pixel_dims_render_the_bbox_at_5m() -> None:
-    assert dtm_3dep._pixel_dims((0, 0, 12_100, 12_100), 5.0) == (2420, 2420)
-    # Never collapses to a zero-length request.
-    assert dtm_3dep._pixel_dims((0, 0, 1, 1), 5.0) == (1, 1)
+def test_fetch_splits_a_chunk_into_a_two_by_two_tile_grid(
+        monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    calls: list[dict[str, object]] = []
+
+    def fake_get(url: str, params: dict[str, object],
+                 timeout: int) -> requests.Response:
+        calls.append(params)
+        return _response(200, _geotiff_bytes(np.array([[7.0]], "float32")))
+
+    monkeypatch.setattr(requests, "get", fake_get)
+
+    # A real chunk halo bbox: 10000 m core + 2 x 1050 m halo = 12100 m = 2420 px.
+    paths = dtm_3dep.fetch((300_000, 400_000, 312_100, 412_100),
+                           tmp_path, None, "EPSG:5070")
+
+    assert sorted(p.name for p in paths) == [
+        "t_300000_400000.tif", "t_300000_406050.tif",
+        "t_306050_400000.tif", "t_306050_406050.tif",
+    ]
+    # Every sub-request is a 1210 px square -- no slivers, none near the cap.
+    assert {p["size"] for p in calls} == {"1210,1210"}
+    assert len(calls) == 4
 
 
-def test_fetch_3dep_masks_ocean_and_builds_the_export_request(
+def test_download_tile_masks_ocean_and_builds_the_export_request(
         monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     calls: list[dict[str, object]] = []
     # Land elevations plus an exact-0.0 ocean corner and a real sea-level lake.
@@ -47,18 +65,19 @@ def test_fetch_3dep_masks_ocean_and_builds_the_export_request(
         return _response(200, _geotiff_bytes(grid))
 
     monkeypatch.setattr(requests, "get", fake_get)
+    dest = tmp_path / "t_300000_400000.tif"
 
-    paths = dtm_3dep.fetch_3dep((300_000, 400_000, 310_000, 412_000),
-                                tmp_path, "EPSG:5070")
+    out_path = dtm_3dep._download_tile(
+        (300_000, 400_000, 310_000, 412_000), 2000, 2400, dest, epsg=5070)
 
-    assert paths == [tmp_path / "t_300000_400000.tif"]
+    assert out_path == dest
     params = calls[0]
     assert params["bboxSR"] == 5070 and params["imageSR"] == 5070
     assert params["bbox"] == "300000,400000,310000,412000"
-    assert params["size"] == "2000,2400"        # 10000/5 x 12000/5
+    assert params["size"] == "2000,2400"
     assert params["format"] == "tiff"
 
-    with rasterio.open(paths[0]) as src:
+    with rasterio.open(dest) as src:
         out = src.read(1)
         assert src.nodata == SEA_SENTINEL
     # Ocean 0.0 became the sea sentinel; genuine elevations are untouched.
@@ -66,21 +85,22 @@ def test_fetch_3dep_masks_ocean_and_builds_the_export_request(
     assert out[0, 0] == 1200.0 and out[1, 0] == 850.5
 
 
-def test_fetch_3dep_rejects_a_non_raster_body(
+def test_a_non_raster_body_fails_the_chunk_instead_of_dropping_a_tile(
         monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """fetch_tile_grid drops a tile that raises RuntimeError. The ImageServer
+    fills out-of-coverage footprints rather than erroring, so a non-raster body
+    is a real failure and must propagate -- otherwise the merged raster gets a
+    silent hole and the chunk is written and marked done anyway."""
     monkeypatch.setattr(requests, "get", lambda *a, **k: _response(
         200, b'{"error":{"code":400,"message":"Unable to complete"}}'))
-    with pytest.raises(RuntimeError, match="did not return a GeoTIFF"):
-        dtm_3dep.fetch_3dep((0, 0, 10_000, 10_000), tmp_path, "EPSG:5070")
+
+    with pytest.raises(dtm_3dep.ExportError, match="did not return a GeoTIFF"):
+        dtm_3dep.fetch((0, 0, 12_100, 12_100), tmp_path, None, "EPSG:5070")
+
+    assert not issubclass(dtm_3dep.ExportError, RuntimeError)
 
 
-def test_fetch_3dep_guards_the_export_pixel_cap(tmp_path: Path) -> None:
-    huge = (0, 0, 5.0 * dtm_3dep.MAX_EXPORT_PX + 5_000, 10_000)
-    with pytest.raises(RuntimeError, match="exceeds"):
-        dtm_3dep.fetch_3dep(huge, tmp_path, "EPSG:5070")
-
-
-def test_fetch_wraps_the_call_in_the_transient_retry(
+def test_fetch_retries_a_transient_failure_per_tile(
         monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     attempts = 0
 
@@ -89,11 +109,12 @@ def test_fetch_wraps_the_call_in_the_transient_retry(
         attempts += 1
         if attempts == 1:
             raise requests.Timeout("temporary timeout")
-        return _response(200, _geotiff_bytes(np.array([[10.0]], dtype="float32")))
+        return _response(200, _geotiff_bytes(np.array([[10.0]], "float32")))
 
     monkeypatch.setattr(requests, "get", fake_get)
     monkeypatch.setattr("highliner.etls.chunk.dtm_core.time.sleep", lambda _: None)
 
+    # A 5 m bbox is a single 1x1 px tile, so the retry count is deterministic.
     paths = dtm_3dep.fetch((0, 0, 5, 5), tmp_path, None, "EPSG:5070")
     assert len(paths) == 1 and attempts == 2
 

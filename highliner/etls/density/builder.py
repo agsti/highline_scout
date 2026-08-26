@@ -1,5 +1,6 @@
 """Offline builder for the zoomed-out density pyramid."""
 import concurrent.futures
+import os
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -166,6 +167,12 @@ def _write_zoom(path: Path, zoom: int, cells: dict[CellKey, CellSummary],
     """Serialize one zoom's cells as CSR-style NumPy arrays.
 
     Cell ``i``'s histogram rows are ``hl/he/hm/hc[off[i]:off[i + 1]]``.
+
+    Written to a temporary file and renamed into place. ``np.savez`` streams a
+    zip archive, so writing the final path directly would let an interrupted
+    run leave a truncated but nonempty ``.npz`` behind — which
+    ``_is_complete_density`` would then accept forever, permanently skipping
+    that zoom on every later run.
     """
     keys = sorted(key for key in cells if key[0] == zoom)
     rows = [sorted(histograms[key].items()) for key in keys]
@@ -173,8 +180,10 @@ def _write_zoom(path: Path, zoom: int, cells: dict[CellKey, CellSummary],
     off = np.zeros(len(keys) + 1, dtype=np.int64)
     np.cumsum(counts, out=off[1:])
     flat = [(hist_key, value) for row in rows for hist_key, value in row]
+    # The suffix must stay .npz: np.savez appends it to any other name.
+    tmp = path.with_name(f"{path.stem}.tmp-{os.getpid()}.npz")
     np.savez(
-        path,
+        tmp,
         cx=np.array([key[1] for key in keys], dtype=np.int32),
         cy=np.array([key[2] for key in keys], dtype=np.int32),
         n=np.array([int(cells[key][0]) for key in keys], dtype=np.int32),
@@ -187,6 +196,7 @@ def _write_zoom(path: Path, zoom: int, cells: dict[CellKey, CellSummary],
         hm=np.array([key[2] for key, _ in flat], dtype=np.int16),
         hc=np.array([value for _, value in flat], dtype=np.int32),
     )
+    tmp.replace(path)
     return len(keys)
 
 

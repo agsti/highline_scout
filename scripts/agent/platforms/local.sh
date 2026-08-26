@@ -5,6 +5,8 @@
 #
 # Environment:
 #   ARTIFACT_ROOT  host directory that receives runs/ (default: $PWD/.runs)
+#   RESUME         0 to ignore what a previous run with this run-id kept and
+#                  start clean; 1 (default) restores it before running
 set -euo pipefail
 
 ARTIFACT_ROOT="${ARTIFACT_ROOT:-$PWD/.runs}"
@@ -30,5 +32,6 @@ exec docker run --rm \
     -e "RUN_ID=$RUN_ID" \
     -e "ARTIFACTS=$ARTIFACTS" \
     -e "ARTIFACT_DIR=/artifacts" \
+    -e "RESUME=${RESUME:-1}" \
     -v "$ARTIFACT_ROOT:/artifacts" \
     "$IMAGE" "$COMMAND"

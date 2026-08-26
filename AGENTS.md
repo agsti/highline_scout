@@ -12,6 +12,8 @@ work that matches a skill's description, read and follow its `SKILL.md`:
   the ETL pipeline.
 - `.claude/skills/dispatching-country-etls/SKILL.md` — dispatch country ETL
   additions from explicit GitHub issue numbers.
+- `.claude/skills/running-prs-on-ovh/SKILL.md` — run a PR's commands on
+  OVHcloud AI Training, check on spawned jobs, and retrieve their output.
 
 This applies to Codex as well as Claude. Keep skills in this shared location;
 do not copy them into a user-level skills directory.
@@ -42,6 +44,8 @@ For an isolated git worktree, create a separate `.venv` and run the same dev
 install there. Do not symlink a worktree's `.venv` to another checkout: virtual
 environment paths are checkout-specific. `uv` shares its download/build cache
 automatically, so separate environments remain quick and isolated.
+
+If primary checkout doesn't have cache/ and data/ create them, they are required for the app to run.
 Symlink `cache/`, `data/`, and `frontend/node_modules/` from the primary
 checkout into the worktree so the large shared assets and Node dependencies are
 not duplicated.

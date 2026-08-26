@@ -179,4 +179,48 @@ LAYERS: dict[str, LayerSpec] = {
                       "access, anchoring and organized activity; check with "
                       "park management before rigging."),
     },
+    # Chile. CONAF's SNASPE system, MMA-recognized natural sanctuaries, and
+    # private/community conservation land - three different legal regimes
+    # with distinct rigging implications, so they get distinct colors.
+    "cl_snaspe": {
+        "label": "SNASPE (National Parks & Reserves)",
+        "color": "#33a02c",
+        "tooltip": ("National park, national reserve, natural monument or "
+                    "forest reserve administered by CONAF (Sistema Nacional de "
+                    "Áreas Silvestres Protegidas del Estado). Entry usually "
+                    "requires a visitor permit/fee, and CONAF can restrict or "
+                    "prohibit climbing, bivouacking and fixed anchors in a "
+                    "given unit; check with the park's administration before "
+                    "rigging."),
+        "highlight": ("Entry usually requires a visitor permit/fee, and CONAF "
+                      "can restrict or prohibit climbing, bivouacking and "
+                      "fixed anchors in a given unit; check with the park's "
+                      "administration before rigging."),
+    },
+    "cl_santuario": {
+        "label": "Nature Sanctuaries & Biosphere Reserves",
+        "color": "#1f78b4",
+        "tooltip": ("Santuario de la Naturaleza, biosphere reserve or "
+                    "conservation landscape - a Ministry of Environment "
+                    "designation that can apply to privately owned land. Under "
+                    "Chile's National Monuments Law, rigging fixed anchors "
+                    "here without prior authorization from the Consejo de "
+                    "Monumentos Nacionales is a legal offense, not just a "
+                    "park rule."),
+        "highlight": ("Under Chile's National Monuments Law, rigging fixed "
+                      "anchors here without prior authorization from the "
+                      "Consejo de Monumentos Nacionales is a legal offense, "
+                      "not just a park rule."),
+    },
+    "cl_conservacion_privada": {
+        "label": "Private & Community Conservation",
+        "color": "#ff7f00",
+        "tooltip": ("Privately or community-owned conservation land, or other "
+                    "state land protected outside SNASPE. Access, camping and "
+                    "rigging are at the landowner's discretion, not a public "
+                    "agency's; get the owner's permission before rigging."),
+        "highlight": ("Access, camping and rigging are at the landowner's "
+                      "discretion, not a public agency's; get the owner's "
+                      "permission before rigging."),
+    },
 }

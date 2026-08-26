@@ -186,3 +186,24 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Runner image metadata
+        id: meta-runner
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}/runner
+          tags: |
+            type=ref,event=branch
+            type=sha
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push runner
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: runner
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta-runner.outputs.tags }}
+          labels: ${{ steps.meta-runner.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

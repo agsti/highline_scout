@@ -1,4 +1,6 @@
+import runpy
 from typing import Any
+from unittest.mock import patch
 
 import pytest
 
@@ -32,3 +34,37 @@ def test_canada_has_all_provinces_and_territories() -> None:
         "nunavut", "ontario", "prince_edward_island", "quebec",
         "saskatchewan", "yukon",
     }
+
+
+def test_canada_start_at_trims_the_region_list_and_rejects_unknown_names(
+        monkeypatch: pytest.MonkeyPatch) -> None:
+    from highliner.etls.chunk.canada import main as canada
+
+    calls: list[str] = []
+
+    def fake(*args: object, **kwargs: object) -> int:
+        calls.append(str(args[1]))
+        return 0
+
+    monkeypatch.setattr(canada.shared, "precompute", fake)
+    canada.main(["--start-at", "saskatchewan", "--data-dir", "/tmp/data"])
+    assert calls == ["saskatchewan", "yukon"]
+
+    with pytest.raises(SystemExit, match="unknown region"):
+        canada.main(["--start-at", "westeros"])
+
+
+def test_canada_rejects_non_positive_job_and_worker_counts() -> None:
+    from highliner.etls.chunk.canada import main as canada
+
+    with pytest.raises(SystemExit, match=">= 1"):
+        canada.main(["--jobs", "0"])
+    with pytest.raises(SystemExit, match=">= 1"):
+        canada.main(["--workers", "0"])
+
+
+def test_canada_chunk_dunder_main_invokes_main() -> None:
+    with patch("highliner.etls.chunk.canada.main.main") as entry:
+        runpy.run_module("highliner.etls.chunk.canada.__main__",
+                         run_name="__main__")
+    entry.assert_called_once_with()

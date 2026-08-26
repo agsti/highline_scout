@@ -15,6 +15,7 @@ import rasterio
 import requests
 from pyproj import Transformer
 from rasterio.enums import Resampling
+from rasterio.errors import WindowError
 from rasterio.windows import from_bounds
 
 from highliner.etls.chunk.dtm_core import NODATA, _bbox_geom_lonlat
@@ -62,8 +63,12 @@ def _materialize_subset(asset: Asset, bbox: Bbox, crs: str, dest: Path) -> None:
         window = from_bounds(min(xs), min(ys), max(xs), max(ys), src.transform)
         window = window.round_offsets().round_lengths()
         extent = rasterio.windows.Window(0, 0, src.width, src.height)
-        window = window.intersection(extent)
-        if window.width <= 0 or window.height <= 0:
+        try:
+            window = window.intersection(extent)
+        except WindowError:
+            # The STAC query matches lon/lat envelopes, which are supersets of
+            # both the chunk and the acquisition footprint, so an asset can
+            # come back whose raster does not reach this bbox at all.
             return
         width = max(1, round(window.width * src.res[0] / RES))
         height = max(1, round(window.height * src.res[1] / RES))

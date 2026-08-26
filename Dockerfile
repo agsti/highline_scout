@@ -53,9 +53,12 @@ ENV PATH="/app/.venv/bin:$PATH" \
     UV_CACHE_DIR=/app/.cache/uv \
     PYTHONUNBUFFERED=1
 
-RUN mkdir -p /artifacts /app/.cache/uv \
-    && chmod -R a+rwX /app/.venv \
-    && chmod 0777 /app /artifacts /app/.cache /app/.cache/uv
+# The ocean prebuild above populates /app/cache as root, and the platform runs
+# the job as an arbitrary non-root UID, so that tree has to be group/other
+# writable too — otherwise a country ETL cannot create its cache/<country>/.
+RUN mkdir -p /artifacts /app/.cache/uv /app/cache \
+    && chmod -R a+rwX /app/.venv /app/cache \
+    && chmod 0777 /app /artifacts /app/.cache /app/.cache/uv /app/cache
 
 ENTRYPOINT ["/app/entrypoint.sh"]
 

@@ -184,6 +184,30 @@ def _check_parallel_results(
             raise RuntimeError(f"chunk {cx},{cy} failed") from exc
 
 
+def _write_grid(region_dir: Path, grid: dict[str, object]) -> None:
+    """Record the grid, refusing to mix output built under a different one.
+
+    Chunk files are keyed by grid index alone, so re-running into a region
+    directory whose bbox, chunk size, CRS or DTM source changed would silently
+    accept stale chunks as finished work for different geography. Existing
+    output is what makes that dangerous: an empty region directory is simply
+    re-gridded.
+    """
+    path = region_dir / "grid.json"
+    if path.exists():
+        previous = json.loads(path.read_text())
+        changed = sorted(key for key in set(previous) | set(grid)
+                         if previous.get(key) != grid.get(key))
+        if changed and any(region_dir.glob("pairs/q_*.parquet")):
+            raise ValueError(
+                f"{path} records a different grid ({', '.join(changed)} "
+                f"changed) but {region_dir} already holds chunk output. "
+                "Chunks are keyed by grid index, so resuming would mix the "
+                f"two. Delete {region_dir} to rebuild it, or point --data-dir "
+                "somewhere else.")
+    path.write_text(json.dumps(grid))
+
+
 def precompute(  # noqa: PLR0913
         country: str, region: str, bbox: Bbox, data_dir: Path,
         chunk_m: float = config.CHUNK_M,
@@ -203,9 +227,8 @@ def precompute(  # noqa: PLR0913
     rdir = region_output_dir(data_dir, country, region)
     country_cache_dir = Path(cache_dir or config.CACHE_DIR) / country
     rdir.mkdir(parents=True, exist_ok=True)
-    (rdir / "grid.json").write_text(json.dumps(
-        {"bbox": list(bbox), "chunk_m": chunk_m,
-         "crs": crs, "dtm_source": dtm_source}))
+    _write_grid(rdir, {"bbox": list(bbox), "chunk_m": chunk_m,
+                       "crs": crs, "dtm_source": dtm_source})
 
     chunks = list(chunk_grid(bbox, chunk_m))
     total = len(chunks)

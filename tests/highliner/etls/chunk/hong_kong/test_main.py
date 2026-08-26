@@ -49,3 +49,22 @@ def test_hong_kong_dtm_rejects_another_crs(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="EPSG:2326"):
         dtm_landsd.fetch((0, 0, 1, 1), tmp_path, tmp_path, "EPSG:4326")
+
+
+def test_hong_kong_chunk_rejects_a_non_positive_worker_count() -> None:
+    from highliner.etls.chunk.hong_kong import main as hong_kong
+
+    with pytest.raises(SystemExit, match=">= 1"):
+        hong_kong.main(["--workers", "0"])
+
+
+def test_hong_kong_chunk_skips_a_region_it_was_not_asked_for(
+        monkeypatch: pytest.MonkeyPatch) -> None:
+    from highliner.etls.chunk.hong_kong import main as hong_kong
+
+    def fail(*_args: object, **_kwargs: object) -> int:
+        raise AssertionError("precompute must not run for another region")
+
+    monkeypatch.setattr(hong_kong.shared, "precompute", fail)
+
+    hong_kong.main(["--only", "macau"])

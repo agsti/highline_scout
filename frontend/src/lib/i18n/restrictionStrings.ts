@@ -113,6 +113,13 @@ export const RESTRICTION_STRINGS: Partial<Record<Lang, Record<string, Restrictio
       highlight:
         "El acceso, el camping y la instalación dependen del propietario, no de un organismo público; consigue su permiso antes de instalar.",
     },
+    hk_country_parks: {
+      label: "Áreas protegidas de Hong Kong",
+      tooltip:
+        "Área protegida terrestre o costera de Hong Kong, incluido un parque rural o sitio Ramsar. El acceso, la acampada y la instalación pueden estar regulados por su designación; consulta al Departamento de Agricultura, Pesca y Conservación antes de instalar.",
+      highlight:
+        "El acceso, la acampada y la instalación pueden estar regulados por su designación; consulta al Departamento de Agricultura, Pesca y Conservación antes de instalar.",
+    },
   },
   ca: {
     zepa: {
@@ -219,6 +226,13 @@ export const RESTRICTION_STRINGS: Partial<Record<Lang, Record<string, Restrictio
         "Terreny de conservació privat o comunitari, o altre terreny estatal protegit fora del SNASPE. L'accés, l'acampada i la instal·lació depenen del propietari, no d'un organisme públic; aconseguiu el seu permís abans d'instal·lar.",
       highlight:
         "L'accés, l'acampada i la instal·lació depenen del propietari, no d'un organisme públic; aconseguiu el seu permís abans d'instal·lar.",
+    },
+    hk_country_parks: {
+      label: "Àrees protegides de Hong Kong",
+      tooltip:
+        "Àrea protegida terrestre o costanera de Hong Kong, inclòs un parc rural o un lloc Ramsar. L'accés, l'acampada i la instal·lació poden estar regulats per la designació; consulteu el Departament d'Agricultura, Pesca i Conservació abans d'instal·lar.",
+      highlight:
+        "L'accés, l'acampada i la instal·lació poden estar regulats per la designació; consulteu el Departament d'Agricultura, Pesca i Conservació abans d'instal·lar.",
     },
   },
 };

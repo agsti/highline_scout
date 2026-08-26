@@ -212,4 +212,16 @@ LAYERS: dict[str, LayerSpec] = {
                       "discretion, not a public agency's; get the owner's "
                       "permission before rigging."),
     },
+    "hk_country_parks": {
+        "label": "Hong Kong Protected Areas",
+        "color": "#33a02c",
+        "tooltip": ("Hong Kong terrestrial or coastal protected area, including "
+                    "a Country Park or Ramsar site. Access, camping and rigging "
+                    "may be regulated under its designation; check with the "
+                    "Agriculture, Fisheries and Conservation Department before "
+                    "rigging."),
+        "highlight": ("Access, camping and rigging may be regulated under its "
+                      "designation; check with the Agriculture, Fisheries and "
+                      "Conservation Department before rigging."),
+    },
 }

@@ -41,7 +41,11 @@ ${ISSUE_BODY}
 
 6. Commit and push your changes to the branch
 7. Open a PR, link the issue in there
-8. In the PR, add a section "how to run" that specifies the exact commands in order to try out the new feature
+8. In the PR, add a section "how to run" that specifies the exact commands in
+   order to try out the new feature. Every command must terminate on its own:
+   this section is run unattended on a disposable worker, so a dev server or
+   anything else that waits for input never finishes and burns the job's whole
+   timeout. Never include `just dev`, `just dev-web`, `npm run dev` or similar.
 9. In the PR, add a section "artifacts" listing the repo-relative paths whose
    outputs are worth keeping after the run (e.g. data/italy/). One path per
    line. If the change produces no durable output, write "none".

@@ -86,6 +86,11 @@ commented on the PR in the last step.
    - the "artifacts" section: the repo-relative paths whose outputs must be kept
    If either section is missing, stop, comment on the PR saying which one is
    missing, and exit non-zero. Do not guess.
+   Drop any command that does not terminate on its own — a dev server
+   (\`just dev\`, \`just dev-web\`, \`npm run dev\`) or anything waiting for
+   input would run until the job's timeout expires, billing the whole time
+   and producing no verdict. Say in your PR comment which commands you
+   dropped.
 
 4. Get CI green on branch ${HEAD_BRANCH}, up to and including the
    "Build & push image" job. That job needs the "check" job to pass first,

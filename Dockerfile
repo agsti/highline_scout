@@ -49,8 +49,12 @@ ENV PATH="/app/.venv/bin:$PATH" \
     UV_CACHE_DIR=/app/.cache/uv \
     PYTHONUNBUFFERED=1
 
+# Jobs run as an unprivileged user, so every path the run writes to has to be
+# world-writable. /app/cache is included because the ocean-mask step above
+# created it as root: a country ETL caches its DTM sheets under
+# cache/<country>/, and without this it cannot create that directory at all.
 RUN mkdir -p /artifacts /app/.cache/uv \
-    && chmod -R a+rwX /app/.venv \
+    && chmod -R a+rwX /app/.venv /app/cache \
     && chmod 0777 /app /artifacts /app/.cache /app/.cache/uv
 
 ENTRYPOINT ["/app/entrypoint.sh"]

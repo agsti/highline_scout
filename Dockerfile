@@ -49,9 +49,13 @@ ENV PATH="/app/.venv/bin:$PATH" \
     UV_CACHE_DIR=/app/.cache/uv \
     PYTHONUNBUFFERED=1
 
-RUN mkdir -p /artifacts /app/.cache/uv \
-    && chmod -R a+rwX /app/.venv \
-    && chmod 0777 /app /artifacts /app/.cache /app/.cache/uv
+# The bundled coastline above is written to /app/cache as root, and AI Training
+# runs the job as an ordinary user, so /app/cache must be opened up too — every
+# country fetcher creates cache/<country>/ under it and would otherwise fail
+# with EACCES on the first chunk.
+RUN mkdir -p /artifacts /app/.cache/uv /app/cache \
+    && chmod -R a+rwX /app/.venv /app/cache \
+    && chmod 0777 /app /artifacts /app/.cache /app/.cache/uv /app/cache
 
 ENTRYPOINT ["/app/entrypoint.sh"]
 

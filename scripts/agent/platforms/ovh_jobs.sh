@@ -64,9 +64,15 @@ show_capacity() {
     used="$(printf '%s' "$live" | jq '[.[] | .spec.resources.cpu] | add // 0')"
     printf 'quota: %s CPU\n' "$quota"
     printf 'used:  %s CPU across %s job(s)\n' "$used" "$(printf '%s' "$live" | jq 'length')"
-    printf 'free:  %s CPU\n' "$((quota - used))"
-    printf '\nAt %s CPU per job that is room for %s more.\n' \
-        "${OVH_CPU:-8}" "$(( (quota - used) / ${OVH_CPU:-8} ))"
+    printf 'free:  %s CPU\n\n' "$((quota - used))"
+    # A table rather than one line for $OVH_CPU: the caller is usually deciding
+    # what to set OVH_CPU to, so reporting only the current value answers the
+    # wrong question.
+    printf 'room for, at OVH_CPU =\n'
+    local cpu
+    for cpu in 12 8 5 4 2; do
+        printf '  %-3s %s more job(s)\n' "$cpu" "$(( (quota - used) / cpu ))"
+    done
 }
 
 list_jobs() {

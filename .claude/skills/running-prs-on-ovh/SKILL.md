@@ -36,6 +36,7 @@ Four properties drive every decision below:
 | One job in detail | `scripts/agent/platforms/ovh_jobs.sh <job-id>` |
 | Block until a job finishes | `scripts/agent/platforms/ovh_jobs.sh --wait <job-id>` |
 | Room left in the quota | `scripts/agent/platforms/ovh_jobs.sh --capacity` |
+| Check a prior run before resuming it | `scripts/agent/platforms/ovh_fetch.sh --list pr-112` |
 | Job logs | `ovhai job logs <job-id>` |
 | List runs in the bucket | `scripts/agent/platforms/ovh_fetch.sh --list` |
 | Check what a run kept, with sizes | `scripts/agent/platforms/ovh_fetch.sh --list pr-112` |
@@ -57,9 +58,9 @@ does **not** queue and retry. Memory and disk scale with CPU at 4 GiB RAM and
 | 4 | 5 | 16 GiB | many small countries in parallel |
 | 2 | 10 | 8 GiB | risks OOM in chunk precompute |
 
-**Those counts assume an empty quota.** Run `ovh_jobs.sh --capacity` first — it
-prints free CPU and how many more jobs fit at the current `OVH_CPU`. Anything
-already running subtracts.
+**Those counts assume an empty quota.** Run `ovh_jobs.sh --capacity` first: it
+prints free CPU and, for each plausible `OVH_CPU`, how many more jobs fit right
+now. Anything already running subtracts.
 
 To work many PRs at once, lower `OVH_CPU` rather than launching more agents:
 
@@ -68,7 +69,8 @@ To work many PRs at once, lower `OVH_CPU` rather than launching more agents:
 `run_prs.sh` sets `OVH_WAIT_CAPACITY`, so a job that finds no room waits for it
 instead of failing. Local agents may outnumber OVH slots — an agent spends most
 of its life merging main and waiting on CI, holding no quota at all — so raising
-`JOBS` above the slot count is reasonable.
+`JOBS` above the slot count is reasonable. `JOBS` defaults to
+`quota / OVH_CPU`.
 
 `run_prs.sh` **blocks in the foreground until every PR finishes**, which is
 hours. Run it under `tmux` or `nohup`; each PR's agent output goes to
@@ -94,10 +96,17 @@ Forwarded values are stored in the job spec and readable afterwards through
 ## Resume
 
 Artifacts are keyed by run-id, and `run_pr.sh` derives it from the PR number
-(`pr-112`), so **re-running the same PR resumes it**. The runner restores the
-declared artifact paths before starting; chunk precompute skips any chunk whose
-pair parquet exists, density skips completed zoom files, and DTM caches are
-reused. A run killed at hour six restarts near hour six, not at zero.
+(`pr-112`), so **re-running the same PR resumes it**. A run killed at hour six
+restarts near hour six, not at zero.
+
+**Resume covers exactly what the PR's artifacts section declared** — nothing
+else. A PR listing `data/<country>/` and `cache/<country>/` resumes both its
+output and its DTM cache; one listing only `data/<country>/` re-downloads the
+whole terrain set on every attempt. Check the artifacts section before
+assuming a re-run will be cheap.
+
+Given restored paths, chunk precompute skips any chunk whose pair parquet
+exists, density skips completed zoom files, and cached DTM tiles are reused.
 
 - Force a clean run with `RESUME=0` as a prefix on whatever you invoke.
 - Resuming after changing a region's bbox, chunk size, CRS or DTM source is
@@ -105,6 +114,18 @@ reused. A run killed at hour six restarts near hour six, not at zero.
   so mixing grids would silently produce wrong geography. Delete the region
   directory to rebuild it.
 - Restriction outputs are always rebuilt; they are cheap.
+
+### Check the bucket before resuming
+
+Resume trusts what it restores, and skip-if-exists makes a bad prior run
+**sticky**: a run that failed in a way that still wrote output leaves files
+that the next attempt accepts as finished, then reports success over them.
+
+    scripts/agent/platforms/ovh_fetch.sh --list pr-112
+
+Hundreds of parquet files at an identical size means zero-row output from a run
+whose terrain reads were broken — not real results. Launch that PR with
+`RESUME=0`, or delete `runs/<run-id>/` from the bucket, before resuming it.
 
 ## Behaviour worth knowing before you wait on something
 
@@ -116,12 +137,21 @@ reused. A run killed at hour six restarts near hour six, not at zero.
   the streamed `run.log`, but whether anything survives on OVH depends on when
   the Object Storage mount syncs, which is unverified — the platform's
   `SYNC_FAILED` state hints at a sync on finalize.
-- **`run.log` is appended, not truncated**, so a resumed run does not erase the
-  log of the attempt it continues.
+- **`run.log` is streamed, not collected.** It is `tee -a`'d straight onto the
+  mounted bucket as the run goes, which is why it is the one thing likely to
+  survive a hard kill, and why it is appended rather than truncated across
+  resumed attempts.
 - **The image is built from the PR's head commit**, so the branch must be
   merged up to date with main and CI's "Build & push image" job must have
   succeeded on a *branch* push — it does not push on the `pull_request` event.
-  This, not OVH, is what serialises the first hour of a batch.
+  This, not OVH, is what serialises the first hour of a batch: merging main
+  gives every PR a new head SHA, hence a new image tag CI has to build (~5
+  minutes each, staggered by GitHub's concurrency limit).
+- **Red CI means no image exists at all.** "Build & push image" needs `check`
+  to pass, and is skipped outright when it fails. The driving agent will try to
+  reproduce and fix the failure locally, up to 5 attempts, before it can
+  schedule anything — so a PR with failing tests spends a long time never
+  touching OVH.
 - **A PR missing a "how to run" or "artifacts" section is skipped**, not
   guessed at. `run_prs.sh` lists what it skipped.
 
@@ -134,7 +164,7 @@ strips that prefix, so paths arrive at their repo-relative position:
 
 A run usually keeps `cache/<country>/` too — tens of GB of DTM tiles, all
 re-downloadable. `--only data/` skips it. Omit `--only` to take everything
-including `run.log`.
+including `run.log`. `--only` must come before the run-id.
 
 Check before trusting: `ovh_fetch.sh --list pr-112` shows sizes. An interrupted
 run can leave hundreds of identically-sized zero-row parquet files.
@@ -151,4 +181,5 @@ run can leave hundreds of identically-sized zero-row parquet files.
 | Assuming a lost shell killed the job | It runs for up to 7 days, billing | `ovh_jobs.sh --active`, then `ovhai job stop` |
 | Leaving `just dev` in a how-to-run | Job never exits, burns the full timeout | Only commands that terminate on their own |
 | Re-running to "start fresh" | It resumes instead | `RESUME=0`, or a different run-id |
+| Resuming onto a failed run's empty output | Skipped as "done", reports success over nothing | `--list` the run first; `RESUME=0` if suspect |
 | Fetching a run to get `data/` | Also pulls tens of GB of `cache/` | `--only data/` |

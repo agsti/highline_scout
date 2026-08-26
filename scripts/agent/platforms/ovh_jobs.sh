@@ -6,6 +6,8 @@
 #   ovh_jobs.sh --active        only jobs that have not reached a terminal state
 #   ovh_jobs.sh <job-id>        detail for one job, with its log and fetch commands
 #   ovh_jobs.sh --wait <job-id> block until the job is terminal, exit with its status
+#   ovh_jobs.sh --capacity      CPU quota, how much is in use, how much is free
+#   ovh_jobs.sh --free-cpu      just the free CPU count, for scripts
 #
 # Exit status is 0 for --wait on a job that finished cleanly, 1 otherwise.
 # Listing modes always exit 0 if the query itself worked.
@@ -41,6 +43,31 @@ def elapsed: (.status.duration | secs) as $d
         | if $a == null then null else ($b - $a) end
       end;
 '
+
+# The quota is a sum of the CPUs requested by live jobs, not a limit on how
+# many jobs there are. Submitting past it fails outright (HTTP 402) rather
+# than queueing, so callers have to look before they leap.
+free_cpu() {
+    local quota used
+    quota="$(ovhai me --output json | jq -r '.quotas.resources.CPU')"
+    used="$(ovhai job list --all --output json \
+        | jq "[.[] | select(.status.state | test(\"$TERMINAL_RE\") | not)
+               | .spec.resources.cpu] | add // 0")"
+    echo $((quota - used))
+}
+
+show_capacity() {
+    local quota used live
+    quota="$(ovhai me --output json | jq -r '.quotas.resources.CPU')"
+    live="$(ovhai job list --all --output json \
+        | jq "[.[] | select(.status.state | test(\"$TERMINAL_RE\") | not)]")"
+    used="$(printf '%s' "$live" | jq '[.[] | .spec.resources.cpu] | add // 0')"
+    printf 'quota: %s CPU\n' "$quota"
+    printf 'used:  %s CPU across %s job(s)\n' "$used" "$(printf '%s' "$live" | jq 'length')"
+    printf 'free:  %s CPU\n' "$((quota - used))"
+    printf '\nAt %s CPU per job that is room for %s more.\n' \
+        "${OVH_CPU:-8}" "$(( (quota - used) / ${OVH_CPU:-8} ))"
+}
 
 list_jobs() {
     local only_active="$1" jobs
@@ -127,6 +154,8 @@ wait_job() {
 case "${1:-}" in
 "") list_jobs 0 ;;
 --active) list_jobs 1 ;;
+--capacity) show_capacity ;;
+--free-cpu) free_cpu ;;
 --wait)
     if [ "$#" -lt 2 ]; then
         echo "usage: ovh_jobs.sh --wait <job-id>" >&2
@@ -135,7 +164,7 @@ case "${1:-}" in
     wait_job "$2"
     ;;
 -h | --help)
-    sed -n '2,17p' "$0" | sed 's/^# \{0,1\}//'
+    sed -n '2,19p' "$0" | sed 's/^# \{0,1\}//'
     ;;
 -*)
     echo "ovh_jobs.sh: unknown option '$1'" >&2

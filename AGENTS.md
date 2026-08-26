@@ -12,6 +12,8 @@ work that matches a skill's description, read and follow its `SKILL.md`:
   the ETL pipeline.
 - `.claude/skills/dispatching-country-etls/SKILL.md` — dispatch country ETL
   additions from explicit GitHub issue numbers.
+- `.claude/skills/running-prs-on-ovh/SKILL.md` — run a PR's commands on
+  OVHcloud AI Training, check on spawned jobs, and retrieve their output.
 
 This applies to Codex as well as Claude. Keep skills in this shared location;
 do not copy them into a user-level skills directory.

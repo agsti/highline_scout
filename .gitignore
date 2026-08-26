@@ -9,6 +9,7 @@ __pycache__/
 .mypy_cache/
 .ruff_cache/
 .worktrees/
+.runs/
 frontend/node_modules/
 frontend/dist/
 frontend/playwright-report/

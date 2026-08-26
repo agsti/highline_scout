@@ -50,3 +50,13 @@ def test_ci_enforces_python_branch_coverage() -> None:
     )
     assert "- name: Check Python coverage" in workflow
     assert "run: uv run coverage report" in workflow
+
+
+def test_runner_image_includes_uv_for_declared_pr_commands() -> None:
+    dockerfile = Path("Dockerfile").read_text()
+
+    runner_stage = dockerfile.split("FROM python:3.12-slim-bookworm AS runner")[1]
+    assert "COPY --from=builder /usr/local/bin/uv /usr/local/bin/uv" in runner_stage
+    assert 'UV_CACHE_DIR=/app/.cache/uv' in runner_stage
+    assert "chmod -R a+rwX /app/.venv" in runner_stage
+    assert "RUN /app/.venv/bin/python -m highliner.etls.chunk.ocean" in runner_stage

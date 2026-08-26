@@ -32,7 +32,7 @@ WORKDIR /app
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
-        ca-certificates curl git unar \
+        ca-certificates curl git p7zip-full unar \
     && curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh \
         | bash -s -- --to /usr/local/bin \
     && rm -rf /var/lib/apt/lists/*

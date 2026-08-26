@@ -5,6 +5,26 @@ description: Use when adding a new country (or a new region) to the highliner ET
 
 # Adding Country ETLs
 
+## Requirements
+1. **DTM source.** Find the national mapping agency's terrain product (or
+   INSPIRE Elevation for EU countries) and choose autonomously — don't ask
+   the user to pick. Requirements: bare-earth DTM (not DSM), reusable
+   license, ~5 m resolution (never below 10 m; if coarser than 5 m is the
+   finest available, proceed but flag it), bulk sheet downloads preferred
+   over tiled WCS (WCS only if no bulk product exists), and explicit handling
+   of the source's nodata/sea sentinel (don't assume ICGC's `-8888` carries
+   over). Expose `fetch(bbox, tiles_dir, cache_dir, crs) -> list[Path]` as a
+   **module-level** function — it's pickled for `--workers` multiprocessing,
+   so no lambdas or closures.
+
+   Optional: `references/dtm-fetch-overview.md` indexes the fetch strategy
+   each existing country uses and points to the one pattern file worth
+   reading for your source, instead of reading every `dtm_*.py` from scratch.
+
+Be this your first priority, if there's no DTM data, the whole etl doesn't make sense. Therefore find a dtm source first and foremost.
+Once you have the data, start understanding the patterns of the etl codes.
+If there's no DTM data with precision below 10m. Just say so and finish this agent session.
+
 ## Pattern
 
 A country needs all three ETL stages: chunk precompute, density, and
@@ -14,6 +34,9 @@ Spain's shape (`highliner/etls/*/spain/`) for all three — it's the reference
 implementation. No server or justfile changes are needed: the server
 discovers regions from `grid.json` on disk, and `just etl-<stage> <country>`
 already takes the country as an argument.
+
+
+One you know the dtm method for downloading. look into adding-country-etls/references/* for references of the various implementations. Choose the one that applies to this case.
 
 ## Steps
 
@@ -30,16 +53,6 @@ Each `__init__.py` is docstring-only — don't re-export `main`, it shadows the
 `main` submodule. Name the DTM module for its source, not the country
 (`dtm_bev.py`, not `dtm_austria.py`).
 
-1. **DTM source.** Find the national mapping agency's terrain product (or
-   INSPIRE Elevation for EU countries) and choose autonomously — don't ask
-   the user to pick. Requirements: bare-earth DTM (not DSM), reusable
-   license, ~5 m resolution (never below 10 m; if coarser than 5 m is the
-   finest available, proceed but flag it), bulk sheet downloads preferred
-   over tiled WCS (WCS only if no bulk product exists), and explicit handling
-   of the source's nodata/sea sentinel (don't assume ICGC's `-8888` carries
-   over). Expose `fetch(bbox, tiles_dir, cache_dir, crs) -> list[Path]` as a
-   **module-level** function — it's pickled for `--workers` multiprocessing,
-   so no lambdas or closures.
 
 2. **Chunk adapter.** Copy `chunk/spain/main.py`: a frozen `Region(name, bbox,
    crs, dtm_source, fetch)` catalogue plus `main()` (including `--jobs`/
@@ -60,7 +73,19 @@ Each `__init__.py` is docstring-only — don't re-export `main`, it shadows the
    state its impact on rigging, not just name the designation. New layer ids
    need entries in `highliner/core/restrictions.py` `LAYERS` **and** all
    three `RESTRICTION_STRINGS` catalogs
-   (`frontend/src/lib/i18n/restrictionStrings.ts`).
+   (`frontend/src/lib/i18n/restrictionStrings.ts`) **and**
+   `highliner/core/density.py` `LAYER_BITS` (one new unique power-of-two bit
+   per layer id). This last one is easy to miss because nothing errors when
+   it's skipped — `layer_mask()` just silently maps the unknown id to `0`,
+   so every candidate in the new country's density files gets restriction
+   mask `0` forever, and the frontend's restriction-layer filter becomes a
+   silent no-op for that country. This has already regressed twice (fixed
+   for Italy in `61a4ede`, then missed again for France/Switzerland/Chile).
+   Verify with `layer_mask([layer_id]) != 0` for every new id, or by
+   confirming `np.unique(density['hm'])` isn't just `[0]` after a real
+   `etl-density` run. `hm` is `np.int16`; if the running total of
+   restriction layers across all countries ever exceeds 15, it needs to grow
+   again.
 
 ## Verify
 

@@ -4,6 +4,7 @@ from highliner.core.density import (
     is_excluded,
     layer_mask,
 )
+from highliner.core.restrictions import LAYERS
 
 
 def test_10m_buckets_and_upward_snapped_range_overlap() -> None:
@@ -18,3 +19,10 @@ def test_mask_combines_layers_without_double_counting() -> None:
     assert layer_mask(["zepa", "enp"]) == 5
     assert is_excluded(5, layer_mask(["enp"]))
     assert not is_excluded(5, layer_mask(["zec"]))
+
+
+def test_every_restriction_layer_has_a_distinct_mask_bit() -> None:
+    """A layer missing from LAYER_BITS silently masks as 0 (see 61a4ede)."""
+    bits = [layer_mask([layer_id]) for layer_id in LAYERS]
+    assert all(bits), "every restriction layer id must map to a nonzero bit"
+    assert len(set(bits)) == len(bits), "mask bits must be unique per layer"

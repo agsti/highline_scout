@@ -33,7 +33,18 @@ def _patch_gap_download(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(_dtm_icgc, "_download_tile", fake)
 
 
+def _patch_no_ocean(monkeypatch: pytest.MonkeyPatch) -> None:
+    """This test drives an inland trench, not a coastline; stub out
+    load_ocean_geometry so it doesn't need the real Natural Earth cache file
+    and isn't affected by the ocean fix (empty geometry never matches any
+    cell)."""
+    from shapely.geometry import GeometryCollection
+    monkeypatch.setattr(shared.ocean, "load_ocean_geometry",
+                        lambda crs: GeometryCollection())
+
+
 def test_full_pipeline(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    _patch_no_ocean(monkeypatch)
     _patch_gap_download(monkeypatch)
     bbox = (420000.0, 4600000.0, 420300.0, 4600300.0)
     n = shared.precompute("spain", "demo", bbox, tmp_path, chunk_m=10000.0,

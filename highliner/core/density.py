@@ -21,6 +21,7 @@ LAYER_BITS = {
     "cl_snaspe": 4096,
     "cl_santuario": 8192,
     "cl_conservacion_privada": 16384,
+    "id_kawasan_konservasi": 32768,
 }
 
 

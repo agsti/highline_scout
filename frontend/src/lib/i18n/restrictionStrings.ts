@@ -113,6 +113,13 @@ export const RESTRICTION_STRINGS: Partial<Record<Lang, Record<string, Restrictio
       highlight:
         "El acceso, el camping y la instalación dependen del propietario, no de un organismo público; consigue su permiso antes de instalar.",
     },
+    id_kawasan_konservasi: {
+      label: "Áreas de conservación de Indonesia",
+      tooltip:
+        "Área de conservación de Indonesia (Kawasan Konservasi). El acceso, la escalada, el vivac y otras actividades recreativas pueden estar restringidos por la autoridad gestora; consulta las normas locales y consigue permiso antes de instalar.",
+      highlight:
+        "El acceso, la escalada, el vivac y otras actividades recreativas pueden estar restringidos por la autoridad gestora; consulta las normas locales y consigue permiso antes de instalar.",
+    },
   },
   ca: {
     zepa: {
@@ -219,6 +226,13 @@ export const RESTRICTION_STRINGS: Partial<Record<Lang, Record<string, Restrictio
         "Terreny de conservació privat o comunitari, o altre terreny estatal protegit fora del SNASPE. L'accés, l'acampada i la instal·lació depenen del propietari, no d'un organisme públic; aconseguiu el seu permís abans d'instal·lar.",
       highlight:
         "L'accés, l'acampada i la instal·lació depenen del propietari, no d'un organisme públic; aconseguiu el seu permís abans d'instal·lar.",
+    },
+    id_kawasan_konservasi: {
+      label: "Àrees de conservació d'Indonèsia",
+      tooltip:
+        "Àrea de conservació d'Indonèsia (Kawasan Konservasi). L'accés, l'escalada, el vivac i altres activitats recreatives poden estar restringits per l'autoritat gestora; consulteu les normes locals i obteniu permís abans d'instal·lar.",
+      highlight:
+        "L'accés, l'escalada, el vivac i altres activitats recreatives poden estar restringits per l'autoritat gestora; consulteu les normes locals i obteniu permís abans d'instal·lar.",
     },
   },
 };

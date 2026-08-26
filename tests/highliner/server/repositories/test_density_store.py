@@ -29,7 +29,7 @@ def _write(path: Path, hist: list[tuple[int, int, int, int]]) -> None:
         off=np.array([0, len(hist)], dtype=np.int64),
         hl=np.array([row[0] for row in hist], dtype=np.int16),
         he=np.array([row[1] for row in hist], dtype=np.int16),
-        hm=np.array([row[2] for row in hist], dtype=np.int8),
+        hm=np.array([row[2] for row in hist], dtype=np.int16),
         hc=np.array([row[3] for row in hist], dtype=np.int32),
     )
 

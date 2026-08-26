@@ -189,6 +189,38 @@ def test_existing_empty_zoom_is_rebuilt(tmp_path: Path) -> None:
     assert density_file.stat().st_size > 0
 
 
+def test_interrupted_zoom_write_leaves_no_file_to_skip(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A crash mid-write must not leave a nonempty .npz behind.
+
+    _is_complete_density only checks for a nonempty file, so a truncated one
+    would be treated as complete and that zoom skipped on every later run.
+    """
+    near = to_utm(1.83, 41.59)
+    region = _write_region(tmp_path, [_pair(near[0], near[1], exposure=30.0)])
+
+    real_savez = np.savez
+
+    def savez_then_die(file: object, **arrays: object) -> None:
+        real_savez(file, **arrays)  # type: ignore[arg-type]
+        raise OSError("disk full")
+
+    monkeypatch.setattr(np, "savez", savez_then_die)
+    with pytest.raises(OSError, match="disk full"):
+        builder.build_density(region, zoom_levels=[12])
+
+    density_dir = region / "density"
+    assert not (density_dir / "z12.npz").exists()
+
+    # The next run must rebuild it rather than skip it.
+    monkeypatch.undo()
+    written = builder.build_density(region, zoom_levels=[12])
+
+    assert written == 1
+    assert (density_dir / "z12.npz").stat().st_size > 0
+    assert not list(density_dir.glob("*.tmp-*"))
+
+
 def test_density_rolls_finest_histograms_up_to_requested_zooms(
         tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     near = to_utm(1.83, 41.59)

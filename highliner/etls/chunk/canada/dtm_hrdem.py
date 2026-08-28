@@ -3,10 +3,12 @@
 The STAC catalogue lists one COG per LiDAR acquisition project.  COG range
 reads let rasterio materialize just each requested 5 m analysis subset; areas
 outside HRDEM coverage deliberately return no tiles rather than synthetic DEM.
+
+Subsets are cut to the requesting chunk's halo bbox, so they are transient
+per-chunk scratch, not a durable cache: written into the chunk's ``tiles_dir``
+so ``shared._cleanup_transient_tiles`` reclaims them once the chunk is done.
 """
-import fcntl
 import hashlib
-import json
 from pathlib import Path
 from typing import Any, TypedDict
 
@@ -50,9 +52,11 @@ def _query_assets(session: requests.Session, bbox: Bbox, crs: str) -> list[Asset
     return assets
 
 
-def _subset_path(asset: Asset, bbox: Bbox, root: Path) -> Path:
-    key = hashlib.sha1(json.dumps([asset["href"], list(bbox)]).encode()).hexdigest()
-    return root / "hrdem" / "subsets" / f"{asset['id']}_{key}.tif"
+def _subset_path(asset: Asset, tiles_dir: Path) -> Path:
+    """Name the chunk-local subset. The asset id is catalogue-supplied text, so
+    hash the href rather than trusting it as a filename."""
+    key = hashlib.sha1(asset["href"].encode()).hexdigest()[:16]
+    return tiles_dir / f"hrdem_{key}.tif"
 
 
 def _materialize_subset(asset: Asset, bbox: Bbox, crs: str, dest: Path) -> None:
@@ -88,29 +92,28 @@ def _materialize_subset(asset: Asset, bbox: Bbox, crs: str, dest: Path) -> None:
     part.replace(dest)
 
 
-def fetch_hrdem_tiles(bbox: Bbox, cache_dir: Path, crs: str) -> list[Path]:
-    """Return cached 5 m subsets from every HRDEM DTM COG touching ``bbox``."""
-    root = Path(cache_dir)
+def fetch_hrdem_tiles(bbox: Bbox, tiles_dir: Path, crs: str) -> list[Path]:
+    """Cut a 5 m subset of every HRDEM DTM COG touching ``bbox`` into
+    ``tiles_dir``. One STAC item can appear twice in a page, so an already
+    written subset is reused within the call."""
+    root = Path(tiles_dir)
     paths: list[Path] = []
     with requests.Session() as session:
         assets = _query_assets(session, bbox, crs)
     for asset in assets:
-        dest = _subset_path(asset, bbox, root)
+        dest = _subset_path(asset, root)
         if not dest.exists():
-            dest.parent.mkdir(parents=True, exist_ok=True)
-            with dest.with_suffix(".lock").open("w") as lock:
-                fcntl.flock(lock, fcntl.LOCK_EX)
-                if not dest.exists():
-                    _materialize_subset(asset, bbox, crs, dest)
-        if dest.exists():
+            _materialize_subset(asset, bbox, crs, dest)
+        if dest.exists() and dest not in paths:
             paths.append(dest)
     return paths
 
 
 def fetch(bbox: Bbox, tiles_dir: Path, cache_dir: Path | None,
           crs: str) -> list[Path]:
-    """Fetcher entry point; durable subsets live in the country cache."""
-    del tiles_dir
-    if cache_dir is None:
-        raise ValueError("hrdem source requires cache_dir")
-    return fetch_hrdem_tiles(bbox, cache_dir, crs)
+    """Fetcher entry point. Subsets are chunk-scoped scratch, not a cache: they
+    are cut to the chunk's halo bbox, so keying them durably by bbox could never
+    hit from another chunk and only grew the disk without bound (the first
+    Canada run was evicted at 160 GiB after 3 of 13 regions)."""
+    del cache_dir
+    return fetch_hrdem_tiles(bbox, tiles_dir, crs)

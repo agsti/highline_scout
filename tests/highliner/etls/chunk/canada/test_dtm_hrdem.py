@@ -64,14 +64,6 @@ def test_hrdem_catalog_returns_only_dtm_assets_and_follows_pages() -> None:
     assert len(session.calls[0][1]["bbox"].split(",")) == 4
 
 
-def test_hrdem_fetch_requires_cache_dir(tmp_path: Path) -> None:
-    from highliner.etls.chunk.canada import dtm_hrdem
-
-    with pytest.raises(ValueError, match="cache_dir"):
-        dtm_hrdem.fetch((0.0, 0.0, 1.0, 1.0), tmp_path / "tiles", None,
-                         "EPSG:3979")
-
-
 def _write_source(path: Path, *, size: int = 100, res: float = 1.0) -> Path:
     """A 1 m EPSG:3979 raster standing in for one HRDEM DTM COG."""
     values = np.arange(size * size, dtype="float32").reshape(size, size)
@@ -120,14 +112,14 @@ def test_materialize_subset_keeps_nothing_when_the_cog_misses_the_bbox(
     assert not dest.exists()
 
 
-def test_fetch_hrdem_tiles_materializes_once_and_reuses_the_cache(
+def test_fetch_hrdem_tiles_materializes_a_repeated_asset_only_once(
         monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     from highliner.etls.chunk.canada import dtm_hrdem
 
     source = _write_source(tmp_path / "cog.tif")
     asset: dict[str, str] = {"id": "cog", "href": str(source)}
     monkeypatch.setattr(dtm_hrdem, "_query_assets",
-                        lambda *_args: [asset])
+                        lambda *_args: [asset, dict(asset)])
     materialized = 0
     real = dtm_hrdem._materialize_subset
 
@@ -139,25 +131,33 @@ def test_fetch_hrdem_tiles_materializes_once_and_reuses_the_cache(
     monkeypatch.setattr(dtm_hrdem, "_materialize_subset", counted)
     bbox = (_X0 + 10, _Y0 - 60, _X0 + 60, _Y0 - 10)
 
-    first = dtm_hrdem.fetch_hrdem_tiles(bbox, tmp_path / "cache", "EPSG:3979")
-    second = dtm_hrdem.fetch_hrdem_tiles(bbox, tmp_path / "cache", "EPSG:3979")
+    tiles = dtm_hrdem.fetch_hrdem_tiles(bbox, tmp_path / "tiles", "EPSG:3979")
 
-    assert first == second
-    assert len(first) == 1
-    assert first[0].exists()
+    assert len(tiles) == 1
+    assert tiles[0].exists()
     assert materialized == 1
 
 
-def test_fetch_ignores_tiles_dir_and_caches_under_the_country_cache(
+def test_fetch_writes_subsets_into_the_chunk_tiles_dir(
         monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    # Subsets are cut to the chunk's own bbox, so they can never be reused by
+    # another chunk. They must land directly in tiles_dir, which is what
+    # shared._cleanup_transient_tiles unlinks — anywhere else grows without
+    # bound and fills the runner's disk.
     from highliner.etls.chunk.canada import dtm_hrdem
+    from highliner.etls.chunk.shared import _cleanup_transient_tiles
 
     source = _write_source(tmp_path / "cog.tif")
     monkeypatch.setattr(dtm_hrdem, "_query_assets",
                         lambda *_args: [{"id": "cog", "href": str(source)}])
+    tiles_dir = tmp_path / "tiles"
+    tiles_dir.mkdir()
 
     tiles = dtm_hrdem.fetch((_X0 + 10, _Y0 - 60, _X0 + 60, _Y0 - 10),
-                            tmp_path / "tiles", tmp_path / "cache", "EPSG:3979")
+                            tiles_dir, tmp_path / "cache", "EPSG:3979")
 
-    assert [path.parent.parent.parent for path in tiles] == [tmp_path / "cache"]
-    assert not (tmp_path / "tiles").exists()
+    assert [path.parent for path in tiles] == [tiles_dir]
+    assert not (tmp_path / "cache").exists()
+
+    _cleanup_transient_tiles(tiles, tiles_dir)
+    assert not any(path.exists() for path in tiles)

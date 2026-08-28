@@ -4,11 +4,16 @@ INEGI's MDE catalogue distinguishes ``Terreno`` from its surface product; this
 client requests only the 5 m ``Terreno`` sheets, caches their ASCII archives,
 and reprojects selected sheets into the region CRS for the chunk pipeline.
 
-The ASCII product ships in two archive layouts. Most sheets carry POSIX member
-names and a ``<sheet>_mt.txt`` plain-text metadata file; a minority carry
-Windows-separated names and a ``<sheet>_mt_ntm[_x].txt`` file that is really
-XML. Both are handled here, and both dialects of the UTM-zone declaration are
-accepted, because the zone picks the sheet's native CRS.
+The ASCII product is not uniform. Over a 60-sheet sample of the catalogue,
+archives came in three layouts (``conjunto_de_datos``/``metadatos`` with either
+separator, and ``MT_XYZ``/``MT_Auxiliares``/``MT_Metadatos``) and the UTM zone —
+which picks the sheet's native CRS — was declared three different ways, or not
+at all. So the zone is read from whichever dialect the sheet uses and falls back
+to the sheet key, whose ``<letter><zone>`` prefix names the 1:1,000,000 chart
+the sheet subdivides. That fallback is the reliable one: where a sheet declares
+both a zone and a central meridian, the two can disagree (``D15B53A3`` says
+zone 15 with ``<longcm>-099``, a zone-14 meridian) and it is the zone, matching
+the key, that agrees with the sheet's own longitude bounds.
 """
 import fcntl
 import re
@@ -33,8 +38,10 @@ _XYZ_MEMBER = re.compile(r"\.xyz$")
 # "<sheet>_mt.txt" in the common layout, "<sheet>_mt_ntm.txt" (or "_ntm_a") in
 # the variant one; the archive-wide "metadato_mdt.txt" must not match.
 _METADATA_MEMBER = re.compile(r"_mt(_ntm[a-z_]*)?\.txt$")
-_UTM_ZONE_PATTERNS = (r"N.mero de zona UTM:\s*(\d+)",
-                      r"<utm_zone>\s*(\d+)\s*</utm_zone>")
+# Plain-text sheets state the zone in prose; the two XML dialects tag it as
+# <utm_zone> or <utmzone>. The MT_Auxiliares layout states no zone at all.
+_UTM_ZONE_PATTERNS = (r"N.mero de zona UTM:\s*(\d+)", r"<utm_?zone>\s*(\d+)")
+_KEY_ZONE = re.compile(r"^[a-z](\d{2})", re.IGNORECASE)
 
 
 class SheetUnavailable(RuntimeError):
@@ -77,19 +84,22 @@ def _member(names: list[str], pattern: re.Pattern[str]) -> str | None:
     return None
 
 
-def _utm_zone(metadata: bytes) -> int:
-    """Read the sheet's UTM zone from either metadata dialect."""
-    text = metadata.decode("latin-1", errors="replace")
+def _utm_zone(key: str, metadata: bytes | None) -> int:
+    """The sheet's UTM zone: whichever dialect its metadata declares, else the
+    zone of the 1:1,000,000 chart its key subdivides."""
+    text = "" if metadata is None else metadata.decode("latin-1", errors="replace")
     for pattern in _UTM_ZONE_PATTERNS:
         match = re.search(pattern, text)
         if match is not None:
             return int(match[1])
-    raise RuntimeError("INEGI terrain metadata has no UTM zone")
+    from_key = _KEY_ZONE.match(key)
+    if from_key is None:
+        raise RuntimeError(f"INEGI sheet {key} declares no UTM zone")
+    return int(from_key[1])
 
 
-def _write_xyz_grid(xyz: bytes, metadata: bytes, dest: Path) -> None:
-    """Convert INEGI's regular XYZ export into a native-UTM GeoTIFF."""
-    zone = _utm_zone(metadata)
+def _write_xyz_grid(xyz: bytes, zone: int, dest: Path) -> None:
+    """Convert INEGI's regular XYZ export into a GeoTIFF in UTM ``zone``."""
     points = np.loadtxt(xyz.splitlines(), dtype="float32")
     xs = np.unique(points[:, 0])
     ys = np.unique(points[:, 1])
@@ -123,10 +133,10 @@ def _download_sheet(key: str, dest: Path) -> None:
             names = zipped.namelist()
             xyz = _member(names, _XYZ_MEMBER)
             metadata = _member(names, _METADATA_MEMBER)
-            if xyz is None or metadata is None:
-                raise RuntimeError(
-                    f"INEGI terrain archive for {key} lacks XYZ metadata")
-            _write_xyz_grid(zipped.read(xyz), zipped.read(metadata), dest)
+            if xyz is None:
+                raise RuntimeError(f"INEGI terrain archive for {key} lacks XYZ")
+            zone = _utm_zone(key, None if metadata is None else zipped.read(metadata))
+            _write_xyz_grid(zipped.read(xyz), zone, dest)
     finally:
         # Never leave the multi-MB download in the persistent cache: only the
         # .tif is looked up on the next run, so a stale .zip is pure leak.

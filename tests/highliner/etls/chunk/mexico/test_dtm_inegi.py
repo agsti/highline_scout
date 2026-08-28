@@ -127,7 +127,7 @@ def test_write_xyz_grid_georeferences_the_export_in_its_own_utm_zone(
         tmp_path: Path) -> None:
     dest = tmp_path / "F14D19A1.tif"
 
-    dtm_inegi._write_xyz_grid(_XYZ, _METADATA, dest)
+    dtm_inegi._write_xyz_grid(_XYZ, 14, dest)
 
     with rasterio.open(dest) as raster:
         # Zone 14 -> Mexico ITRF2008 / UTM zone 14N.
@@ -139,10 +139,15 @@ def test_write_xyz_grid_georeferences_the_export_in_its_own_utm_zone(
         assert raster.bounds.top == pytest.approx(2200007.5)
 
 
-def test_write_xyz_grid_rejects_metadata_without_a_utm_zone(
-        tmp_path: Path) -> None:
-    with pytest.raises(RuntimeError, match="UTM zone"):
-        dtm_inegi._write_xyz_grid(_XYZ, b"Sin zona\n", tmp_path / "x.tif")
+def test_utm_zone_falls_back_to_the_chart_the_sheet_key_names() -> None:
+    # MT_Auxiliares-layout sheets declare no zone; D15... subdivides chart 15.
+    assert dtm_inegi._utm_zone("D15B53A3", b"Sin zona\n") == 15
+    assert dtm_inegi._utm_zone("E14B67F1", None) == 14
+
+
+def test_utm_zone_rejects_a_key_that_names_no_chart() -> None:
+    with pytest.raises(RuntimeError, match="declares no UTM zone"):
+        dtm_inegi._utm_zone("NOPE", None)
 
 
 def test_download_sheet_converts_the_ascii_archive_and_drops_the_zip(
@@ -170,24 +175,24 @@ def test_download_sheet_reports_a_key_the_catalogue_does_not_carry(
         dtm_inegi._download_sheet("NOPE", tmp_path / "NOPE.tif")
 
 
-def test_download_sheet_rejects_an_archive_missing_its_xyz_or_metadata(
+def test_download_sheet_rejects_an_archive_missing_its_xyz(
         monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w") as zipped:
-        zipped.writestr("F14D19A1.xyz", _XYZ)
+        zipped.writestr("metadatos/F14D19A1_mt.txt", _METADATA)
     monkeypatch.setattr(requests, "post", lambda *a, **k:
                         _FakeJsonResponse([{"url_descarga": "https://example.test/s",
                                             "archivo": "F14D19A1_as.zip, 1 MB"}]))
     monkeypatch.setattr(requests, "get", lambda *a, **k:
                         _FakeArchiveResponse(buffer.getvalue()))
 
-    with pytest.raises(RuntimeError, match="lacks XYZ metadata"):
+    with pytest.raises(RuntimeError, match="lacks XYZ"):
         dtm_inegi._download_sheet("F14D19A1", tmp_path / "F14D19A1.tif")
 
 
 def test_reproject_resamples_a_sheet_into_the_region_crs(tmp_path: Path) -> None:
     source = tmp_path / "F14D19A1.tif"
-    dtm_inegi._write_xyz_grid(_XYZ, _METADATA, source)
+    dtm_inegi._write_xyz_grid(_XYZ, 14, source)
 
     out = dtm_inegi._reproject(source, tmp_path / "out.tif", "EPSG:6372")
 
@@ -203,7 +208,7 @@ def test_fetch_downloads_a_sheet_missing_from_the_cache(
 
     def fake_download(key: str, dest: Path) -> None:
         downloaded.append(key)
-        dtm_inegi._write_xyz_grid(_XYZ, _METADATA, dest)
+        dtm_inegi._write_xyz_grid(_XYZ, 14, dest)
 
     monkeypatch.setattr(dtm_inegi, "_download_sheet", fake_download)
     monkeypatch.setattr(dtm_inegi, "_catalogue",
@@ -255,8 +260,13 @@ def test_member_never_picks_the_generic_product_metadata() -> None:
                              dtm_inegi._METADATA_MEMBER) is None
 
 
-def test_utm_zone_reads_the_xml_metadata_dialect() -> None:
-    assert dtm_inegi._utm_zone(_VARIANT_METADATA) == 15
+@pytest.mark.parametrize("metadata,zone", [
+    (_VARIANT_METADATA, 15),
+    (b"<utm><utmzone>15</utmzone><longcm>-099.000000</longcm></utm>", 15),
+])
+def test_utm_zone_reads_both_xml_metadata_dialects(metadata: bytes,
+                                                   zone: int) -> None:
+    assert dtm_inegi._utm_zone("D15B53A3", metadata) == zone
 
 
 def test_download_sheet_converts_the_variant_archive_layout(
@@ -280,14 +290,14 @@ def test_download_sheet_drops_the_zip_when_the_conversion_fails(
         monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w") as zipped:
-        zipped.writestr("conjunto_de_datos/x.xyz", _XYZ)
+        zipped.writestr("metadatos/x_mt.txt", _METADATA)
     monkeypatch.setattr(requests, "post", lambda *a, **k:
                         _FakeJsonResponse([{"url_descarga": "https://example.test/s",
                                             "archivo": "F14D19A1_as.zip, 1 MB"}]))
     monkeypatch.setattr(requests, "get", lambda *a, **k:
                         _FakeArchiveResponse(buffer.getvalue()))
 
-    with pytest.raises(RuntimeError, match="lacks XYZ metadata"):
+    with pytest.raises(RuntimeError, match="lacks XYZ"):
         dtm_inegi._download_sheet("F14D19A1", tmp_path / "F14D19A1.tif")
 
     # The persistent cache must not keep the multi-MB download around.
@@ -299,7 +309,7 @@ def test_fetch_skips_a_sheet_the_source_publishes_no_archive_for(
     def fake_download(key: str, dest: Path) -> None:
         if key == "GAP":
             raise dtm_inegi.SheetUnavailable("INEGI catalogue has no ASCII archive")
-        dtm_inegi._write_xyz_grid(_XYZ, _METADATA, dest)
+        dtm_inegi._write_xyz_grid(_XYZ, 14, dest)
 
     monkeypatch.setattr(dtm_inegi, "_download_sheet", fake_download)
     monkeypatch.setattr(dtm_inegi, "_catalogue", lambda: [
@@ -310,3 +320,36 @@ def test_fetch_skips_a_sheet_the_source_publishes_no_archive_for(
                             tmp_path / "tiles", tmp_path / "cache", "EPSG:3857")
 
     assert paths == [tmp_path / "tiles" / "F14D19A1.tif"]
+
+
+# The third archive layout: MT_XYZ / MT_Auxiliares / MT_Metadatos, uppercase
+# member names, and an auxiliary text file that names a central meridian but
+# no zone -- so the zone can only come from the sheet key's chart.
+_AUXILIARY = ("CLAVE: G12B46E3\nLONGITUD_MERIDIANO_CENTRAL:          111W\n"
+              ).encode("latin-1")
+
+
+def _auxiliares_sheet_archive() -> bytes:
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as zipped:
+        zipped.writestr("MT_XYZ\\G12B46E3_MT.xyz", _XYZ)
+        zipped.writestr("MT_Auxiliares\\G12B46E3_MT.txt", _AUXILIARY)
+        zipped.writestr("MT_Metadatos\\G12B46E3_MT.html", b"<html></html>")
+    return buffer.getvalue()
+
+
+def test_download_sheet_converts_the_mt_auxiliares_layout(
+        monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setattr(requests, "post", lambda *a, **k:
+                        _FakeJsonResponse([{"url_descarga": "https://example.test/s",
+                                            "archivo": "G12B46E3_as.zip, 5 MB"}]))
+    monkeypatch.setattr(requests, "get", lambda *a, **k:
+                        _FakeArchiveResponse(_auxiliares_sheet_archive()))
+    dest = tmp_path / "G12B46E3.tif"
+
+    dtm_inegi._download_sheet("G12B46E3", dest)
+
+    with rasterio.open(dest) as raster:
+        # Chart G12 -> zone 12 -> Mexico ITRF2008 / UTM zone 12N.
+        assert raster.crs.to_epsg() == 6367
+    assert not list(tmp_path.glob("*.zip"))

@@ -113,6 +113,13 @@ export const RESTRICTION_STRINGS: Partial<Record<Lang, Record<string, Restrictio
       highlight:
         "El acceso, el camping y la instalación dependen del propietario, no de un organismo público; consigue su permiso antes de instalar.",
     },
+    ca_protected: {
+      label: "Áreas protegidas y conservadas de Canadá",
+      tooltip:
+        "Área protegida o conservada de la base de datos nacional CPCAD de Canadá. El acceso, la escalada, los anclajes, la acampada y las actividades organizadas pueden estar regulados por la autoridad indígena, federal, provincial, territorial o local responsable; consulta las normas específicas antes de instalar.",
+      highlight:
+        "El acceso, la escalada, los anclajes, la acampada y las actividades organizadas pueden estar regulados por la autoridad indígena, federal, provincial, territorial o local responsable; consulta las normas específicas antes de instalar.",
+    },
   },
   ca: {
     zepa: {
@@ -219,6 +226,13 @@ export const RESTRICTION_STRINGS: Partial<Record<Lang, Record<string, Restrictio
         "Terreny de conservació privat o comunitari, o altre terreny estatal protegit fora del SNASPE. L'accés, l'acampada i la instal·lació depenen del propietari, no d'un organisme públic; aconseguiu el seu permís abans d'instal·lar.",
       highlight:
         "L'accés, l'acampada i la instal·lació depenen del propietari, no d'un organisme públic; aconseguiu el seu permís abans d'instal·lar.",
+    },
+    ca_protected: {
+      label: "Àrees protegides i conservades del Canadà",
+      tooltip:
+        "Àrea protegida o conservada de la base de dades nacional CPCAD del Canadà. L'accés, l'escalada, els ancoratges, l'acampada i les activitats organitzades poden estar regulats per l'autoritat indígena, federal, provincial, territorial o local responsable; consulteu les normes específiques abans d'instal·lar.",
+      highlight:
+        "L'accés, l'escalada, els ancoratges, l'acampada i les activitats organitzades poden estar regulats per l'autoritat indígena, federal, provincial, territorial o local responsable; consulteu les normes específiques abans d'instal·lar.",
     },
   },
 };

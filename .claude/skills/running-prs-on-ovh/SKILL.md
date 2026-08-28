@@ -77,6 +77,36 @@ hours. Run it under `tmux` or `nohup`; each PR's agent output goes to
 `.runs/prs/<pr>.log` and its exit code to `.runs/prs/<pr>.status`. If the
 driver dies the OVH jobs continue, but nothing will comment on the PRs.
 
+## The diagnose-and-apply loop
+
+A run does more than pass or fail a PR — it feeds the next run:
+
+1. The job fails. The agent reads the job log, traces the root exception to a
+   file and line, classifies it (this PR's code / the image or shared code /
+   an upstream source / a resource limit), and says whether re-running would
+   help. It posts that as a PR comment titled **"Failure diagnosis"**.
+2. The next run of that PR reads the PR's comments and reviews **before**
+   running anything, applies the ones it accepts, runs the AGENTS.md checks,
+   commits and pushes to the PR branch, and replies saying what it applied
+   and what it rejected and why.
+3. That push changes the head SHA, so CI rebuilds the image, and the run then
+   proceeds against the fixed code.
+
+So a failing PR is advanced by **re-running it**, not by editing it by hand:
+
+    scripts/agent/run_prs.sh claude 129
+
+The agent is told to judge feedback on its merits and to reject what is wrong
+rather than comply, so a bad diagnosis does not automatically become a bad
+commit. It is also told never to escalate CPU or memory more than once against
+an out-of-memory failure — a second OOM at higher memory is evidence of a
+memory bug in the code, not of a job that needs a bigger machine.
+
+Diagnosis quality is the thing that makes the loop work. A comment saying "the
+ETL crashed" leaves the next run nothing to act on; one naming
+`dtm_govern.py:66` and `source.read()` buffering a whole archive member gets
+fixed.
+
 ## API keys
 
 Some countries' sources need a key, declared in the PR body as
@@ -173,6 +203,7 @@ run can leave hundreds of identically-sized zero-row parquet files.
 
 | Mistake | What happens | Instead |
 |---|---|---|
+| Fixing a diagnosed PR by hand | Duplicates what a re-run would apply | Re-run it; step 2 applies the comment |
 | Reading the concurrency table without checking live usage | `402: quota exceeded` | `ovh_jobs.sh --capacity` first |
 | Launching more jobs than the quota fits | Job never created | Lower `OVH_CPU`, or let `OVH_WAIT_CAPACITY` wait |
 | Running a PR that needs an API key without setting it | Fails on the worker after CI | `run_prs.sh` blocks it up front; set the key |

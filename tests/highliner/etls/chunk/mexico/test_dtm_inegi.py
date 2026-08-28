@@ -223,3 +223,90 @@ def test_fetch_requires_a_cache_dir_for_the_shared_sheet_store(
     with pytest.raises(ValueError, match="cache_dir"):
         dtm_inegi.fetch((0.0, 0.0, 1.0, 1.0), tmp_path / "tiles", None,
                         "EPSG:6372")
+
+
+# The variant archive layout: Windows separators, a "_mt_ntm" metadata member
+# that is XML despite its .txt name, and the zone as an element.
+_VARIANT_METADATA = b"<idinfo><utm><utm_zone>15</utm_zone><utm_longcm>-099.0</utm_longcm></utm></idinfo>"  # noqa: E501
+
+
+def _variant_sheet_archive() -> bytes:
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as zipped:
+        zipped.writestr("conjunto_de_datos\\d15b63d1_mt.xyz", _XYZ)
+        zipped.writestr("metadatos\\d15b63d1_mt_ntm.txt", _VARIANT_METADATA)
+        zipped.writestr("metadatos\\metadato_mdt.txt", b"generic product metadata\n")
+    return buffer.getvalue()
+
+
+@pytest.mark.parametrize("name", [
+    "metadatos/d14b15b1_mt.txt",
+    "metadatos\\d15b63d1_mt_ntm.txt",
+    "metadatos\\f14b33d3_mt_ntm_a.txt",
+])
+def test_member_matches_both_metadata_layouts(name: str) -> None:
+    names = ["metadatos/metadato_mdt.txt", "metadatos/x_mt.xml", name]
+
+    assert dtm_inegi._member(names, dtm_inegi._METADATA_MEMBER) == name
+
+
+def test_member_never_picks_the_generic_product_metadata() -> None:
+    assert dtm_inegi._member(["metadatos\\metadato_mdt.txt"],
+                             dtm_inegi._METADATA_MEMBER) is None
+
+
+def test_utm_zone_reads_the_xml_metadata_dialect() -> None:
+    assert dtm_inegi._utm_zone(_VARIANT_METADATA) == 15
+
+
+def test_download_sheet_converts_the_variant_archive_layout(
+        monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setattr(requests, "post", lambda *a, **k:
+                        _FakeJsonResponse([{"url_descarga": "https://example.test/s",
+                                            "archivo": "D15B63D1_as.zip, 5 MB"}]))
+    monkeypatch.setattr(requests, "get", lambda *a, **k:
+                        _FakeArchiveResponse(_variant_sheet_archive()))
+    dest = tmp_path / "D15B63D1.tif"
+
+    dtm_inegi._download_sheet("D15B63D1", dest)
+
+    with rasterio.open(dest) as raster:
+        # Zone 15 -> Mexico ITRF2008 / UTM zone 15N.
+        assert raster.crs.to_epsg() == 6370
+    assert not list(tmp_path.glob("*.zip"))
+
+
+def test_download_sheet_drops_the_zip_when_the_conversion_fails(
+        monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as zipped:
+        zipped.writestr("conjunto_de_datos/x.xyz", _XYZ)
+    monkeypatch.setattr(requests, "post", lambda *a, **k:
+                        _FakeJsonResponse([{"url_descarga": "https://example.test/s",
+                                            "archivo": "F14D19A1_as.zip, 1 MB"}]))
+    monkeypatch.setattr(requests, "get", lambda *a, **k:
+                        _FakeArchiveResponse(buffer.getvalue()))
+
+    with pytest.raises(RuntimeError, match="lacks XYZ metadata"):
+        dtm_inegi._download_sheet("F14D19A1", tmp_path / "F14D19A1.tif")
+
+    # The persistent cache must not keep the multi-MB download around.
+    assert not list(tmp_path.glob("*.zip"))
+
+
+def test_fetch_skips_a_sheet_the_source_publishes_no_archive_for(
+        monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    def fake_download(key: str, dest: Path) -> None:
+        if key == "GAP":
+            raise dtm_inegi.SheetUnavailable("INEGI catalogue has no ASCII archive")
+        dtm_inegi._write_xyz_grid(_XYZ, _METADATA, dest)
+
+    monkeypatch.setattr(dtm_inegi, "_download_sheet", fake_download)
+    monkeypatch.setattr(dtm_inegi, "_catalogue", lambda: [
+        {"cve": "GAP", "x": -11000000, "y": 2200000},
+        {"cve": "F14D19A1", "x": -11000000, "y": 2200000}])
+
+    paths = dtm_inegi.fetch((-11001000, 2199000, -10999000, 2201000),
+                            tmp_path / "tiles", tmp_path / "cache", "EPSG:3857")
+
+    assert paths == [tmp_path / "tiles" / "F14D19A1.tif"]

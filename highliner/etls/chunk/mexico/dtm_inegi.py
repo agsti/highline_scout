@@ -3,6 +3,12 @@
 INEGI's MDE catalogue distinguishes ``Terreno`` from its surface product; this
 client requests only the 5 m ``Terreno`` sheets, caches their ASCII archives,
 and reprojects selected sheets into the region CRS for the chunk pipeline.
+
+The ASCII product ships in two archive layouts. Most sheets carry POSIX member
+names and a ``<sheet>_mt.txt`` plain-text metadata file; a minority carry
+Windows-separated names and a ``<sheet>_mt_ntm[_x].txt`` file that is really
+XML. Both are handled here, and both dialects of the UTM-zone declaration are
+accepted, because the zone picks the sheet's native CRS.
 """
 import fcntl
 import re
@@ -23,6 +29,16 @@ Bbox = tuple[float, float, float, float]
 CATALOGUE_URL = "https://www.inegi.org.mx/app/geo2/elevacionesmex/getFormato10k.do"
 DETAIL_URL = "https://www.inegi.org.mx/app/geo2/elevacionesmex/getF10KDescarga.do"
 _SHEET_MARGIN_M = 6_000
+_XYZ_MEMBER = re.compile(r"\.xyz$")
+# "<sheet>_mt.txt" in the common layout, "<sheet>_mt_ntm.txt" (or "_ntm_a") in
+# the variant one; the archive-wide "metadato_mdt.txt" must not match.
+_METADATA_MEMBER = re.compile(r"_mt(_ntm[a-z_]*)?\.txt$")
+_UTM_ZONE_PATTERNS = (r"N.mero de zona UTM:\s*(\d+)",
+                      r"<utm_zone>\s*(\d+)\s*</utm_zone>")
+
+
+class SheetUnavailable(RuntimeError):
+    """A catalogued sheet INEGI publishes no ASCII terrain archive for."""
 
 
 def _catalogue() -> list[dict[str, Any]]:
@@ -50,25 +66,40 @@ def _archive_url(records: list[dict[str, Any]]) -> str:
         archive = str(record.get("archivo", ""))
         if "_as.zip" in archive:
             return f"{record['url_descarga']}_as.zip"
-    raise RuntimeError("INEGI catalogue has no ASCII terrain archive")
+    raise SheetUnavailable("INEGI catalogue has no ASCII terrain archive")
+
+
+def _member(names: list[str], pattern: re.Pattern[str]) -> str | None:
+    """Match ``pattern`` against each member's basename, either separator."""
+    for name in names:
+        if pattern.search(name.replace("\\", "/").rsplit("/", 1)[-1].lower()):
+            return name
+    return None
+
+
+def _utm_zone(metadata: bytes) -> int:
+    """Read the sheet's UTM zone from either metadata dialect."""
+    text = metadata.decode("latin-1", errors="replace")
+    for pattern in _UTM_ZONE_PATTERNS:
+        match = re.search(pattern, text)
+        if match is not None:
+            return int(match[1])
+    raise RuntimeError("INEGI terrain metadata has no UTM zone")
 
 
 def _write_xyz_grid(xyz: bytes, metadata: bytes, dest: Path) -> None:
     """Convert INEGI's regular XYZ export into a native-UTM GeoTIFF."""
+    zone = _utm_zone(metadata)
     points = np.loadtxt(xyz.splitlines(), dtype="float32")
     xs = np.unique(points[:, 0])
     ys = np.unique(points[:, 1])
-    match = re.search(r"N.mero de zona UTM:\s*(\d+)",
-                      metadata.decode("latin-1", errors="replace"))
-    if match is None:
-        raise RuntimeError("INEGI terrain metadata has no UTM zone")
     data = np.full((len(ys), len(xs)), NODATA, dtype="float32")
     columns = np.searchsorted(xs, points[:, 0])
     rows = len(ys) - 1 - np.searchsorted(ys, points[:, 1])
     data[rows, columns] = points[:, 2]
     transform = from_origin(float(xs.min()) - 2.5, float(ys.max()) + 2.5, 5, 5)
     with rasterio.open(dest, "w", driver="GTiff", width=len(xs), height=len(ys),
-                       count=1, dtype="float32", crs=f"EPSG:{6355 + int(match[1])}",
+                       count=1, dtype="float32", crs=f"EPSG:{6355 + zone}",
                        transform=transform, nodata=NODATA) as out:
         out.write(data, 1)
 
@@ -79,7 +110,7 @@ def _download_sheet(key: str, dest: Path) -> None:
     response.raise_for_status()
     records = response.json()
     if not records:
-        raise RuntimeError(f"INEGI has no 5 m terrain sheet for {key}")
+        raise SheetUnavailable(f"INEGI has no 5 m terrain sheet for {key}")
     with requests.get(_archive_url(records), stream=True, timeout=300) as archive:
         archive.raise_for_status()
         zip_path = dest.with_suffix(".zip")
@@ -87,15 +118,19 @@ def _download_sheet(key: str, dest: Path) -> None:
             for block in archive.iter_content(1024 * 1024):
                 if block:
                     fh.write(block)
-    with zipfile.ZipFile(zip_path) as zipped:
-        xyz = next((name for name in zipped.namelist()
-                    if name.lower().endswith(".xyz")), None)
-        metadata = next((name for name in zipped.namelist()
-                         if name.lower().endswith("_mt.txt")), None)
-        if xyz is None or metadata is None:
-            raise RuntimeError(f"INEGI terrain archive for {key} lacks XYZ metadata")
-        _write_xyz_grid(zipped.read(xyz), zipped.read(metadata), dest)
-    zip_path.unlink(missing_ok=True)
+    try:
+        with zipfile.ZipFile(zip_path) as zipped:
+            names = zipped.namelist()
+            xyz = _member(names, _XYZ_MEMBER)
+            metadata = _member(names, _METADATA_MEMBER)
+            if xyz is None or metadata is None:
+                raise RuntimeError(
+                    f"INEGI terrain archive for {key} lacks XYZ metadata")
+            _write_xyz_grid(zipped.read(xyz), zipped.read(metadata), dest)
+    finally:
+        # Never leave the multi-MB download in the persistent cache: only the
+        # .tif is looked up on the next run, so a stale .zip is pure leak.
+        zip_path.unlink(missing_ok=True)
 
 
 def _cached_sheet(key: str, cache_dir: Path) -> Path:
@@ -123,6 +158,15 @@ def _reproject(source: Path, dest: Path, crs: str) -> Path:
     return dest
 
 
+def _sheet_tile(key: str, tiles_dir: Path, cache_dir: Path, crs: str) -> Path | None:
+    """Reproject one sheet, or None where the source publishes no archive."""
+    try:
+        source = _cached_sheet(key, cache_dir)
+    except SheetUnavailable:
+        return None
+    return _reproject(source, tiles_dir / f"{key}.tif", crs)
+
+
 def fetch(bbox: Bbox, tiles_dir: Path, cache_dir: Path | None,
           crs: str) -> list[Path]:
     """Fetch, cache, and reproject INEGI 5 m terrain sheets for one chunk."""
@@ -131,6 +175,5 @@ def fetch(bbox: Bbox, tiles_dir: Path, cache_dir: Path | None,
     tiles_dir = Path(tiles_dir)
     tiles_dir.mkdir(parents=True, exist_ok=True)
     keys = _sheet_keys_for_bbox(_catalogue(), bbox, crs)
-    return [_reproject(_cached_sheet(key, Path(cache_dir)),
-                       tiles_dir / f"{key}.tif", crs)
-            for key in keys]
+    tiles = [_sheet_tile(key, tiles_dir, Path(cache_dir), crs) for key in keys]
+    return [tile for tile in tiles if tile is not None]

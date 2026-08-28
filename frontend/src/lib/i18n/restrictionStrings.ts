@@ -113,6 +113,13 @@ export const RESTRICTION_STRINGS: Partial<Record<Lang, Record<string, Restrictio
       highlight:
         "El acceso, el camping y la instalación dependen del propietario, no de un organismo público; consigue su permiso antes de instalar.",
     },
+    mx_anp: {
+      label: "Áreas naturales protegidas federales (CONANP)",
+      tooltip:
+        "Área natural protegida federal designada por la CONANP de México. El acceso, la escalada, los anclajes, el vivac y los eventos pueden estar regulados por el decreto y el plan de gestión; consulta a la administración del espacio antes de instalar.",
+      highlight:
+        "El acceso, la escalada, los anclajes, el vivac y los eventos pueden estar regulados por el decreto y el plan de gestión; consulta a la administración del espacio antes de instalar.",
+    },
   },
   ca: {
     zepa: {
@@ -219,6 +226,13 @@ export const RESTRICTION_STRINGS: Partial<Record<Lang, Record<string, Restrictio
         "Terreny de conservació privat o comunitari, o altre terreny estatal protegit fora del SNASPE. L'accés, l'acampada i la instal·lació depenen del propietari, no d'un organisme públic; aconseguiu el seu permís abans d'instal·lar.",
       highlight:
         "L'accés, l'acampada i la instal·lació depenen del propietari, no d'un organisme públic; aconseguiu el seu permís abans d'instal·lar.",
+    },
+    mx_anp: {
+      label: "Àrees naturals protegides federals (CONANP)",
+      tooltip:
+        "Àrea natural protegida federal designada per la CONANP de Mèxic. L'accés, l'escalada, els ancoratges, el vivac i els esdeveniments poden estar regulats pel decret i el pla de gestió; consulteu l'administració de l'espai abans d'instal·lar.",
+      highlight:
+        "L'accés, l'escalada, els ancoratges, el vivac i els esdeveniments poden estar regulats pel decret i el pla de gestió; consulteu l'administració de l'espai abans d'instal·lar.",
     },
   },
 };

@@ -13,10 +13,28 @@ CRS = "EPSG:32633"
 _SOURCE_NODATA = 0
 Bbox = tuple[float, float, float, float]
 
+# The coverage's published envelope (DescribeCoverage, EPSG:32633), rounded
+# inward to whole metres. Rasdaman rejects a GetCoverage subset reaching
+# outside it with a 404 "InvalidSubsetting" rather than clipping, and the
+# region bbox overhangs the coverage on all four sides before the chunk halo
+# pushes it out further, so every request is trimmed to this box.
+_COVERAGE_BBOX: Bbox = (425_918, 3_959_779, 461_967, 3_993_828)
+
 
 def _coord(value: float) -> str:
     """Format WCS subset coordinates without scientific notation."""
     return f"{value:.3f}".rstrip("0").rstrip(".")
+
+
+def _clamp_to_coverage(bbox: Bbox) -> Bbox | None:
+    """Trim a request to the coverage envelope, or None if it falls outside."""
+    minx = max(bbox[0], _COVERAGE_BBOX[0])
+    miny = max(bbox[1], _COVERAGE_BBOX[1])
+    maxx = min(bbox[2], _COVERAGE_BBOX[2])
+    maxy = min(bbox[3], _COVERAGE_BBOX[3])
+    if maxx <= minx or maxy <= miny:
+        return None
+    return (minx, miny, maxx, maxy)
 
 
 def _rewrite_nodata(path: Path) -> None:
@@ -35,7 +53,10 @@ def fetch_pa_wcs(bbox: Bbox, tiles_dir: Path, crs: str) -> list[Path]:
     """Download one 4.8 m DTM subset as a temporary GeoTIFF."""
     if crs != CRS:
         raise RuntimeError(f"Malta PA DTM is published in {CRS}, not {crs}")
-    minx, miny, maxx, maxy = bbox
+    subset = _clamp_to_coverage(bbox)
+    if subset is None:
+        return []
+    minx, miny, maxx, maxy = subset
     response = requests.get(WCS_URL, params={
         "service": "WCS", "version": "2.1.0", "request": "GetCoverage",
         "coverageId": COVERAGE_ID,

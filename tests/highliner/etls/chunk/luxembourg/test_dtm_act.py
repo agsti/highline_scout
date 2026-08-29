@@ -1,10 +1,31 @@
 import zipfile
 from pathlib import Path
 
+import numpy as np
 import pytest
+import rasterio
 import requests
+from rasterio.transform import from_origin
 
 from highliner.etls.chunk.luxembourg import dtm_act
+
+# The archive's national GeoTIFF member; the adapter selects members by
+# extension rather than by name, so this lives here rather than in source.
+MEMBER = "ACT2019_MNT_EPSG2169.tif"
+CACHED_TERRAIN = dtm_act._cached_name(MEMBER)
+
+
+def _geotiff_bytes(tmp: Path, size: int = 20, res: float = 0.5) -> bytes:
+    """A real single-band 0.5 m LUREF GeoTIFF, as archive-member bytes."""
+    path = tmp / "member-src.tif"
+    profile = {"driver": "GTiff", "width": size, "height": size, "count": 1,
+               "dtype": "float32", "crs": "EPSG:2169", "nodata": -9999.0,
+               "transform": from_origin(48_000, 57_000, res, res)}
+    with rasterio.open(path, "w", **profile) as dst:
+        dst.write(np.full((size, size), 300.0, dtype="float32"), 1)
+    payload = path.read_bytes()
+    path.unlink()
+    return payload
 
 
 def test_act_fetch_requires_cache_dir(tmp_path: Path) -> None:
@@ -15,11 +36,10 @@ def test_act_fetch_requires_cache_dir(tmp_path: Path) -> None:
 
 def test_act_fetch_reuses_cached_terrain_file(
         tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    cached = tmp_path / "act_mnt" / dtm_act.TERRAIN_FILENAME
-    cached.parent.mkdir()
+    cached = tmp_path / "act_mnt" / "terrain" / CACHED_TERRAIN
+    cached.parent.mkdir(parents=True)
     cached.write_bytes(b"terrain")
 
-    monkeypatch.setattr(dtm_act, "_complete", lambda path: path == cached)
     monkeypatch.setattr(dtm_act, "_install", lambda path: pytest.fail("network"))
 
     assert dtm_act.fetch((48_000, 56_000, 49_000, 57_000), tmp_path, tmp_path,
@@ -120,7 +140,8 @@ def _archive(path: Path, members: dict[str, bytes]) -> None:
 def test_act_install_keeps_only_the_geotiff_members(
         tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     archive = tmp_path / "act_lidar_2019_mnt.zip"
-    _archive(archive, {f"nested/{dtm_act.TERRAIN_FILENAME}": b"II*\x00terrain",
+    _archive(archive, {f"nested/{MEMBER}":
+                       _geotiff_bytes(tmp_path),
                        "readme.txt": b"licence"})
     monkeypatch.setattr(dtm_act, "DTM_SIZE", archive.stat().st_size)
     monkeypatch.setattr(dtm_act, "_download",
@@ -129,9 +150,7 @@ def test_act_install_keeps_only_the_geotiff_members(
     dtm_act._install(tmp_path)
 
     terrain = tmp_path / "terrain"
-    assert [path.name for path in sorted(terrain.iterdir())] == [
-        dtm_act.TERRAIN_FILENAME]
-    assert (terrain / dtm_act.TERRAIN_FILENAME).read_bytes() == b"II*\x00terrain"
+    assert [path.name for path in sorted(terrain.iterdir())] == [CACHED_TERRAIN]
 
 
 def test_act_install_rejects_an_archive_without_a_geotiff(
@@ -150,13 +169,13 @@ def test_act_install_downloads_when_the_archive_is_the_wrong_size(
     archive.write_bytes(b"truncated")
 
     def fake_download(dest: Path) -> None:
-        _archive(dest, {dtm_act.TERRAIN_FILENAME: b"II*\x00terrain"})
+        _archive(dest, {MEMBER: _geotiff_bytes(tmp_path)})
 
     monkeypatch.setattr(dtm_act, "_download", fake_download)
 
     dtm_act._install(tmp_path)
 
-    assert (tmp_path / "terrain" / dtm_act.TERRAIN_FILENAME).exists()
+    assert (tmp_path / "terrain" / CACHED_TERRAIN).exists()
 
 
 def test_act_fetch_rejects_a_foreign_crs(tmp_path: Path) -> None:
@@ -170,8 +189,8 @@ def test_act_fetch_installs_then_returns_every_cached_geotiff(
     def fake_install(root: Path) -> None:
         terrain = root / "terrain"
         terrain.mkdir(parents=True, exist_ok=True)
-        (terrain / "b.tif").write_bytes(b"II*\x00b")
-        (terrain / "a.tif").write_bytes(b"II*\x00a")
+        (terrain / f"b{dtm_act._CACHED_SUFFIX}").write_bytes(b"II*\x00b")
+        (terrain / f"a{dtm_act._CACHED_SUFFIX}").write_bytes(b"II*\x00a")
 
     monkeypatch.setattr(dtm_act, "_install", fake_install)
 
@@ -179,7 +198,8 @@ def test_act_fetch_installs_then_returns_every_cached_geotiff(
                           "EPSG:2169")
 
     terrain = tmp_path / "act_mnt" / "terrain"
-    assert paths == [terrain / "a.tif", terrain / "b.tif"]
+    assert paths == [terrain / f"a{dtm_act._CACHED_SUFFIX}",
+                     terrain / f"b{dtm_act._CACHED_SUFFIX}"]
 
 
 def test_act_fetch_raises_when_the_install_produced_no_geotiff(
@@ -189,3 +209,74 @@ def test_act_fetch_raises_when_the_install_produced_no_geotiff(
     with pytest.raises(RuntimeError, match="produced no GeoTIFF"):
         dtm_act.fetch((48_000, 56_000, 49_000, 57_000), tmp_path, tmp_path,
                       "EPSG:2169")
+
+
+def test_act_install_resamples_the_half_metre_source_to_the_5m_grid(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """0.5 m would merge a 12.1 km chunk halo at ~24,000 px per side."""
+    archive = tmp_path / "act_lidar_2019_mnt.zip"
+    _archive(archive, {MEMBER: _geotiff_bytes(tmp_path)})
+    monkeypatch.setattr(dtm_act, "DTM_SIZE", archive.stat().st_size)
+
+    dtm_act._install(tmp_path)
+
+    with rasterio.open(tmp_path / "terrain" / CACHED_TERRAIN) as cached:
+        assert cached.res == (dtm_act.RES, dtm_act.RES)
+        assert (cached.width, cached.height) == (2, 2)      # 20 px at 0.5 m
+        assert cached.nodata == dtm_act.NODATA
+        assert np.allclose(cached.read(1), 300.0)
+
+
+def test_act_install_streams_members_instead_of_reading_them_whole(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """ZipFile.read() would hold a whole national 0.5 m member in RAM."""
+    archive = tmp_path / "act_lidar_2019_mnt.zip"
+    _archive(archive, {MEMBER: _geotiff_bytes(tmp_path)})
+    monkeypatch.setattr(dtm_act, "DTM_SIZE", archive.stat().st_size)
+    monkeypatch.setattr(
+        zipfile.ZipFile, "read",
+        lambda *_args, **_kwargs: pytest.fail("member read into memory whole"))
+
+    dtm_act._install(tmp_path)
+
+    assert (tmp_path / "terrain" / CACHED_TERRAIN).exists()
+
+
+def test_act_install_drops_the_archive_and_the_half_metre_original(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    archive = tmp_path / "act_lidar_2019_mnt.zip"
+    _archive(archive, {MEMBER: _geotiff_bytes(tmp_path)})
+    monkeypatch.setattr(dtm_act, "DTM_SIZE", archive.stat().st_size)
+
+    dtm_act._install(tmp_path)
+
+    assert not archive.exists()
+    assert [path.name for path in sorted((tmp_path / "terrain").iterdir())] == [
+        CACHED_TERRAIN]
+
+
+def test_act_install_returns_early_once_the_5m_cache_is_populated(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Resume must not re-download 27 GB for an archive already resampled."""
+    terrain = tmp_path / "terrain"
+    terrain.mkdir()
+    (terrain / CACHED_TERRAIN).write_bytes(b"II*\x00cached")
+    monkeypatch.setattr(dtm_act, "_download",
+                        lambda _dest: pytest.fail("re-downloaded the archive"))
+
+    dtm_act._install(tmp_path)
+
+    assert (terrain / CACHED_TERRAIN).read_bytes() == b"II*\x00cached"
+
+
+def test_act_extract_member_leaves_no_raw_file_when_resampling_fails(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    archive = tmp_path / "act_lidar_2019_mnt.zip"
+    _archive(archive, {MEMBER: b"not-a-geotiff"})
+    monkeypatch.setattr(dtm_act, "DTM_SIZE", archive.stat().st_size)
+
+    with pytest.raises(rasterio.errors.RasterioIOError):
+        dtm_act._install(tmp_path)
+
+    assert list((tmp_path / "terrain").iterdir()) == []
+    assert archive.exists()      # kept, so the retry need not re-download

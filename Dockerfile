@@ -36,7 +36,7 @@ WORKDIR /app
 # that provides /usr/bin/7z; plain p7zip only gives 7zr.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
-        ca-certificates curl git unar p7zip-full \
+        ca-certificates curl git p7zip-full unar \
     && curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh \
         | bash -s -- --to /usr/local/bin \
     && rm -rf /var/lib/apt/lists/*

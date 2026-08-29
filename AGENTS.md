@@ -40,6 +40,10 @@ Chile's chunk ETL (`highliner/etls/chunk/chile/dtm_alos.py`) shells out to the
 `brew install unar`) — some of the archives' sidecar files use a RAR
 compression method `py7zr`/`7z` can't read, but `unar` handles every member.
 
+Ireland's chunk ETL (`highliner/etls/chunk/ireland/dtm_gsi.py`) shells out to
+the `7z` CLI to extract GSI's 7z LiDAR archives (`apt-get install p7zip-full` /
+`brew install p7zip`).
+
 For an isolated git worktree, create a separate `.venv` and run the same dev
 install there. Do not symlink a worktree's `.venv` to another checkout: virtual
 environment paths are checkout-specific. `uv` shares its download/build cache

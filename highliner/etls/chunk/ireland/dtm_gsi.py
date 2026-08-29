@@ -130,6 +130,32 @@ def _resample(raw: Path, dest: Path) -> None:
     part.replace(dest)
 
 
+def _raster_member(extracted: Path, name: str) -> Path:
+    """Pick an archive's bare-earth GeoTIFF, whatever case GSI shipped it in.
+
+    The Phase 2 catalogue mixes two conventions: ``P_######`` archives hold a
+    lowercase ``P_602766.tif``, while the ``AE_``/``AW_``/``B1_``/``B2_``/
+    ``GL_``/``GW_`` ones hold an uppercase ``AW_0.TIF`` beside a same-stem
+    ``.TIF.ovr`` overview pyramid and a ``.TIF.aux.xml`` sidecar. Comparing the
+    final suffix case-insensitively matches both spellings and drops those two
+    sidecars, whose own suffix is ``.ovr``/``.xml`` — resampling the overview
+    would be worse than the old crash, silently precomputing the region off a
+    downsampled raster. Preferring the member named after the archive keeps the
+    choice deterministic instead of taking whatever the walk yielded first.
+    """
+    rasters = sorted(path for path in extracted.rglob("*")
+                     if path.is_file() and path.suffix.lower() == ".tif")
+    named = [path for path in rasters if path.stem.lower() == name.lower()]
+    if named:
+        return named[0]
+    if not rasters:
+        raise RuntimeError(f"GSI archive {name} holds no bare-earth GeoTIFF")
+    if len(rasters) > 1:
+        raise RuntimeError(f"GSI archive {name} holds {len(rasters)} rasters, "
+                           "none named after it")
+    return rasters[0]
+
+
 def _materialize(url: str, name: str, root: Path) -> Path:
     """Download one archive once and retain only its 5 m bare-earth raster."""
     dest = root / f"{name}.tif"
@@ -146,8 +172,7 @@ def _materialize(url: str, name: str, root: Path) -> Path:
             _download(url, archive)
             subprocess.run(["7z", "x", f"-o{extracted}", str(archive)],
                            check=True, capture_output=True)
-            raw = next(extracted.rglob("*.tif"))
-            _resample(raw, dest)
+            _resample(_raster_member(extracted, name), dest)
         finally:
             archive.unlink(missing_ok=True)
             for path in sorted(extracted.rglob("*"), reverse=True):

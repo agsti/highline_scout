@@ -263,6 +263,42 @@ def test_materialize_cleans_up_scratch_when_extraction_fails(
     assert not (tmp_path / "P_2.7z.part").exists()
 
 
+def test_raster_member_takes_the_uppercase_tif_over_its_overview(
+        tmp_path: Path) -> None:
+    # 56 of the 144 Phase 2 archives look like this: uppercase raster plus a
+    # reduced-resolution .TIF.ovr pyramid and an .aux.xml sidecar beside it.
+    member = tmp_path / "AW_0"
+    member.mkdir()
+    for leaf in ("AW_0.TIF", "AW_0.TIF.ovr", "AW_0.TIF.aux.xml", "AW_0.TFw"):
+        (member / leaf).write_bytes(b"")
+
+    assert dtm_gsi._raster_member(tmp_path, "AW_0") == member / "AW_0.TIF"
+
+
+def test_raster_member_falls_back_to_a_sole_differently_named_raster(
+        tmp_path: Path) -> None:
+    (tmp_path / "survey.tif").write_bytes(b"")
+
+    assert dtm_gsi._raster_member(tmp_path, "P_1") == tmp_path / "survey.tif"
+
+
+def test_raster_member_rejects_an_archive_without_a_geotiff(
+        tmp_path: Path) -> None:
+    (tmp_path / "Copyright_and_Licence.txt").write_text("cc-by")
+
+    with pytest.raises(RuntimeError, match="no bare-earth GeoTIFF"):
+        dtm_gsi._raster_member(tmp_path, "AW_0")
+
+
+def test_raster_member_refuses_to_guess_between_unnamed_rasters(
+        tmp_path: Path) -> None:
+    (tmp_path / "north.tif").write_bytes(b"")
+    (tmp_path / "south.TIF").write_bytes(b"")
+
+    with pytest.raises(RuntimeError, match="holds 2 rasters"):
+        dtm_gsi._raster_member(tmp_path, "AW_0")
+
+
 def test_fetch_scopes_the_catalogue_root_and_restores_it(
         monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     seen: list[Path | None] = []

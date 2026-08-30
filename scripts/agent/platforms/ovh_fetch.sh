@@ -31,9 +31,11 @@ list_runs() {
         | sort -u
 }
 
+# Server-side prefix: the bucket holds hundreds of thousands of objects once a
+# large country has run, and listing it whole takes minutes.
 list_one() {
-    ovhai bucket object list "$STORE" 2>/dev/null \
-        | awk -v run="runs/$1/" '$4 ~ run {print $2, $3, $4}'
+    ovhai bucket object list "$STORE" --prefix "runs/$1/" 2>/dev/null \
+        | tail -n +2 | awk '{print $2, $3, $4}'
 }
 
 ONLY=""
@@ -68,10 +70,11 @@ esac
 RUN_ID="$1"
 DEST="${2:-.}"
 
-if ! list_runs | grep -qx "$RUN_ID"; then
+# Check by prefix, not by scanning the bucket: a full listing is minutes once a
+# large country has run, and it used to make every fetch look like a hang.
+if [ -z "$(list_one "$RUN_ID" | head -1)" ]; then
     echo "ovh_fetch.sh: no run '$RUN_ID' in $STORE" >&2
-    echo "known runs:" >&2
-    list_runs | sed 's/^/  /' >&2
+    echo "run 'ovh_fetch.sh --list' to see what is there" >&2
     exit 1
 fi
 

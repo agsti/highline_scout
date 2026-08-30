@@ -30,9 +30,13 @@ FROM python:3.12-slim-bookworm AS runner
 
 WORKDIR /app
 
+# unar and 7z are both needed and neither substitutes for the other: Chile's
+# RAR sidecars use a compression method 7z cannot read, while Ireland's GSI
+# LiDAR ships .7z archives that unar does not handle. p7zip-full is the package
+# that provides /usr/bin/7z; plain p7zip only gives 7zr.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
-        ca-certificates curl git unar \
+        ca-certificates curl git unar p7zip-full \
     && curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh \
         | bash -s -- --to /usr/local/bin \
     && rm -rf /var/lib/apt/lists/*
@@ -49,10 +53,10 @@ ENV PATH="/app/.venv/bin:$PATH" \
     UV_CACHE_DIR=/app/.cache/uv \
     PYTHONUNBUFFERED=1
 
-# The image is built as root but AI Training runs the container as an
-# arbitrary non-root UID, so every path the job writes has to be world-writable.
-# That includes /app/cache, which the ocean bake above creates root-owned:
-# without this a run dies on `mkdir cache/<country>` for its DTM tiles.
+# The ocean prebuild above populates /app/cache as root, and the platform runs
+# the job as an arbitrary non-root UID, so that tree has to be group/other
+# writable too — otherwise a country ETL cannot create its cache/<country>/.
+# /app/data gets the same treatment: the ETLs write their parquet output there.
 RUN mkdir -p /artifacts /app/.cache/uv /app/cache /app/data \
     && chmod -R a+rwX /app/.venv /app/cache \
     && chmod 0777 /app /artifacts /app/.cache /app/.cache/uv /app/cache /app/data

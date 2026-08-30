@@ -113,6 +113,13 @@ export const RESTRICTION_STRINGS: Partial<Record<Lang, Record<string, Restrictio
       highlight:
         "El acceso, el camping y la instalación dependen del propietario, no de un organismo público; consigue su permiso antes de instalar.",
     },
+    ad_natural_parks: {
+      label: "Parques naturales de Andorra",
+      tooltip:
+        "Parque natural comunal andorrano (Comapedrosa o Sorteny). El highline no está prohibido automáticamente, pero el acceso, los anclajes, el vivac, los drones y las actividades organizadas pueden estar regulados; consulta a la dirección del parque antes de instalar.",
+      highlight:
+        "El highline no está prohibido automáticamente, pero el acceso, los anclajes, el vivac, los drones y las actividades organizadas pueden estar regulados; consulta a la dirección del parque antes de instalar.",
+    },
   },
   ca: {
     zepa: {
@@ -219,6 +226,13 @@ export const RESTRICTION_STRINGS: Partial<Record<Lang, Record<string, Restrictio
         "Terreny de conservació privat o comunitari, o altre terreny estatal protegit fora del SNASPE. L'accés, l'acampada i la instal·lació depenen del propietari, no d'un organisme públic; aconseguiu el seu permís abans d'instal·lar.",
       highlight:
         "L'accés, l'acampada i la instal·lació depenen del propietari, no d'un organisme públic; aconseguiu el seu permís abans d'instal·lar.",
+    },
+    ad_natural_parks: {
+      label: "Parcs naturals d'Andorra",
+      tooltip:
+        "Parc natural comunal andorrà (Comapedrosa o Sorteny). El highline no està prohibit automàticament, però l'accés, els ancoratges, el vivac, els drons i les activitats organitzades poden estar regulats; consulteu la direcció del parc abans d'instal·lar.",
+      highlight:
+        "El highline no està prohibit automàticament, però l'accés, els ancoratges, el vivac, els drons i les activitats organitzades poden estar regulats; consulteu la direcció del parc abans d'instal·lar.",
     },
   },
 };

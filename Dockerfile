@@ -56,9 +56,10 @@ ENV PATH="/app/.venv/bin:$PATH" \
 # The ocean prebuild above populates /app/cache as root, and the platform runs
 # the job as an arbitrary non-root UID, so that tree has to be group/other
 # writable too — otherwise a country ETL cannot create its cache/<country>/.
-RUN mkdir -p /artifacts /app/.cache/uv /app/cache \
+# /app/data gets the same treatment: the ETLs write their parquet output there.
+RUN mkdir -p /artifacts /app/.cache/uv /app/cache /app/data \
     && chmod -R a+rwX /app/.venv /app/cache \
-    && chmod 0777 /app /artifacts /app/.cache /app/.cache/uv /app/cache
+    && chmod 0777 /app /artifacts /app/.cache /app/.cache/uv /app/cache /app/data
 
 ENTRYPOINT ["/app/entrypoint.sh"]
 

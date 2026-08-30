@@ -212,4 +212,15 @@ LAYERS: dict[str, LayerSpec] = {
                       "discretion, not a public agency's; get the owner's "
                       "permission before rigging."),
     },
+    "ad_natural_parks": {
+        "label": "Andorran Natural Parks",
+        "color": "#6a3d9a",
+        "tooltip": ("Andorran communal natural park (Comapedrosa or Sorteny). "
+                    "Highlining is not automatically prohibited, but access, "
+                    "anchoring, bivouacking, drones and organized activity can "
+                    "be regulated; check with the park management before rigging."),
+        "highlight": ("Highlining is not automatically prohibited, but access, "
+                      "anchoring, bivouacking, drones and organized activity can "
+                      "be regulated; check with the park management before rigging."),
+    },
 }

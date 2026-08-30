@@ -49,7 +49,7 @@ class DensityCells:
     off: NDArray[np.int64]
     hl: NDArray[np.int16]
     he: NDArray[np.int16]
-    hm: NDArray[np.int16]
+    hm: NDArray[np.int32]
     hc: NDArray[np.int32]
 
     def select(self, zoom: int, view: LonLatBox,

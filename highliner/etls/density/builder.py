@@ -193,7 +193,9 @@ def _write_zoom(path: Path, zoom: int, cells: dict[CellKey, CellSummary],
         off=off,
         hl=np.array([key[0] for key, _ in flat], dtype=np.int16),
         he=np.array([key[1] for key, _ in flat], dtype=np.int16),
-        hm=np.array([key[2] for key, _ in flat], dtype=np.int16),
+        # int32, not int16: the restriction-layer mask is a bit per layer and
+        # the 16th layer (32768) already overflows a signed 16-bit field.
+        hm=np.array([key[2] for key, _ in flat], dtype=np.int32),
         hc=np.array([value for _, value in flat], dtype=np.int32),
     )
     tmp.replace(path)

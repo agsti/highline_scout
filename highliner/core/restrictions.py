@@ -47,6 +47,18 @@ LAYERS: dict[str, LayerSpec] = {
                       "often regulated and may need authorization from the "
                       "managing body."),
     },
+    "pf_protected": {
+        "label": "Protected Areas (French Polynesia)",
+        "color": "#6a3d9a",
+        "tooltip": ("Protected natural area in French Polynesia, including a "
+                    "Ramsar wetland or UNESCO biosphere reserve. Access and "
+                    "wildlife-disturbance rules may restrict climbing, anchors "
+                    "or organized activity; check with the local managing body "
+                    "before rigging."),
+        "highlight": ("Access and wildlife-disturbance rules may restrict "
+                      "climbing, anchors or organized activity; check with the "
+                      "local managing body before rigging."),
+    },
     # Italy. Same semantics as the Spanish layers above (birds / habitats /
     # national protected areas), so they share those layers' colors — the two
     # countries never overlap on the map.

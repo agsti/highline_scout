@@ -1,0 +1,1 @@
+"""Slovenia chunk-precompute adapter."""
